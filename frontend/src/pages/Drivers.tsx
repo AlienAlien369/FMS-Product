@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import api, { Driver, PagedResult } from '../lib/api';
+import api from '../lib/api';
+import type { Driver, PagedResult } from '../lib/api';
 import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Drivers() {

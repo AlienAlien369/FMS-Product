@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import api, { AuthResponse, AuthState } from '../lib/api';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import api from '../lib/api';
+import type { AuthResponse, AuthState } from '../lib/api';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
@@ -23,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post<{ data: AuthResponse }>('/auth/login', { email, password });
+    const res = await api.post<import('../lib/api').ApiResponse<AuthResponse>>('/auth/login', { email, password });
     const { token, refreshToken, user } = res.data.data!;
     localStorage.setItem('token', token);
     localStorage.setItem('refreshToken', refreshToken);

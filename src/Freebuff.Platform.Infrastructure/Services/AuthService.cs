@@ -40,13 +40,11 @@ public class AuthService : IAuthService
         if (user.Status != EntityStatus.Active)
             return null;
 
-        // Update last login
-        user.LastLoginAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
+        // Update last login + refresh token in a single SaveChanges call
         var token = GenerateJwtToken(user);
         var refreshToken = GenerateRefreshToken();
 
+        user.LastLoginAt = DateTime.UtcNow;
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiry = DateTime.UtcNow.AddDays(7);
         await _db.SaveChangesAsync();
@@ -77,10 +75,12 @@ public class AuthService : IAuthService
         var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId == null) return null;
 
+        if (!Guid.TryParse(userId, out var userGuid)) return null;
+
         var user = await _db.Users
             .Include(u => u.Company)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == Guid.Parse(userId));
+            .FirstOrDefaultAsync(u => u.Id == userGuid);
 
         if (user == null || user.IsDeleted || user.RefreshToken != request.RefreshToken)
             return null;
@@ -115,8 +115,11 @@ public class AuthService : IAuthService
 
     public string GenerateJwtToken(User user)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _config["Jwt:Key"] ?? throw new InvalidOperationException("JWT key not configured")));
+        var jwtKey = _config["Jwt:Key"];
+        if (string.IsNullOrEmpty(jwtKey) || jwtKey.Length < 32)
+            throw new InvalidOperationException("JWT key not configured or too short (min 32 chars)");
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
         var claims = new List<Claim>
         {
@@ -159,8 +162,10 @@ public class AuthService : IAuthService
 
     private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _config["Jwt:Key"] ?? ""));
+        var jwtKey = _config["Jwt:Key"];
+        if (string.IsNullOrEmpty(jwtKey)) return null;
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
         var handler = new JwtSecurityTokenHandler();
         try

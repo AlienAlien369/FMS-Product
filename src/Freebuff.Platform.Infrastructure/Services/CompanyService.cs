@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Application.Interfaces;
 using Freebuff.Platform.Domain.Common;
@@ -13,15 +12,25 @@ namespace Freebuff.Platform.Infrastructure.Services;
 public class CompanyService : ICrudService<CompanyDto, CreateCompanyDto, UpdateCompanyDto, PagedRequest>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ITenantContext _tenant;
 
-    public CompanyService(ApplicationDbContext db) => _db = db;
+    public CompanyService(ApplicationDbContext db, ITenantContext tenant)
+    {
+        _db = db;
+        _tenant = tenant;
+    }
 
     public async Task<CompanyDto?> GetByIdAsync(Guid id)
     {
-        var entity = await _db.Companies
+        var query = _db.Companies
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+            .Where(c => c.Id == id && !c.IsDeleted);
 
+        // Non-SuperAdmin can only see their own company
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(c => c.Id == _tenant.TenantId.Value);
+
+        var entity = await query.FirstOrDefaultAsync();
         return entity == null ? null : MapToDto(entity);
     }
 
@@ -31,6 +40,10 @@ public class CompanyService : ICrudService<CompanyDto, CreateCompanyDto, UpdateC
             .AsNoTracking()
             .Where(c => !c.IsDeleted)
             .AsQueryable();
+
+        // Non-SuperAdmin can only see their own company
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(c => c.Id == _tenant.TenantId.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(c => c.Name.Contains(filter.Search) || (c.Slug != null && c.Slug.Contains(filter.Search)));
@@ -105,6 +118,10 @@ public class CompanyService : ICrudService<CompanyDto, CreateCompanyDto, UpdateC
         var company = await _db.Companies.FindAsync(id);
         if (company == null || company.IsDeleted) return null;
 
+        // Non-SuperAdmin can only update their own company
+        if (!_tenant.IsSuperAdmin && company.Id != _tenant.TenantId)
+            return null;
+
         if (dto.Name != null) company.Name = dto.Name;
         if (dto.ContactEmail != null) company.ContactEmail = dto.ContactEmail;
         if (dto.ContactPhone != null) company.ContactPhone = dto.ContactPhone;
@@ -125,6 +142,9 @@ public class CompanyService : ICrudService<CompanyDto, CreateCompanyDto, UpdateC
         var company = await _db.Companies.FindAsync(id);
         if (company == null || company.IsDeleted) return false;
 
+        // Only SuperAdmin can delete companies
+        if (!_tenant.IsSuperAdmin) return false;
+
         company.IsDeleted = true;
         company.DeletedAt = DateTime.UtcNow;
         company.DeletedBy = userId;
@@ -138,6 +158,9 @@ public class CompanyService : ICrudService<CompanyDto, CreateCompanyDto, UpdateC
         var company = await _db.Companies.IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == id && c.IsDeleted);
         if (company == null) return false;
+
+        // Only SuperAdmin can restore companies
+        if (!_tenant.IsSuperAdmin) return false;
 
         company.IsDeleted = false;
         company.DeletedAt = null;

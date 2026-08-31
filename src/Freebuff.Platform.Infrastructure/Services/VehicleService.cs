@@ -21,11 +21,16 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<VehicleDto?> GetByIdAsync(Guid id)
     {
-        var entity = await _db.Vehicles
+        var query = _db.Vehicles
             .AsNoTracking()
             .Include(v => v.Driver)
-            .FirstOrDefaultAsync(v => v.Id == id && !v.IsDeleted);
+            .Where(v => v.Id == id && !v.IsDeleted);
 
+        // Enforce tenant isolation
+        if (_tenant.TenantId.HasValue)
+            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+
+        var entity = await query.FirstOrDefaultAsync();
         return entity == null ? null : MapToDto(entity);
     }
 

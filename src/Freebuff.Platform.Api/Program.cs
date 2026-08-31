@@ -125,12 +125,14 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-// ── Auto-migrate in development ──────────────────────────
+// ── Auto-setup database in development ───────────────────
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    // EnsureCreated creates schema from model (dev only; use Migrations in production)
+    await db.Database.EnsureCreatedAsync();
+    await Freebuff.Platform.Infrastructure.Data.SeedData.SeedAsync(db);
 }
 
 app.Run();

@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
 import Vehicles from './pages/Vehicles';
 import Drivers from './pages/Drivers';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient();
 

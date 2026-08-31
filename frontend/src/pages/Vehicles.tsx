@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import api, { Vehicle, PagedResult } from '../lib/api';
-import { Search, Plus, Edit, Trash2, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import api from '../lib/api';
+import type { Vehicle, PagedResult } from '../lib/api';
+import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Vehicles() {
   const [data, setData] = useState<PagedResult<Vehicle> | null>(null);

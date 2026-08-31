@@ -23,6 +23,9 @@ public class UserService : ICrudService<UserDto, CreateUserDto, UpdateUserDto, P
 
         return user == null ? null : MapToDto(user);
     }
+    // NOTE: User isolation should be enforced at the API controller level
+    // via [Authorize] + tenant check, since a user may legitimately query
+    // users from their own company for admin purposes.
 
     public async Task<PagedResult<UserDto>> GetListAsync(PagedRequest filter)
     {

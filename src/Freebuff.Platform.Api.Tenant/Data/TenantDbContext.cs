@@ -29,7 +29,7 @@ public class TenantDbContext : DbContext
 
         modelBuilder.Entity<Company>(b =>
         {
-            b.HasIndex(c => c.Slug).IsUnique().HasFilter("\"Slug\" IS NOT NULL");
+            b.HasIndex(c => c.Slug).IsUnique();
             b.Property(c => c.Name).HasMaxLength(200).IsRequired();
             b.HasQueryFilter(c => !c.IsDeleted);
         });
@@ -60,6 +60,20 @@ public class TenantDbContext : DbContext
             b.HasIndex(f => new { f.ModuleId, f.Code }).IsUnique();
             b.HasQueryFilter(f => !f.IsDeleted);
         });
+
+        // Ignore ambiguous one-to-one navigation
+        modelBuilder.Entity<Company>().Ignore(c => c.Subscription);
+        modelBuilder.Entity<Company>().Ignore(c => c.Package);
+        modelBuilder.Entity<Company>().Ignore(c => c.Users);
+        modelBuilder.Entity<Company>().Ignore(c => c.Vehicles);
+        modelBuilder.Entity<Company>().Ignore(c => c.Drivers);
+        modelBuilder.Entity<Company>().Ignore(c => c.Clients);
+        modelBuilder.Entity<Company>().Ignore(c => c.Geofences);
+        modelBuilder.Entity<Company>().Ignore(c => c.Trips);
+        modelBuilder.Entity<Company>().Ignore(c => c.Roles);
+        modelBuilder.Entity<Company>().Ignore(c => c.Configurations);
+        modelBuilder.Entity<Company>().Ignore(c => c.AlertConfigurations);
+        modelBuilder.Entity<Company>().Ignore(c => c.EnabledModules);
 
         modelBuilder.Entity<Language>(b =>
         {

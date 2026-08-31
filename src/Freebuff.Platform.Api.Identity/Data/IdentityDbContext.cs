@@ -22,6 +22,11 @@ public class IdentityDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Ignore navigation properties to entities not in this service's DB
+        modelBuilder.Entity<User>().Ignore(u => u.Company);
+        modelBuilder.Entity<User>().Ignore(u => u.Notifications);
+        modelBuilder.Entity<Role>().Ignore(r => r.Company);
+
         modelBuilder.Entity<User>(b =>
         {
             b.HasIndex(u => new { u.CompanyId, u.NormalizedEmail }).IsUnique();

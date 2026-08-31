@@ -26,12 +26,16 @@ public class FleetDbContext : DbContext
 
         // Ignore navigation properties to entities in other service databases
         modelBuilder.Entity<Vehicle>().Ignore(v => v.Company);
+        modelBuilder.Entity<Vehicle>().Ignore(v => v.Client);
+        modelBuilder.Entity<Vehicle>().Ignore(v => v.FuelRecords);
+        modelBuilder.Entity<Vehicle>().Ignore(v => v.MaintenanceRecords);
         modelBuilder.Entity<Driver>().Ignore(d => d.Company);
         modelBuilder.Entity<Client>().Ignore(c => c.Company);
+        modelBuilder.Entity<Client>().Ignore(c => c.Vehicles);
+        modelBuilder.Entity<Client>().Ignore(c => c.Trips);
         modelBuilder.Entity<Trip>().Ignore(t => t.Company);
-        modelBuilder.Entity<Geofence>().Ignore(g => g.Company);
         modelBuilder.Entity<Trip>().Ignore(t => t.Client);
-        modelBuilder.Entity<Vehicle>().Ignore(v => v.Client);
+        modelBuilder.Entity<Geofence>().Ignore(g => g.Company);
 
         modelBuilder.Entity<Vehicle>(b =>
         {

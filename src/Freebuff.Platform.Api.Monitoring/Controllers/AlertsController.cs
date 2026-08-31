@@ -1,3 +1,4 @@
+using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Api.Monitoring.Data;
@@ -45,11 +46,25 @@ public class AlertsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<Alert>>> Create([FromBody] Alert alert)
+    public async Task<ActionResult<ApiResponse<Alert>>> Create([FromBody] CreateAlertDto dto)
     {
         var tenantId = User.FindFirst("tenant_id")?.Value ?? throw new UnauthorizedAccessException("No tenant");
-        alert.Id = Guid.NewGuid();
-        alert.CompanyId = Guid.Parse(tenantId);
+        var alert = new Alert
+        {
+            Id = Guid.NewGuid(),
+            AlertType = dto.AlertType,
+            Severity = dto.Severity,
+            Title = dto.Title,
+            Message = dto.Message,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            Address = dto.Address,
+            CompanyId = Guid.Parse(tenantId),
+            VehicleId = dto.VehicleId,
+            DriverId = dto.DriverId,
+            AlertConfigurationId = dto.AlertConfigurationId,
+            Status = EntityStatus.Active
+        };
         _db.Alerts.Add(alert);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = alert.Id }, ApiResponse<Alert>.Ok(alert));

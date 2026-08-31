@@ -76,7 +76,9 @@ public class VehiclesController : ControllerBase
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = vehicle.Id }, ApiResponse<VehicleDto>.Ok(new VehicleDto
         {
-            Id = vehicle.Id, RegistrationNumber = vehicle.RegistrationNumber, Status = (int)vehicle.Status
+            Id = vehicle.Id, RegistrationNumber = vehicle.RegistrationNumber, Name = vehicle.Name,
+            Make = vehicle.Make, Model = vehicle.Model, Year = vehicle.Year,
+            FuelType = (int)vehicle.FuelType, CompanyId = vehicle.CompanyId, Status = (int)vehicle.Status
         }));
     }
 
@@ -100,7 +102,9 @@ public class VehiclesController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(ApiResponse<VehicleDto>.Ok(new VehicleDto
         {
-            Id = vehicle.Id, RegistrationNumber = vehicle.RegistrationNumber, Status = (int)vehicle.Status
+            Id = vehicle.Id, RegistrationNumber = vehicle.RegistrationNumber, Name = vehicle.Name,
+            Make = vehicle.Make, Model = vehicle.Model, Year = vehicle.Year,
+            FuelType = (int)vehicle.FuelType, CompanyId = vehicle.CompanyId, Status = (int)vehicle.Status
         }));
     }
 

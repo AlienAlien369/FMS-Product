@@ -29,6 +29,6 @@ public class Subscription : BaseEntity
     public int? MaxDrivers { get; set; }
 
     // Navigation
-    public Company Company { get; set; } = null!;
+    public Company? Company { get; set; }
     public Package Package { get; set; } = null!;
 }

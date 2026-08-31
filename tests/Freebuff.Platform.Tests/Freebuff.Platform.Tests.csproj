@@ -9,6 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageReference Include="xunit" Version="2.8.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
@@ -20,6 +27,12 @@
     <ProjectReference Include="..\..\src\Freebuff.Platform.Domain\Freebuff.Platform.Domain.csproj" />
     <ProjectReference Include="..\..\src\Freebuff.Platform.Shared\Freebuff.Platform.Shared.csproj" />
     <ProjectReference Include="..\..\src\Freebuff.Platform.Application\Freebuff.Platform.Application.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Api.Identity\Freebuff.Platform.Api.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Api.Tenant\Freebuff.Platform.Api.Tenant.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Api.Fleet\Freebuff.Platform.Api.Fleet.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Api.Monitoring\Freebuff.Platform.Api.Monitoring.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Api.Gateway\Freebuff.Platform.Api.Gateway.csproj" />
+    <ProjectReference Include="..\..\src\Freebuff.Platform.Infrastructure\Freebuff.Platform.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

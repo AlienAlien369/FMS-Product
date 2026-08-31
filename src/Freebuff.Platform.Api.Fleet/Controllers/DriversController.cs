@@ -59,7 +59,9 @@ public class DriversController : ControllerBase
         return CreatedAtAction(nameof(GetAll), ApiResponse<DriverDto>.Ok(new DriverDto
         {
             Id = driver.Id, EmployeeId = driver.EmployeeId, FirstName = driver.FirstName, LastName = driver.LastName,
-            FullName = driver.FullName, Status = (int)driver.Status
+            FullName = driver.FullName, PhoneNumber = driver.PhoneNumber, Email = driver.Email,
+            LicenseNumber = driver.LicenseNumber, LicenseExpiry = driver.LicenseExpiry,
+            CompanyId = driver.CompanyId, Status = (int)driver.Status
         }));
     }
 }

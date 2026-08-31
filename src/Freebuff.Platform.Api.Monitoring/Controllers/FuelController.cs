@@ -1,3 +1,4 @@
+using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Api.Monitoring.Data;
 using Freebuff.Platform.Shared.Models;
@@ -34,11 +35,25 @@ public class FuelController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<FuelRecord>>> Create([FromBody] FuelRecord record)
+    public async Task<ActionResult<ApiResponse<FuelRecord>>> Create([FromBody] CreateFuelRecordDto dto)
     {
         var tenantId = User.FindFirst("tenant_id")?.Value ?? throw new UnauthorizedAccessException("No tenant");
-        record.Id = Guid.NewGuid();
-        record.CompanyId = Guid.Parse(tenantId);
+        var record = new FuelRecord
+        {
+            Id = Guid.NewGuid(),
+            VehicleId = dto.VehicleId,
+            CompanyId = Guid.Parse(tenantId),
+            FuelType = dto.FuelType,
+            Quantity = dto.Quantity,
+            Unit = dto.Unit,
+            PricePerUnit = dto.PricePerUnit,
+            TotalCost = dto.TotalCost,
+            OdometerReading = dto.OdometerReading,
+            FuelLevel = dto.FuelLevel,
+            IsRefueling = dto.IsRefueling,
+            Notes = dto.Notes,
+            RecordDate = dto.RecordDate
+        };
         _db.FuelRecords.Add(record);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetAll), ApiResponse<FuelRecord>.Ok(record));

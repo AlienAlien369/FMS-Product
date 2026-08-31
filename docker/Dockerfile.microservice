@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ARG PROJECT
+ARG BUILD_CONFIGURATION=Release
+WORKDIR /src
+
+# Copy all project files
+COPY src/Freebuff.Platform.Domain/Freebuff.Platform.Domain.csproj src/Freebuff.Platform.Domain/
+COPY src/Freebuff.Platform.Shared/Freebuff.Platform.Shared.csproj src/Freebuff.Platform.Shared/
+COPY src/Freebuff.Platform.Application/Freebuff.Platform.Application.csproj src/Freebuff.Platform.Application/
+COPY src/Freebuff.Platform.Api.Gateway/Freebuff.Platform.Api.Gateway.csproj src/Freebuff.Platform.Api.Gateway/
+COPY src/Freebuff.Platform.Api.Identity/Freebuff.Platform.Api.Identity.csproj src/Freebuff.Platform.Api.Identity/
+COPY src/Freebuff.Platform.Api.Tenant/Freebuff.Platform.Api.Tenant.csproj src/Freebuff.Platform.Api.Tenant/
+COPY src/Freebuff.Platform.Api.Fleet/Freebuff.Platform.Api.Fleet.csproj src/Freebuff.Platform.Api.Fleet/
+COPY src/Freebuff.Platform.Api.Monitoring/Freebuff.Platform.Api.Monitoring.csproj src/Freebuff.Platform.Api.Monitoring/
+RUN dotnet restore src/$PROJECT/$PROJECT.csproj
+
+# Copy source and build
+COPY src/ .
+RUN dotnet publish src/$PROJECT/$PROJECT.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "${PROJECT}.dll"]

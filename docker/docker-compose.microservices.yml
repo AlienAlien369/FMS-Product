@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # ── Infrastructure ─────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: freebuff-postgres
+    environment:
+      POSTGRES_DB: freebuff_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: freebuff-redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: freebuff-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # ── API Gateway ────────────────────────────────────────
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservice
+      args:
+        PROJECT: Freebuff.Platform.Api.Gateway
+    container_name: freebuff-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - identity-service
+      - tenant-service
+      - fleet-service
+      - monitoring-service
+
+  # ── Identity Service ───────────────────────────────────
+  identity-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservice
+      args:
+        PROJECT: Freebuff.Platform.Api.Identity
+    container_name: freebuff-identity
+    ports:
+      - "8081:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=freebuff_identity;Username=postgres;Password=postgres
+      - Jwt__Key=DevKey_ThisIsNotSecure_PleaseChangeInProduction_32Chars!
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Tenant Service ─────────────────────────────────────
+  tenant-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservice
+      args:
+        PROJECT: Freebuff.Platform.Api.Tenant
+    container_name: freebuff-tenant
+    ports:
+      - "8082:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=freebuff_tenant;Username=postgres;Password=postgres
+      - Jwt__Key=DevKey_ThisIsNotSecure_PleaseChangeInProduction_32Chars!
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Fleet Service ──────────────────────────────────────
+  fleet-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservice
+      args:
+        PROJECT: Freebuff.Platform.Api.Fleet
+    container_name: freebuff-fleet
+    ports:
+      - "8083:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=freebuff_fleet;Username=postgres;Password=postgres
+      - Jwt__Key=DevKey_ThisIsNotSecure_PleaseChangeInProduction_32Chars!
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Monitoring Service ─────────────────────────────────
+  monitoring-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservice
+      args:
+        PROJECT: Freebuff.Platform.Api.Monitoring
+    container_name: freebuff-monitoring
+    ports:
+      - "8084:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=freebuff_monitoring;Username=postgres;Password=postgres
+      - Jwt__Key=DevKey_ThisIsNotSecure_PleaseChangeInProduction_32Chars!
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

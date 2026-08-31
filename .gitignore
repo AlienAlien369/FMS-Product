@@ -1,0 +1,38 @@
+# .NET
+**/bin/
+**/obj/
+**/packages/
+**/TestResults/
+*.user
+*.suo
+*.cache
+
+# Node
+node_modules/
+dist/
+frontend/dist/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/data/
+
+# Environment
+*.env
+appsettings.Development.json
+appsettings.Local.json
+
+# Logs
+logs/
+
+# Build
+*.log

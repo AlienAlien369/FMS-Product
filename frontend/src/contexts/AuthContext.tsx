@@ -16,21 +16,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    if (token && user) {
-      setState({ isAuthenticated: true, token, user: JSON.parse(user) });
+    try {
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+      if (token && user) {
+        setState({ isAuthenticated: true, token, user: JSON.parse(user) });
+      }
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
     const res = await api.post<import('../lib/api').ApiResponse<AuthResponse>>('/auth/login', { email, password });
-    const { token, refreshToken, user } = res.data.data!;
-    localStorage.setItem('token', token);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    setState({ isAuthenticated: true, token, user });
+    const data = res.data.data;
+    if (!data) throw new Error(res.data.message || 'Login failed');
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('refreshToken', data.refreshToken);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setState({ isAuthenticated: true, token: data.token, user: data.user });
   };
 
   const logout = () => {

@@ -55,8 +55,6 @@ builder.Services.AddAuthorization();
 
 // ── Services ─────────────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped(typeof(ICrudService<,,,>), typeof(CompanyService));
-builder.Services.AddScoped<CompanyService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<DriverService>();

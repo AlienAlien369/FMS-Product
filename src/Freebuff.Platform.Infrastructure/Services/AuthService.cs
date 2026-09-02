@@ -40,6 +40,19 @@ public class AuthService : IAuthService
         if (user.Status != EntityStatus.Active)
             return null;
 
+        // Check if the company subscription is expired (SuperAdmin bypasses this)
+        var isSuperAdmin = user.UserRoles.Any(ur => ur.Role.Name == "SuperAdmin" && !ur.IsDeleted);
+        if (!isSuperAdmin && user.Company != null)
+        {
+            // Check for active subscription
+            var hasActiveSubscription = await _db.Subscriptions.AnyAsync(s =>
+                s.CompanyId == user.CompanyId && !s.IsDeleted &&
+                s.Status == SubscriptionStatus.Active &&
+                (s.EndDate == null || s.EndDate > DateTime.UtcNow));
+            if (!hasActiveSubscription)
+                return null; // Block login if no active subscription
+        }
+
         // Update last login + refresh token in a single SaveChanges call
         var token = GenerateJwtToken(user);
         var refreshToken = GenerateRefreshToken();

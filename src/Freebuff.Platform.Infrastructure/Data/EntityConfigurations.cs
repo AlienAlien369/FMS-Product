@@ -1,4 +1,5 @@
 using Freebuff.Platform.Domain.Entities;
+using ModuleConfigEntity = Freebuff.Platform.Domain.Entities.ModuleConfiguration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -72,7 +73,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
     }
 }
 
-public class ModuleConfiguration : IEntityTypeConfiguration<Module>
+public class ModuleEntityTypeConfiguration : IEntityTypeConfiguration<Module>
 {
     public void Configure(EntityTypeBuilder<Module> b)
     {
@@ -197,6 +198,17 @@ public class ConfigurationConfiguration : IEntityTypeConfiguration<Configuration
         b.HasIndex(c => new { c.CompanyId, c.Key, c.Scope }).IsUnique();
         b.Property(c => c.Key).HasMaxLength(200).IsRequired();
         b.HasQueryFilter(c => !c.IsDeleted);
+    }
+}
+
+public class ModuleEntityConfiguration : IEntityTypeConfiguration<ModuleConfigEntity>
+{
+    public void Configure(EntityTypeBuilder<ModuleConfigEntity> b)
+    {
+        b.HasKey(m => m.Id);
+        b.HasOne(m => m.Company).WithMany().HasForeignKey(m => m.CompanyId);
+        b.HasOne(m => m.Module).WithMany().HasForeignKey(m => m.ModuleId);
+        b.HasQueryFilter(m => !m.IsDeleted);
     }
 }
 

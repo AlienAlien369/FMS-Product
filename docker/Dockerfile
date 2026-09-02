@@ -7,20 +7,20 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Copy project files and restore
-COPY src/Freebuff.Platform.Domain/Freebuff.Platform.Domain.csproj src/Freebuff.Platform.Domain/
-COPY src/Freebuff.Platform.Shared/Freebuff.Platform.Shared.csproj src/Freebuff.Platform.Shared/
-COPY src/Freebuff.Platform.Application/Freebuff.Platform.Application.csproj src/Freebuff.Platform.Application/
-COPY src/Freebuff.Platform.Infrastructure/Freebuff.Platform.Infrastructure.csproj src/Freebuff.Platform.Infrastructure/
-COPY src/Freebuff.Platform.Api/Freebuff.Platform.Api.csproj src/Freebuff.Platform.Api/
-RUN dotnet restore src/Freebuff.Platform.Api/Freebuff.Platform.Api.csproj
+COPY src/Freebuff.Platform.Domain/Freebuff.Platform.Domain.csproj Freebuff.Platform.Domain/
+COPY src/Freebuff.Platform.Shared/Freebuff.Platform.Shared.csproj Freebuff.Platform.Shared/
+COPY src/Freebuff.Platform.Application/Freebuff.Platform.Application.csproj Freebuff.Platform.Application/
+COPY src/Freebuff.Platform.Infrastructure/Freebuff.Platform.Infrastructure.csproj Freebuff.Platform.Infrastructure/
+COPY src/Freebuff.Platform.Api/Freebuff.Platform.Api.csproj Freebuff.Platform.Api/
+RUN dotnet restore Freebuff.Platform.Api/Freebuff.Platform.Api.csproj
 
 # Copy everything and build
 COPY src/ .
-RUN dotnet build src/Freebuff.Platform.Api/Freebuff.Platform.Api.csproj -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build Freebuff.Platform.Api/Freebuff.Platform.Api.csproj -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish src/Freebuff.Platform.Api/Freebuff.Platform.Api.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish Freebuff.Platform.Api/Freebuff.Platform.Api.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app

@@ -213,6 +213,213 @@ public static class SeedData
             };
             db.Users.Add(demoAdmin);
             db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), UserId = demoAdmin.Id, RoleId = adminRole.Id, TenantId = demoCompany.Id });
+
+            // Save users, roles, companies first so we can query permissions
+            await db.SaveChangesAsync();
+
+            // Assign ALL permissions to Company Admin role
+            var allPermissions = await db.Permissions.Where(p => !p.IsDeleted).ToListAsync();
+            foreach (var perm in allPermissions)
+            {
+                db.RolePermissions.Add(new RolePermission
+                {
+                    Id = Guid.NewGuid(),
+                    RoleId = adminRole.Id,
+                    PermissionId = perm.Id,
+                    TenantId = demoCompany.Id
+                });
+            }
+
+            // Also assign vehicle + driver + client + trip + alert + fuel + maintenance + report permissions to Fleet Manager
+            var fmPermissions = allPermissions.Where(p =>
+                p.Module is "vehicle" or "driver" or "trip" or "geofence" or "alert" or "fuel" or "maintenance" or "report" or "client");
+            foreach (var perm in fmPermissions)
+            {
+                db.RolePermissions.Add(new RolePermission
+                {
+                    Id = Guid.NewGuid(),
+                    RoleId = fleetManagerRole.Id,
+                    PermissionId = perm.Id,
+                    TenantId = demoCompany.Id
+                });
+            }
+        }
+
+        // Demo Vehicles & Drivers (in platform company)
+        if (!await db.Vehicles.AnyAsync())
+        {
+            // Get the platform company
+            var platformCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "platform");
+            if (platformCompany != null)
+            {
+                var drivers = new List<Driver>();
+                var driverData = new[]
+                {
+                    ("EMP-001", "Raj", "Sharma", "+91-98765-43210", "raj@demo.com", "DL-2024-001", DriverStatus.Active, 92m, 88m),
+                    ("EMP-002", "Priya", "Patel", "+91-98765-43211", "priya@demo.com", "DL-2024-002", DriverStatus.Active, 87m, 91m),
+                    ("EMP-003", "Ahmed", "Khan", "+971-50-123-4567", "ahmed@demo.com", "DL-2024-003", DriverStatus.Active, 95m, 90m),
+                    ("EMP-004", "Maria", "Garcia", "+1-555-0101", "maria@demo.com", "DL-2024-004", DriverStatus.OnTrip, 78m, 82m),
+                    ("EMP-005", "James", "Wilson", "+44-7911-123456", "james@demo.com", "DL-2024-005", DriverStatus.Active, 89m, 85m),
+                    ("EMP-006", "Fatima", "Ali", "+971-55-987-6543", "fatima@demo.com", "DL-2024-006", DriverStatus.OffDuty, 83m, 80m),
+                    ("EMP-007", "Chen", "Wei", "+86-138-0001-2345", "chen@demo.com", "DL-2024-007", DriverStatus.Active, 91m, 87m),
+                    ("EMP-008", "Sarah", "Johnson", "+1-555-0202", "sarah@demo.com", "DL-2024-008", DriverStatus.Active, 94m, 92m),
+                };
+                foreach (var (empId, first, last, phone, email, lic, status, safety, behaviour) in driverData)
+                {
+                    var d = new Driver
+                    {
+                        Id = Guid.NewGuid(), EmployeeId = empId, FirstName = first, LastName = last,
+                        PhoneNumber = phone, Email = email, LicenseNumber = lic,
+                        LicenseExpiry = DateTime.UtcNow.AddYears(2), CompanyId = platformCompany.Id,
+                        Status = status, SafetyScore = safety, BehaviourScore = behaviour
+                    };
+                    drivers.Add(d);
+                }
+                db.Drivers.AddRange(drivers);
+                await db.SaveChangesAsync();
+
+                var vehicleData = new[]
+                {
+                    ("MH-12-AB-1234", "Toyota Hilux", "Truck", "Toyota", "Hilux", 2023, FuelType.Diesel, VehicleStatus.Active, 0),
+                    ("MH-12-CD-5678", "Tata Ace", "Mini Truck", "Tata", "Ace Gold", 2022, FuelType.Diesel, VehicleStatus.Active, 1),
+                    ("DL-01-EF-9012", "Mahindra Bolero", "SUV", "Mahindra", "Bolero Pickup", 2023, FuelType.Diesel, VehicleStatus.Active, 2),
+                    ("KA-05-GH-3456", "Eicher Pro", "Heavy Truck", "Eicher", "Pro 2049", 2021, FuelType.Diesel, VehicleStatus.Active, 3),
+                    ("GJ-06-IJ-7890", "Ashok Leyland", "Bus", "Ashok Leyland", "Viking", 2022, FuelType.Diesel, VehicleStatus.InMaintenance, -1),
+                    ("TN-09-KL-1122", "Tata Nexon EV", "Car", "Tata", "Nexon EV", 2024, FuelType.Electric, VehicleStatus.Active, 4),
+                    ("UP-32-MN-3344", "Force Traveller", "Van", "Force", "Traveller 26", 2023, FuelType.Diesel, VehicleStatus.Active, 5),
+                    ("RJ-14-OP-5566", "Maruti Eeco", "Van", "Maruti Suzuki", "Eeco", 2022, FuelType.Petrol, VehicleStatus.Active, -1),
+                    ("AP-09-QR-7788", "Volvo FM", "Heavy Truck", "Volvo", "FM 440", 2023, FuelType.Diesel, VehicleStatus.Active, 6),
+                    ("MH-01-ST-9900", "Tata Tigor EV", "Car", "Tata", "Tigor EV", 2024, FuelType.Electric, VehicleStatus.Active, 7),
+                    ("KL-07-UV-2233", "Isuzu D-Max", "Pickup", "Isuzu", "D-Max V-Cross", 2023, FuelType.Diesel, VehicleStatus.Active, -1),
+                    ("MP-09-WX-4455", "Mahindra Treo", "Electric Auto", "Mahindra", "Treo Zor", 2024, FuelType.Electric, VehicleStatus.Inactive, -1),
+                };
+                foreach (var (reg, name, type, make, model, year, fuel, status, driverIdx) in vehicleData)
+                {
+                    var v = new Vehicle
+                    {
+                        Id = Guid.NewGuid(), RegistrationNumber = reg, Name = name,
+                        VehicleType = type, Make = make, Model = model, Year = year,
+                        FuelType = fuel, CompanyId = platformCompany.Id, Status = status,
+                        LastLatitude = 19.0 + Random.Shared.NextDouble() * 10,
+                        LastLongitude = 73.0 + Random.Shared.NextDouble() * 10,
+                        LastSpeed = status == VehicleStatus.Active ? Random.Shared.Next(0, 80) : 0,
+                        IgnitionStatus = status == VehicleStatus.Active,
+                        DriverId = driverIdx >= 0 && driverIdx < drivers.Count ? drivers[driverIdx].Id : null
+                    };
+                    db.Vehicles.Add(v);
+                }
+                await db.SaveChangesAsync();
+            }
+
+            // Demo Company: Clients, Drivers, Vehicles
+            var demoCo = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
+            if (demoCo != null)
+            {
+                var clients = new List<Client>();
+                var cData = new[]
+                {
+                    ("Reliance Industries", "Amit Shah", "amit@reliance.com", "+91-22-1234-5678", "Mumbai"),
+                    ("Tata Steel", "Vikram Singh", "vikram@tatasteel.com", "+91-657-234-5678", "Jamshedpur"),
+                    ("Wipro Logistics", "Deepak Mehta", "deepak@wipro.com", "+91-80-5678-1234", "Bangalore"),
+                    ("Infosys Supply Chain", "Neha Gupta", "neha@infosys.com", "+91-80-9876-5432", "Bangalore"),
+                    ("Adani Ports", "Rajesh Kumar", "rajesh@adani.com", "+91-79-2345-6789", "Ahmedabad"),
+                };
+                foreach (var (name, contact, email, phone, city) in cData)
+                    clients.Add(new Client { Id = Guid.NewGuid(), Name = name, ContactPerson = contact, ContactEmail = email, ContactPhone = phone, Address = $"{city} Business District", CompanyId = demoCo.Id, Status = EntityStatus.Active });
+                db.Clients.AddRange(clients);
+                await db.SaveChangesAsync();
+
+                var demoDrivers = new List<Driver>();
+                var dData = new[]
+                {
+                    ("DF-001", "Vikram", "Rathore", "+91-99887-66554", "DL-DF-001", DriverStatus.Active, 90m, 86m),
+                    ("DF-002", "Suresh", "Reddy", "+91-99887-66555", "DL-DF-002", DriverStatus.Active, 88m, 84m),
+                    ("DF-003", "Anita", "Desai", "+91-99887-66556", "DL-DF-003", DriverStatus.OnTrip, 93m, 91m),
+                    ("DF-004", "Mohammed", "Irfan", "+91-99887-66557", "DL-DF-004", DriverStatus.Active, 85m, 80m),
+                    ("DF-005", "Pooja", "Nair", "+91-99887-66558", "DL-DF-005", DriverStatus.OffDuty, 79m, 76m),
+                    ("DF-006", "Karan", "Malhotra", "+91-99887-66559", "DL-DF-006", DriverStatus.Active, 91m, 88m),
+                };
+                foreach (var (empId, first, last, phone, lic, status, safety, behaviour) in dData)
+                    demoDrivers.Add(new Driver { Id = Guid.NewGuid(), EmployeeId = empId, FirstName = first, LastName = last, PhoneNumber = phone, LicenseNumber = lic, LicenseExpiry = DateTime.UtcNow.AddYears(2), CompanyId = demoCo.Id, Status = status, SafetyScore = safety, BehaviourScore = behaviour });
+                db.Drivers.AddRange(demoDrivers);
+                await db.SaveChangesAsync();
+
+                var vd = new[]
+                {
+                    ("GJ-01-XX-1001", "Tata Prima", "Heavy Truck", "Tata", "Prima 4040.K", 2023, FuelType.Diesel, VehicleStatus.Active, 0, 0),
+                    ("GJ-01-XX-1002", "Ashok Leyland Dost", "Mini Truck", "Ashok Leyland", "Dost Plus", 2022, FuelType.Diesel, VehicleStatus.Active, 1, 1),
+                    ("GJ-01-XX-1003", "Mahindra Blazo", "Heavy Truck", "Mahindra", "Blazo 28", 2023, FuelType.Diesel, VehicleStatus.Active, 2, 2),
+                    ("GJ-01-XX-1004", "Eicher Skyline", "Bus", "Eicher", "Skyline 2045", 2022, FuelType.Diesel, VehicleStatus.InMaintenance, -1, 3),
+                    ("GJ-01-XX-1005", "Tata Altroz EV", "Car", "Tata", "Altroz EV", 2024, FuelType.Electric, VehicleStatus.Active, 3, 4),
+                    ("GJ-01-XX-1006", "Force Gurkha", "SUV", "Force", "Gurkha 5 Door", 2023, FuelType.Diesel, VehicleStatus.Active, 4, -1),
+                    ("GJ-01-XX-1007", "Tata Ace EV", "Mini Truck", "Tata", "Ace EV", 2024, FuelType.Electric, VehicleStatus.Active, 5, -1),
+                    ("GJ-01-XX-1008", "Mahindra Treo Zor", "Electric Auto", "Mahindra", "Treo Zor", 2024, FuelType.Electric, VehicleStatus.Inactive, -1, -1),
+                };
+                var colors = new[] { "White", "Blue", "Red", "Silver", "Green" };
+                foreach (var (reg, name, type, make, model, year, fuel, status, di, ci) in vd)
+                    db.Vehicles.Add(new Vehicle
+                    {
+                        Id = Guid.NewGuid(), RegistrationNumber = reg, Name = name, VehicleType = type, Make = make, Model = model, Year = year,
+                        FuelType = fuel, CompanyId = demoCo.Id, Status = status, Color = colors[Random.Shared.Next(5)],
+                        FuelTankCapacity = Random.Shared.Next(40, 120),
+                        LastLatitude = 23.0 + Random.Shared.NextDouble() * 2, LastLongitude = 72.0 + Random.Shared.NextDouble() * 2,
+                        LastSpeed = status == VehicleStatus.Active ? Random.Shared.Next(0, 80) : 0, IgnitionStatus = status == VehicleStatus.Active,
+                        OdometerReading = Random.Shared.Next(5000, 80000), EngineHours = Random.Shared.Next(200, 3000),
+                        DeviceImei = $"8600{Random.Shared.Next(100000000, 999999999)}", DeviceType = "GPS Tracker",
+                        DriverId = di >= 0 && di < demoDrivers.Count ? demoDrivers[di].Id : null,
+                        ClientId = ci >= 0 && ci < clients.Count ? clients[ci].Id : null
+                    });
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // Subscriptions - assign demo subscription to demo company
+        if (!await db.Subscriptions.AnyAsync())
+        {
+            var demoCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
+            var basicPackage = await db.Packages.FirstOrDefaultAsync(p => p.Name == "Basic" && !p.IsDeleted);
+            if (demoCompany != null && basicPackage != null)
+            {
+                var sub = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = demoCompany.Id,
+                    PackageId = basicPackage.Id,
+                    Status = SubscriptionStatus.Active,
+                    StartDate = DateTime.UtcNow.AddMonths(-6),
+                    EndDate = DateTime.UtcNow.AddMonths(6),
+                    CurrentPrice = basicPackage.Price,
+                    Currency = basicPackage.Currency,
+                    BillingCycle = basicPackage.BillingCycle,
+                    TenantId = demoCompany.Id
+                };
+                db.Subscriptions.Add(sub);
+                demoCompany.SubscriptionId = sub.Id;
+                demoCompany.PackageId = basicPackage.Id;
+            }
+
+            // Also give platform company a subscription
+            var platformCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "platform");
+            var enterprisePackage = await db.Packages.FirstOrDefaultAsync(p => p.Name == "Enterprise" && !p.IsDeleted);
+            if (platformCompany != null && enterprisePackage != null)
+            {
+                var sub = new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = platformCompany.Id,
+                    PackageId = enterprisePackage.Id,
+                    Status = SubscriptionStatus.Active,
+                    StartDate = DateTime.UtcNow.AddMonths(-12),
+                    EndDate = DateTime.UtcNow.AddMonths(12),
+                    CurrentPrice = enterprisePackage.Price,
+                    Currency = enterprisePackage.Currency,
+                    BillingCycle = enterprisePackage.BillingCycle,
+                    TenantId = platformCompany.Id
+                };
+                db.Subscriptions.Add(sub);
+                platformCompany.SubscriptionId = sub.Id;
+                platformCompany.PackageId = enterprisePackage.Id;
+            }
         }
 
         await db.SaveChangesAsync();

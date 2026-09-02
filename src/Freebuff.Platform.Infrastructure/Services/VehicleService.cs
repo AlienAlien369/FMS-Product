@@ -24,10 +24,10 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         var query = _db.Vehicles
             .AsNoTracking()
             .Include(v => v.Driver)
+            .Include(v => v.Client)
             .Where(v => v.Id == id && !v.IsDeleted);
 
-        // Enforce tenant isolation
-        if (_tenant.TenantId.HasValue)
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
             query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
 
         var entity = await query.FirstOrDefaultAsync();
@@ -39,11 +39,11 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         var query = _db.Vehicles
             .AsNoTracking()
             .Include(v => v.Driver)
+            .Include(v => v.Client)
             .Where(v => !v.IsDeleted)
             .AsQueryable();
 
-        // Enforce tenant isolation
-        if (_tenant.TenantId.HasValue)
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
             query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -51,7 +51,8 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
                 v.RegistrationNumber.Contains(filter.Search) ||
                 (v.Name != null && v.Name.Contains(filter.Search)) ||
                 (v.Make != null && v.Make.Contains(filter.Search)) ||
-                (v.Model != null && v.Model.Contains(filter.Search)));
+                (v.Model != null && v.Model.Contains(filter.Search)) ||
+                (v.VehicleType != null && v.VehicleType.Contains(filter.Search)));
 
         var totalCount = await query.CountAsync();
 
@@ -62,6 +63,8 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
                 : query.OrderBy(v => v.RegistrationNumber),
             "make" => filter.SortDescending ? query.OrderByDescending(v => v.Make) : query.OrderBy(v => v.Make),
             "status" => filter.SortDescending ? query.OrderByDescending(v => v.Status) : query.OrderBy(v => v.Status),
+            "name" => filter.SortDescending ? query.OrderByDescending(v => v.Name) : query.OrderBy(v => v.Name),
+            "year" => filter.SortDescending ? query.OrderByDescending(v => v.Year) : query.OrderBy(v => v.Year),
             _ => query.OrderBy(v => v.RegistrationNumber)
         };
 
@@ -77,16 +80,31 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
                 Make = v.Make,
                 Model = v.Model,
                 Year = v.Year,
+                Color = v.Color,
                 FuelType = (int)v.FuelType,
+                FuelTankCapacity = v.FuelTankCapacity,
+                FuelCapacityUnit = v.FuelCapacityUnit,
+                EngineNumber = v.EngineNumber,
+                ChassisNumber = v.ChassisNumber,
+                VinNumber = v.VinNumber,
                 CompanyId = v.CompanyId,
                 DriverId = v.DriverId,
-                DriverName = v.Driver != null ? $"{v.Driver.FirstName} {v.Driver.LastName}" : null,
+                DriverName = v.Driver != null ? v.Driver.FirstName + " " + v.Driver.LastName : null,
+                ClientId = v.ClientId,
+                ClientName = v.Client != null ? v.Client.Name : null,
                 Status = (int)v.Status,
+                DeviceImei = v.DeviceImei,
+                DeviceType = v.DeviceType,
+                DeviceSerialNumber = v.DeviceSerialNumber,
                 LastLatitude = v.LastLatitude,
                 LastLongitude = v.LastLongitude,
                 LastSpeed = v.LastSpeed,
+                LastHeading = v.LastHeading,
                 LastLocationUpdate = v.LastLocationUpdate,
-                IgnitionStatus = v.IgnitionStatus
+                IgnitionStatus = v.IgnitionStatus,
+                OdometerReading = v.OdometerReading,
+                EngineHours = v.EngineHours,
+                CreatedAt = v.CreatedAt
             })
             .ToListAsync();
 
@@ -112,11 +130,18 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
             Make = dto.Make,
             Model = dto.Model,
             Year = dto.Year,
+            Color = dto.Color,
             FuelType = (FuelType)dto.FuelType,
             FuelTankCapacity = dto.FuelTankCapacity,
+            FuelCapacityUnit = dto.FuelCapacityUnit,
             EngineNumber = dto.EngineNumber,
             ChassisNumber = dto.ChassisNumber,
+            VinNumber = dto.VinNumber,
+            DriverId = dto.DriverId,
+            ClientId = dto.ClientId,
             DeviceImei = dto.DeviceImei,
+            DeviceType = dto.DeviceType,
+            DeviceSerialNumber = dto.DeviceSerialNumber,
             CompanyId = tenantId,
             Status = VehicleStatus.Active
         };
@@ -129,21 +154,29 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<VehicleDto?> UpdateAsync(Guid id, UpdateVehicleDto dto, string userId)
     {
-        var vehicle = await _db.Vehicles.FindAsync(id);
-        if (vehicle == null || vehicle.IsDeleted) return null;
+        var vehicle = await _db.Vehicles.Include(v => v.Client).FirstOrDefaultAsync(v => v.Id == id && !v.IsDeleted);
+        if (vehicle == null) return null;
 
         if (dto.Name != null) vehicle.Name = dto.Name;
         if (dto.VehicleType != null) vehicle.VehicleType = dto.VehicleType;
         if (dto.Make != null) vehicle.Make = dto.Make;
         if (dto.Model != null) vehicle.Model = dto.Model;
         if (dto.Year != null) vehicle.Year = dto.Year;
+        if (dto.Color != null) vehicle.Color = dto.Color;
         if (dto.FuelType != null) vehicle.FuelType = (FuelType)dto.FuelType.Value;
         if (dto.FuelTankCapacity != null) vehicle.FuelTankCapacity = dto.FuelTankCapacity;
+        if (dto.FuelCapacityUnit != null) vehicle.FuelCapacityUnit = dto.FuelCapacityUnit;
         if (dto.EngineNumber != null) vehicle.EngineNumber = dto.EngineNumber;
         if (dto.ChassisNumber != null) vehicle.ChassisNumber = dto.ChassisNumber;
-        if (dto.DeviceImei != null) vehicle.DeviceImei = dto.DeviceImei;
+        if (dto.VinNumber != null) vehicle.VinNumber = dto.VinNumber;
         if (dto.DriverId != null) vehicle.DriverId = dto.DriverId;
+        if (dto.ClientId != null) vehicle.ClientId = dto.ClientId;
+        if (dto.DeviceImei != null) vehicle.DeviceImei = dto.DeviceImei;
+        if (dto.DeviceType != null) vehicle.DeviceType = dto.DeviceType;
+        if (dto.DeviceSerialNumber != null) vehicle.DeviceSerialNumber = dto.DeviceSerialNumber;
         if (dto.Status != null) vehicle.Status = (VehicleStatus)dto.Status.Value;
+        if (dto.OdometerReading != null) vehicle.OdometerReading = dto.OdometerReading;
+        if (dto.EngineHours != null) vehicle.EngineHours = dto.EngineHours;
 
         await _db.SaveChangesAsync();
         return MapToDto(vehicle);
@@ -206,15 +239,30 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         Make = v.Make,
         Model = v.Model,
         Year = v.Year,
+        Color = v.Color,
         FuelType = (int)v.FuelType,
+        FuelTankCapacity = v.FuelTankCapacity,
+        FuelCapacityUnit = v.FuelCapacityUnit,
+        EngineNumber = v.EngineNumber,
+        ChassisNumber = v.ChassisNumber,
+        VinNumber = v.VinNumber,
         CompanyId = v.CompanyId,
         DriverId = v.DriverId,
         DriverName = v.Driver != null ? $"{v.Driver.FirstName} {v.Driver.LastName}" : null,
+        ClientId = v.ClientId,
+        ClientName = v.Client?.Name,
         Status = (int)v.Status,
+        DeviceImei = v.DeviceImei,
+        DeviceType = v.DeviceType,
+        DeviceSerialNumber = v.DeviceSerialNumber,
         LastLatitude = v.LastLatitude,
         LastLongitude = v.LastLongitude,
         LastSpeed = v.LastSpeed,
+        LastHeading = v.LastHeading,
         LastLocationUpdate = v.LastLocationUpdate,
-        IgnitionStatus = v.IgnitionStatus
+        IgnitionStatus = v.IgnitionStatus,
+        OdometerReading = v.OdometerReading,
+        EngineHours = v.EngineHours,
+        CreatedAt = v.CreatedAt
     };
 }

@@ -7,6 +7,14 @@ import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
 import Vehicles from './pages/Vehicles';
 import Drivers from './pages/Drivers';
+import Localization from './pages/Localization';
+import Settings from './pages/Settings';
+import Modules from './pages/Modules';
+import Roles from './pages/Roles';
+import Users from './pages/Users';
+import AdminCompanies from './pages/AdminCompanies';
+import CompanyDetail from './pages/CompanyDetail';
+import Packages from './pages/Packages';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient();
@@ -32,10 +40,14 @@ function AppRoutes() {
         <Route path="/maintenance" element={<Placeholder title="Maintenance" />} />
         <Route path="/alerts" element={<Placeholder title="Alerts & Alarms" />} />
         <Route path="/documents" element={<Placeholder title="Documents" />} />
-        <Route path="/roles" element={<Placeholder title="Roles & Permissions" />} />
-        <Route path="/modules" element={<Placeholder title="Module Management" />} />
-        <Route path="/localization" element={<Placeholder title="Localization" />} />
-        <Route path="/settings" element={<Placeholder title="Settings" />} />
+        <Route path="/admin/companies" element={<AdminCompanies />} />
+        <Route path="/admin/companies/:id" element={<CompanyDetail />} />
+        <Route path="/users" element={<Users />} />
+        <Route path="/roles" element={<Roles />} />
+        <Route path="/packages" element={<Packages />} />
+        <Route path="/modules" element={<Modules />} />
+        <Route path="/localization" element={<Localization />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

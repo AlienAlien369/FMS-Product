@@ -24,13 +24,13 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
         var entity = await _db.Drivers
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id && !d.IsDeleted);
-        return entity == null ? null : MapToDto(entity);
+        return entity == null ? null : await MapToDtoAsync(entity);
     }
 
     public async Task<PagedResult<DriverDto>> GetListAsync(PagedRequest filter)
     {
         var query = _db.Drivers.AsNoTracking().Where(d => !d.IsDeleted).AsQueryable();
-        if (_tenant.TenantId.HasValue) query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin) query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(d => d.FirstName.Contains(filter.Search) || d.LastName.Contains(filter.Search) || d.EmployeeId.Contains(filter.Search));
@@ -44,38 +44,33 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
         };
 
         var items = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
+        var dtos = new List<DriverDto>();
+        foreach (var item in items) dtos.Add(await MapToDtoAsync(item));
 
         return new PagedResult<DriverDto>
         {
-            Items = items.Select(MapToDto).ToList(),
+            Items = dtos,
             TotalCount = totalCount,
             Page = filter.Page,
             PageSize = filter.PageSize
         };
-    }
-
-    public async Task<DriverDto> CreateAsync(CreateDriverDto dto, string userId)
+    }    public async Task<DriverDto> CreateAsync(CreateDriverDto dto, string userId)
     {
         var tenantId = _tenant.TenantId ?? throw new UnauthorizedAccessException("No tenant context");
         var driver = new Driver
         {
-            Id = Guid.NewGuid(),
-            EmployeeId = dto.EmployeeId,
-            FirstName = dto.FirstName,
-            LastName = dto.LastName,
-            PhoneNumber = dto.PhoneNumber,
-            Email = dto.Email,
-            LicenseNumber = dto.LicenseNumber,
-            LicenseExpiry = dto.LicenseExpiry,
-            Address = dto.Address,
-            City = dto.City,
-            Country = dto.Country,
-            CompanyId = tenantId,
-            Status = DriverStatus.Active
+            Id = Guid.NewGuid(), EmployeeId = dto.EmployeeId,
+            FirstName = dto.FirstName, LastName = dto.LastName,
+            PhoneNumber = dto.PhoneNumber, Email = dto.Email,
+            LicenseNumber = dto.LicenseNumber, LicenseExpiry = dto.LicenseExpiry,
+            LicenseCategory = dto.LicenseCategory,
+            Address = dto.Address, City = dto.City, Country = dto.Country,
+            ProfileImageUrl = dto.ProfileImageUrl,
+            CompanyId = tenantId, Status = DriverStatus.Active
         };
         _db.Drivers.Add(driver);
         await _db.SaveChangesAsync();
-        return MapToDto(driver);
+        return await MapToDtoAsync(driver);
     }
 
     public async Task<DriverDto?> UpdateAsync(Guid id, UpdateDriverDto dto, string userId)
@@ -88,9 +83,14 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
         if (dto.Email != null) driver.Email = dto.Email;
         if (dto.LicenseNumber != null) driver.LicenseNumber = dto.LicenseNumber;
         if (dto.LicenseExpiry != null) driver.LicenseExpiry = dto.LicenseExpiry;
+        if (dto.LicenseCategory != null) driver.LicenseCategory = dto.LicenseCategory;
+        if (dto.Address != null) driver.Address = dto.Address;
+        if (dto.City != null) driver.City = dto.City;
+        if (dto.Country != null) driver.Country = dto.Country;
+        if (dto.ProfileImageUrl != null) driver.ProfileImageUrl = dto.ProfileImageUrl;
         if (dto.Status != null) driver.Status = (DriverStatus)dto.Status.Value;
         await _db.SaveChangesAsync();
-        return MapToDto(driver);
+        return await MapToDtoAsync(driver);
     }
 
     public async Task<bool> SoftDeleteAsync(Guid id, string userId, string? reason = null)
@@ -120,12 +120,30 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
             .ToListAsync();
     }
 
-    private static DriverDto MapToDto(Driver d) => new()
+    private async Task<DriverDto> MapToDtoAsync(Driver d)
     {
-        Id = d.Id, EmployeeId = d.EmployeeId, FirstName = d.FirstName, LastName = d.LastName,
-        FullName = d.FullName, PhoneNumber = d.PhoneNumber, Email = d.Email,
-        LicenseNumber = d.LicenseNumber, LicenseExpiry = d.LicenseExpiry,
-        CompanyId = d.CompanyId, Status = (int)d.Status,
-        SafetyScore = d.SafetyScore, BehaviourScore = d.BehaviourScore
-    };
+        var assignedVehicle = await _db.Vehicles.AsNoTracking()
+            .Where(v => v.DriverId == d.Id && !v.IsDeleted)
+            .Select(v => new { v.Id, v.RegistrationNumber })
+            .FirstOrDefaultAsync();
+        var tripCount = await _db.Trips.AsNoTracking()
+            .CountAsync(t => t.DriverId == d.Id && !t.IsDeleted);
+        var companyName = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == d.CompanyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync();
+        return new DriverDto
+        {
+            Id = d.Id, EmployeeId = d.EmployeeId, FirstName = d.FirstName, LastName = d.LastName,
+            FullName = d.FullName, PhoneNumber = d.PhoneNumber, Email = d.Email,
+            LicenseNumber = d.LicenseNumber, LicenseExpiry = d.LicenseExpiry,
+            LicenseCategory = d.LicenseCategory,
+            Address = d.Address, City = d.City, Country = d.Country,
+            ProfileImageUrl = d.ProfileImageUrl,
+            CompanyId = d.CompanyId, CompanyName = companyName,
+            Status = (int)d.Status, SafetyScore = d.SafetyScore, BehaviourScore = d.BehaviourScore,
+            AssignedVehicleId = assignedVehicle?.Id, AssignedVehicleReg = assignedVehicle?.RegistrationNumber,
+            TripCount = tripCount, CreatedAt = d.CreatedAt
+        };
+    }
 }

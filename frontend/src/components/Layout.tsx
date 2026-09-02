@@ -3,12 +3,14 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, Truck, Users, Map, Route, Bell,
   Fuel, Wrench, FileText, Settings, LogOut, ChevronLeft,
-  Building2, Shield, Package, Globe, Menu
+  Building2, Shield, Package, Globe, Menu, UserCog, Crown, CreditCard
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Search } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/companies', label: 'Platform Admin', icon: Crown, adminOnly: true },
   { path: '/companies', label: 'Companies', icon: Building2, adminOnly: true },
   { path: '/vehicles', label: 'Vehicles', icon: Truck },
   { path: '/drivers', label: 'Drivers', icon: Users },
@@ -18,7 +20,9 @@ const navItems = [
   { path: '/maintenance', label: 'Maintenance', icon: Wrench },
   { path: '/alerts', label: 'Alerts', icon: Bell },
   { path: '/documents', label: 'Documents', icon: FileText },
+  { path: '/users', label: 'Users', icon: UserCog },
   { path: '/roles', label: 'Roles & Permissions', icon: Shield },
+  { path: '/packages', label: 'Packages', icon: CreditCard, adminOnly: true },
   { path: '/modules', label: 'Modules', icon: Package },
   { path: '/localization', label: 'Localization', icon: Globe },
   { path: '/settings', label: 'Settings', icon: Settings },
@@ -30,6 +34,16 @@ export default function Layout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredNavItems = useMemo(() => {
+    const items = navItems.filter(i => {
+      if (i.adminOnly && !user?.roles?.includes('SuperAdmin')) return false;
+      return true;
+    });
+    if (!searchQuery.trim()) return items;
+    return items.filter(i => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [user?.roles, searchQuery]);
 
   const handleLogout = () => {
     logout();
@@ -44,8 +58,19 @@ export default function Layout() {
           <ChevronLeft className={`w-5 h-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
+      {!collapsed && (
+        <div className="px-3 py-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
       <nav className="flex-1 overflow-y-auto py-2">
-        {navItems.filter(i => !i.adminOnly || user?.roles?.includes('SuperAdmin')).map(item => {
+        {filteredNavItems.map(item => {
           const Icon = item.icon;
           const active = location.pathname === item.path;
           return (

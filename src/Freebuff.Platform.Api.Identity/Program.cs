@@ -76,6 +76,7 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await IdentitySeedData.SeedAsync(db);
 }
 
 app.Run();

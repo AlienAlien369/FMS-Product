@@ -82,16 +82,31 @@ export interface Vehicle {
   make?: string;
   model?: string;
   year?: number;
+  color?: string;
   fuelType: number;
+  fuelTankCapacity?: number;
+  fuelCapacityUnit?: string;
+  engineNumber?: string;
+  chassisNumber?: string;
+  vinNumber?: string;
   companyId: string;
   driverId?: string;
   driverName?: string;
+  clientId?: string;
+  clientName?: string;
   status: number;
+  deviceImei?: string;
+  deviceType?: string;
+  deviceSerialNumber?: string;
   lastLatitude?: number;
   lastLongitude?: number;
   lastSpeed?: number;
+  lastHeading?: number;
   lastLocationUpdate?: string;
   ignitionStatus?: boolean;
+  odometerReading?: number;
+  engineHours?: number;
+  createdAt: string;
 }
 
 export interface Driver {

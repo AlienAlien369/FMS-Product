@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, Truck, Users, Map, Route, Bell,
   Fuel, Wrench, FileText, Settings, LogOut, ChevronLeft,
-  Building2, Shield, Package, Globe, Menu, UserCog, Crown, CreditCard
+  Building2, Shield, Package, Globe, Menu, UserCog, Crown, CreditCard, Navigation
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
@@ -16,6 +16,7 @@ const navItems = [
   { path: '/drivers', label: 'Drivers', icon: Users },
   { path: '/trips', label: 'Trips', icon: Route },
   { path: '/geofences', label: 'Geofences', icon: Map },
+  { path: '/routes', label: 'Routes', icon: Navigation },
   { path: '/fuel', label: 'Fuel', icon: Fuel },
   { path: '/maintenance', label: 'Maintenance', icon: Wrench },
   { path: '/alerts', label: 'Alerts', icon: Bell },

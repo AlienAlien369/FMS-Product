@@ -373,6 +373,220 @@ public static class SeedData
             }
         }
 
+        // ── Demo Geofences ──
+        if (!await db.Geofences.AnyAsync())
+        {
+            var platformCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "platform");
+            var demoCo = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
+
+            if (platformCompany != null)
+            {
+                var geofences = new List<Geofence>();
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Mumbai Warehouse", Description = "Main distribution center in Mumbai",
+                    Type = GeofenceType.Rectangle, Status = EntityStatus.Active,
+                    Coordinates = "[{\"lat\":19.05,\"lng\":72.85},{\"lat\":19.08,\"lng\":72.88},{\"lat\":19.03,\"lng\":72.90},{\"lat\":19.01,\"lng\":72.86}]",
+                    CenterLatitude = 19.05, CenterLongitude = 72.87, FillColor = "#4CAF5033", BorderColor = "#4CAF50", BorderWidth = 2,
+                    CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Delhi NCR Hub", Description = "Northern region coverage area",
+                    Type = GeofenceType.Circle, Status = EntityStatus.Active,
+                    Coordinates = "[]", CenterLatitude = 28.61, CenterLongitude = 77.21, Radius = 15000,
+                    FillColor = "#2196F333", BorderColor = "#2196F3", BorderWidth = 2,
+                    CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Bangalore Tech Park", Description = "Restricted area - IT corridor",
+                    Type = GeofenceType.Polygon, Status = EntityStatus.Active,
+                    Coordinates = "[{\"lat\":12.91,\"lng\":77.64},{\"lat\":12.94,\"lng\":77.67},{\"lat\":12.92,\"lng\":77.70},{\"lat\":12.89,\"lng\":77.68}]",
+                    CenterLatitude = 12.92, CenterLongitude = 77.67, FillColor = "#FF980033", BorderColor = "#FF9800", BorderWidth = 3,
+                    CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                db.Geofences.AddRange(geofences);
+            }
+
+            if (demoCo != null)
+            {
+                var geofences = new List<Geofence>();
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Ahmedabad Depot", Description = "Primary logistics depot",
+                    Type = GeofenceType.Circle, Status = EntityStatus.Active,
+                    Coordinates = "[]", CenterLatitude = 23.02, CenterLongitude = 72.57, Radius = 8000,
+                    FillColor = "#9C27B033", BorderColor = "#9C27B0", BorderWidth = 2,
+                    CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Surat Industrial Zone", Description = "Manufacturing area boundary",
+                    Type = GeofenceType.Rectangle, Status = EntityStatus.Active,
+                    Coordinates = "[{\"lat\":21.15,\"lng\":72.80},{\"lat\":21.20,\"lng\":72.85},{\"lat\":21.13,\"lng\":72.87},{\"lat\":21.10,\"lng\":72.82}]",
+                    CenterLatitude = 21.17, CenterLongitude = 72.83, FillColor = "#F4433633", BorderColor = "#F44336", BorderWidth = 2,
+                    CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                geofences.Add(new Geofence
+                {
+                    Id = Guid.NewGuid(), Name = "Rajkot Customer Zone", Description = "Customer delivery area",
+                    Type = GeofenceType.Polygon, Status = EntityStatus.Active,
+                    Coordinates = "[{\"lat\":22.29,\"lng\":70.78},{\"lat\":22.32,\"lng\":70.82},{\"lat\":22.28,\"lng\":70.84},{\"lat\":22.26,\"lng\":70.80}]",
+                    CenterLatitude = 22.30, CenterLongitude = 70.81, FillColor = "#00BCD433", BorderColor = "#00BCD4", BorderWidth = 2,
+                    CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                db.Geofences.AddRange(geofences);
+            }
+
+            await db.SaveChangesAsync();
+
+            // Assign vehicles to geofences
+            var allGeofences = await db.Geofences.Where(g => !g.IsDeleted).Include(g => g.Company).ToListAsync();
+            foreach (var gf in allGeofences)
+            {
+                var vehicles = await db.Vehicles.Where(v => v.CompanyId == gf.CompanyId && !v.IsDeleted).Take(3).ToListAsync();
+                var drivers = await db.Drivers.Where(d => d.CompanyId == gf.CompanyId && !d.IsDeleted).Take(3).ToListAsync();
+                for (int i = 0; i < vehicles.Count; i++)
+                {
+                    var alreadyExists = await db.VehicleGeofences.AnyAsync(vg => vg.GeofenceId == gf.Id && vg.VehicleId == vehicles[i].Id && !vg.IsDeleted);
+                    if (!alreadyExists)
+                    {
+                        db.VehicleGeofences.Add(new VehicleGeofence
+                        {
+                            Id = Guid.NewGuid(), GeofenceId = gf.Id, VehicleId = vehicles[i].Id,
+                            DriverId = i < drivers.Count ? drivers[i].Id : null,
+                            AlertOnEntry = true, AlertOnExit = true, AlertOnDwell = i == 0, DwellTimeMinutes = i == 0 ? 15 : null,
+                            TenantId = gf.TenantId
+                        });
+                    }
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+
+        // ── Demo Routes ──
+        if (!await db.Routes.AnyAsync())
+        {
+            var platformCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "platform");
+            var demoCo = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
+
+            if (platformCompany != null)
+            {
+                var platformVehicles = await db.Vehicles.Where(v => v.CompanyId == platformCompany.Id && !v.IsDeleted).Take(4).ToListAsync();
+                var platformDrivers = await db.Drivers.Where(d => d.CompanyId == platformCompany.Id && !d.IsDeleted).Take(4).ToListAsync();
+
+                var routes = new List<Route>();
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Mumbai-Pune Express", Description = "Highway route via expressway",
+                    Type = RouteType.Optimized, Status = RouteStatus.Active, IsOptimized = true,
+                    OriginName = "Mumbai Warehouse", OriginLatitude = 19.05, OriginLongitude = 72.85,
+                    DestinationName = "Pune Distribution Center", DestinationLatitude = 18.52, DestinationLongitude = 73.85,
+                    Waypoints = "[{\"name\":\"Thane\",\"lat\":19.12,\"lng\":72.97},{\"name\":\"Lonavala\",\"lat\":18.75,\"lng\":73.40}]",
+                    TotalDistance = 148, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(2.5),
+                    EstimatedFuelCost = 1200, EstimatedTollCost = 350, Currency = "INR", TrafficLevel = 65,
+                    Priority = 4, MaxVehicles = 10, CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Delhi-Jaipur Highway", Description = "Daily freight route",
+                    Type = RouteType.Standard, Status = RouteStatus.Active, IsOptimized = false,
+                    OriginName = "Delhi NCR Hub", OriginLatitude = 28.61, OriginLongitude = 77.21,
+                    DestinationName = "Jaipur Depot", DestinationLatitude = 26.91, DestinationLongitude = 75.79,
+                    TotalDistance = 281, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(5),
+                    EstimatedFuelCost = 2400, EstimatedTollCost = 500, Currency = "INR", TrafficLevel = 40,
+                    Priority = 3, MaxVehicles = 15, CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Bangalore City Circuit", Description = "Multi-stop urban delivery route",
+                    Type = RouteType.MultiStop, Status = RouteStatus.Draft, IsOptimized = true, IsTemplate = true,
+                    OriginName = "Bangalore Tech Park", OriginLatitude = 12.92, OriginLongitude = 77.67,
+                    DestinationName = "Whitefield IT Park", DestinationLatitude = 12.97, DestinationLongitude = 77.75,
+                    Waypoints = "[{\"name\":\"Koramangala\",\"lat\":12.93,\"lng\":77.62},{\"name\":\"HSR Layout\",\"lat\":12.91,\"lng\":77.64},{\"name\":\"Electronic City\",\"lat\":12.85,\"lng\":77.66}]",
+                    TotalDistance = 42, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(3),
+                    EstimatedFuelCost = 350, Currency = "INR", TrafficLevel = 80,
+                    Priority = 2, MaxVehicles = 5, CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Chennai Port Express", Description = "Container transport route to Chennai port",
+                    Type = RouteType.Express, Status = RouteStatus.Completed, IsOptimized = true,
+                    OriginName = "Chennai Industrial Area", OriginLatitude = 13.05, OriginLongitude = 80.25,
+                    DestinationName = "Chennai Port Trust", DestinationLatitude = 13.08, DestinationLongitude = 80.29,
+                    TotalDistance = 18, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromMinutes(45),
+                    EstimatedFuelCost = 150, Currency = "INR", TrafficLevel = 55,
+                    Priority = 5, MaxVehicles = 3, CompanyId = platformCompany.Id, TenantId = platformCompany.Id
+                });
+                db.Routes.AddRange(routes);
+            }
+
+            if (demoCo != null)
+            {
+                var demoVehicles = await db.Vehicles.Where(v => v.CompanyId == demoCo.Id && !v.IsDeleted).Take(3).ToListAsync();
+                var demoDrivers = await db.Drivers.Where(d => d.CompanyId == demoCo.Id && !d.IsDeleted).Take(3).ToListAsync();
+
+                var routes = new List<Route>();
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Ahmedabad-Surat Corridor", Description = "Daily industrial goods transport",
+                    Type = RouteType.Optimized, Status = RouteStatus.Active, IsOptimized = true,
+                    OriginName = "Ahmedabad Depot", OriginLatitude = 23.02, OriginLongitude = 72.57,
+                    DestinationName = "Surat Industrial Zone", DestinationLatitude = 21.17, DestinationLongitude = 72.83,
+                    Waypoints = "[{\"name\":\"Vadodara\",\"lat\":22.31,\"lng\":73.19}]",
+                    TotalDistance = 265, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(4.5),
+                    EstimatedFuelCost = 2200, EstimatedTollCost = 400, Currency = "INR", TrafficLevel = 35,
+                    Priority = 4, MaxVehicles = 8, CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Rajkot Local Delivery", Description = "Intra-city delivery circuit",
+                    Type = RouteType.MultiStop, Status = RouteStatus.Active, IsOptimized = true,
+                    OriginName = "Rajkot Main Depot", OriginLatitude = 22.30, OriginLongitude = 70.80,
+                    DestinationName = "Rajkot Main Depot", DestinationLatitude = 22.30, DestinationLongitude = 70.80,
+                    Waypoints = "[{\"name\":\"Zone 1\",\"lat\":22.32,\"lng\":70.82},{\"name\":\"Zone 2\",\"lat\":22.28,\"lng\":70.84},{\"name\":\"Zone 3\",\"lat\":22.31,\"lng\":70.78}]",
+                    TotalDistance = 35, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(4),
+                    EstimatedFuelCost = 300, Currency = "INR", TrafficLevel = 50,
+                    Priority = 2, MaxVehicles = 5, CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                routes.Add(new Route
+                {
+                    Id = Guid.NewGuid(), Name = "Gujarat State Express", Description = "Long-haul route across Gujarat",
+                    Type = RouteType.RoundTrip, Status = RouteStatus.Draft, IsTemplate = true,
+                    OriginName = "Ahmedabad", OriginLatitude = 23.02, OriginLongitude = 72.57,
+                    DestinationName = "Bhuj", DestinationLatitude = 23.25, DestinationLongitude = 69.67,
+                    TotalDistance = 330, DistanceUnit = "km", EstimatedDuration = TimeSpan.FromHours(6),
+                    EstimatedFuelCost = 2800, EstimatedTollCost = 250, Currency = "INR", TrafficLevel = 20,
+                    Priority = 3, MaxVehicles = 6, CompanyId = demoCo.Id, TenantId = demoCo.Id
+                });
+                db.Routes.AddRange(routes);
+            }
+
+            await db.SaveChangesAsync();
+
+            // Assign vehicles to routes
+            var allRoutes = await db.Routes.Where(r => !r.IsDeleted).Include(r => r.Company).ToListAsync();
+            foreach (var route in allRoutes)
+            {
+                var vehicles = await db.Vehicles.Where(v => v.CompanyId == route.CompanyId && !v.IsDeleted).Take(3).ToListAsync();
+                var drivers = await db.Drivers.Where(d => d.CompanyId == route.CompanyId && !d.IsDeleted).Take(3).ToListAsync();
+                for (int i = 0; i < vehicles.Count; i++)
+                {
+                    db.RouteVehicles.Add(new RouteVehicle
+                    {
+                        Id = Guid.NewGuid(), RouteId = route.Id, VehicleId = vehicles[i].Id,
+                        DriverId = i < drivers.Count ? drivers[i].Id : null,
+                        SequenceOrder = i + 1, AssignedDate = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 30)),
+                        StartTime = DateTime.UtcNow.AddDays(-Random.Shared.Next(1, 10)),
+                        ActualDistance = (route.TotalDistance ?? 0) + Random.Shared.Next(-5, 10),
+                        TenantId = route.TenantId
+                    });
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+
         // Subscriptions - assign demo subscription to demo company
         if (!await db.Subscriptions.AnyAsync())
         {

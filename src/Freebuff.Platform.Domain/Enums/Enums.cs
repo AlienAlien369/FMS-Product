@@ -139,6 +139,25 @@ public enum GeofenceType
     Polygon = 2
 }
 
+public enum RouteStatus
+{
+    Draft = 0,
+    Active = 1,
+    InProgress = 2,
+    Completed = 3,
+    Archived = 4,
+    Cancelled = 5
+}
+
+public enum RouteType
+{
+    Standard = 0,
+    Optimized = 1,
+    Express = 2,
+    RoundTrip = 3,
+    MultiStop = 4
+}
+
 public enum PermissionAction
 {
     Create = 0,

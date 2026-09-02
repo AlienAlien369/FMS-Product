@@ -15,6 +15,8 @@ import Users from './pages/Users';
 import AdminCompanies from './pages/AdminCompanies';
 import CompanyDetail from './pages/CompanyDetail';
 import Packages from './pages/Packages';
+import RoutesPage from './pages/Routes';
+import GeofencesPage from './pages/Geofences';
 import type { ReactNode } from 'react';
 
 const queryClient = new QueryClient();
@@ -35,7 +37,7 @@ function AppRoutes() {
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/trips" element={<Placeholder title="Trips" />} />
-        <Route path="/geofences" element={<Placeholder title="Geofences" />} />
+        <Route path="/geofences" element={<GeofencesPage />} />
         <Route path="/fuel" element={<Placeholder title="Fuel Monitoring" />} />
         <Route path="/maintenance" element={<Placeholder title="Maintenance" />} />
         <Route path="/alerts" element={<Placeholder title="Alerts & Alarms" />} />
@@ -46,6 +48,7 @@ function AppRoutes() {
         <Route path="/roles" element={<Roles />} />
         <Route path="/packages" element={<Packages />} />
         <Route path="/modules" element={<Modules />} />
+        <Route path="/routes" element={<RoutesPage />} />
         <Route path="/localization" element={<Localization />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

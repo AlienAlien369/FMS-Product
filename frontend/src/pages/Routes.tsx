@@ -44,8 +44,8 @@ const TYPE_MAP: Record<number, { label: string; color: string }> = {
   0: { label: 'Standard', color: 'bg-gray-100 text-gray-700' },
   1: { label: 'Optimized', color: 'bg-green-100 text-green-700' },
   2: { label: 'Express', color: 'bg-orange-100 text-orange-700' },
-  3: { label: 'MultiStop', color: 'bg-blue-100 text-blue-700' },
-  4: { label: 'Circular', color: 'bg-purple-100 text-purple-700' },
+  3: { label: 'Round Trip', color: 'bg-blue-100 text-blue-700' },
+  4: { label: 'Multi-Stop', color: 'bg-purple-100 text-purple-700' },
 };
 
 type SortField = 'name' | 'totalDistance' | 'priority' | 'status';
@@ -372,7 +372,7 @@ function RouteModal({ route, isView, onClose, onSaved, canEdit }: {
               <div><label className={LABEL}>Route Name *</label><input className={INPUT} value={form.name} onChange={e => set('name', e.target.value)} /></div>
               <div><label className={LABEL}>Type</label>
                 <select className={INPUT} value={form.type} onChange={e => set('type', Number(e.target.value))}>
-                  <option value={0}>Standard</option><option value={1}>Optimized</option><option value={2}>Express</option><option value={3}>MultiStop</option><option value={4}>Circular</option>
+                  <option value={0}>Standard</option><option value={1}>Optimized</option><option value={2}>Express</option><option value={3}>Round Trip</option><option value={4}>Multi-Stop</option>
                 </select>
               </div>
             </div>

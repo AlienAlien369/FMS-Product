@@ -30,7 +30,9 @@ const LABEL = "block text-sm font-medium text-gray-700 mb-1";
 const STATUS_MAP: Record<number, { label: string; color: string }> = {
   0: { label: 'Active', color: 'bg-green-100 text-green-700' },
   1: { label: 'Inactive', color: 'bg-gray-100 text-gray-700' },
-  2: { label: 'Suspended', color: 'bg-yellow-100 text-yellow-700' },
+  2: { label: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
+  3: { label: 'Suspended', color: 'bg-red-100 text-red-700' },
+  4: { label: 'Archived', color: 'bg-gray-100 text-gray-500' },
 };
 
 const TYPE_MAP: Record<number, { label: string; color: string; icon: any }> = {
@@ -379,7 +381,7 @@ function GeofenceModal({ geofence, isView, onClose, onSaved, canEdit }: {
             </div>
 
             <div className="grid grid-cols-3 gap-4">
-              <div><label className={LABEL}>Fill Color</label><input type="color" className={INPUT} value={form.fillColor?.slice(0, 7) ?? '#4CAF50'} onChange={e => set('fillColor', e.target.value + '33')} /></div>
+              <div><label className={LABEL}>Fill Color</label><input type="color" className={INPUT} value={form.fillColor?.slice(0, 7) ?? '#4CAF50'} onChange={e => set('fillColor', `${e.target.value}33`)} /></div>
               <div><label className={LABEL}>Border Color</label><input type="color" className={INPUT} value={form.borderColor ?? '#4CAF50'} onChange={e => set('borderColor', e.target.value)} /></div>
               <div><label className={LABEL}>Border Width</label><input type="number" min={1} max={10} className={INPUT} value={form.borderWidth} onChange={e => set('borderWidth', Number(e.target.value))} /></div>
             </div>

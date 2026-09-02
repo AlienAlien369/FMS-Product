@@ -228,7 +228,8 @@ public class FleetRoutesController : ControllerBase
         var r = await _db.Routes.FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
         if (r == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Route not found." });
 
-        _db.Routes.Remove(r);
+        r.IsDeleted = true;
+        r.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(new ApiResponse<object> { Success = true, Message = "Route deleted." });
     }
@@ -239,7 +240,9 @@ public class FleetRoutesController : ControllerBase
         if (!await HasPermissionAsync("geofence.edit") && !await HasPermissionAsync("trip.edit"))
             return NoPermission();
 
-        var r = await _db.Routes.FirstOrDefaultAsync(r => r.Id == id && r.IsDeleted);
+        var tenantId = GetTenantId();
+        var isSuperAdmin = IsSuperAdmin();
+        var r = await _db.Routes.FirstOrDefaultAsync(r => r.Id == id && r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
         if (r == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Route not found." });
 
         r.IsDeleted = false;

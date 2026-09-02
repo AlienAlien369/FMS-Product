@@ -152,7 +152,12 @@ public class GeofencesController : ControllerBase
 
         if (dto.AssignedVehicleIds != null && dto.AssignedVehicleIds.Any())
         {
-            foreach (var vid in dto.AssignedVehicleIds)
+            // Only assign vehicles that belong to this company
+            var validVehicleIds = await _db.Vehicles
+                .Where(v => dto.AssignedVehicleIds.Contains(v.Id) && !v.IsDeleted && v.CompanyId == tenantId)
+                .Select(v => v.Id)
+                .ToListAsync();
+            foreach (var vid in validVehicleIds)
             {
                 _db.VehicleGeofences.Add(new VehicleGeofence
                 {
@@ -215,7 +220,8 @@ public class GeofencesController : ControllerBase
         var g = await _db.Geofences.FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId));
         if (g == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Geofence not found." });
 
-        _db.Geofences.Remove(g);
+        g.IsDeleted = true;
+        g.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(new ApiResponse<object> { Success = true, Message = "Geofence deleted." });
     }
@@ -226,7 +232,9 @@ public class GeofencesController : ControllerBase
         if (!await HasPermissionAsync("geofence.edit"))
             return NoPermission();
 
-        var g = await _db.Geofences.FirstOrDefaultAsync(g => g.Id == id && g.IsDeleted);
+        var tenantId = GetTenantId();
+        var isSuperAdmin = IsSuperAdmin();
+        var g = await _db.Geofences.FirstOrDefaultAsync(g => g.Id == id && g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId));
         if (g == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Geofence not found." });
 
         g.IsDeleted = false;
@@ -245,6 +253,10 @@ public class GeofencesController : ControllerBase
         var isSuperAdmin = IsSuperAdmin();
         var g = await _db.Geofences.FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId));
         if (g == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Geofence not found." });
+
+        // Validate vehicle belongs to the same company
+        var vehicle = await _db.Vehicles.FirstOrDefaultAsync(v => v.Id == dto.VehicleId && !v.IsDeleted && v.CompanyId == tenantId);
+        if (vehicle == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Vehicle not found in your company." });
 
         var exists = await _db.VehicleGeofences.AnyAsync(vg => vg.GeofenceId == id && vg.VehicleId == dto.VehicleId && !vg.IsDeleted);
         if (exists) return BadRequest(new ApiResponse<object> { Success = false, Message = "Vehicle already assigned to this geofence." });

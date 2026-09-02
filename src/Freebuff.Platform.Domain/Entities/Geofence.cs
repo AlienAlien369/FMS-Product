@@ -24,6 +24,10 @@ public class Geofence : BaseEntity
     public string? BorderColor { get; set; }
     public int? BorderWidth { get; set; }
 
+    // Violation tracking
+    public int ViolationCount { get; set; }
+    public DateTime? LastViolationAt { get; set; }
+
     // Company
     public Guid CompanyId { get; set; }
     public Company Company { get; set; } = null!;

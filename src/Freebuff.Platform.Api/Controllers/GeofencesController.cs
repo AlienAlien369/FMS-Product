@@ -37,14 +37,14 @@ public class GeofencesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] int? status = null, [FromQuery] int? type = null)
+        [FromQuery] int? status = null, [FromQuery] int? type = null,
+        [FromQuery] string? sortBy = null, [FromQuery] bool sortDesc = false)
     {
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
 
         var query = _db.Geofences.AsNoTracking()
             .Where(g => !g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId))
-            .Include(g => g.Company).Include(g => g.VehicleGeofences)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -52,8 +52,17 @@ public class GeofencesController : ControllerBase
         if (status.HasValue) query = query.Where(g => (int)g.Status == status.Value);
         if (type.HasValue) query = query.Where(g => (int)g.Type == type.Value);
 
+        // Server-side sorting
+        query = sortBy?.ToLower() switch
+        {
+            "name" => sortDesc ? query.OrderByDescending(g => g.Name) : query.OrderBy(g => g.Name),
+            "type" => sortDesc ? query.OrderByDescending(g => g.Type) : query.OrderBy(g => g.Type),
+            "status" => sortDesc ? query.OrderByDescending(g => g.Status) : query.OrderBy(g => g.Status),
+            _ => query.OrderByDescending(g => g.CreatedAt)
+        };
+
         var total = await query.CountAsync();
-        var items = await query.OrderByDescending(g => g.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
             .Select(g => new GeofenceDto
             {
                 Id = g.Id, Name = g.Name, Description = g.Description,
@@ -67,6 +76,7 @@ public class GeofencesController : ControllerBase
                 AlertOnDwell = g.VehicleGeofences.Any() ? g.VehicleGeofences.First().AlertOnDwell : false,
                 DwellTimeMinutes = g.VehicleGeofences.Any() ? g.VehicleGeofences.First().DwellTimeMinutes : null,
                 AssignedVehicleCount = g.VehicleGeofences.Count,
+                ViolationCount = g.ViolationCount,
                 CreatedAt = g.CreatedAt
             }).ToListAsync();
 
@@ -96,7 +106,8 @@ public class GeofencesController : ControllerBase
                 Rectangles = await query.CountAsync(g => g.Type == GeofenceType.Rectangle),
                 Polygons = await query.CountAsync(g => g.Type == GeofenceType.Polygon),
                 TotalAssignments = await _db.VehicleGeofences.AsNoTracking()
-                    .Where(vg => !vg.IsDeleted && (isSuperAdmin || vg.Geofence.CompanyId == tenantId)).CountAsync()
+                    .Where(vg => !vg.IsDeleted && (isSuperAdmin || vg.Geofence.CompanyId == tenantId)).CountAsync(),
+                TotalViolations = await query.SumAsync(g => g.ViolationCount)
             }
         });
     }
@@ -128,6 +139,7 @@ public class GeofencesController : ControllerBase
                 AlertOnEntry = vg?.AlertOnEntry ?? true, AlertOnExit = vg?.AlertOnExit ?? true,
                 AlertOnDwell = vg?.AlertOnDwell ?? false, DwellTimeMinutes = vg?.DwellTimeMinutes,
                 AssignedVehicleCount = g.VehicleGeofences.Count,
+                ViolationCount = g.ViolationCount,
                 CreatedAt = g.CreatedAt
             }
         });

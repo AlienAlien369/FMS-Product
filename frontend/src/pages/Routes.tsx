@@ -48,7 +48,7 @@ const TYPE_MAP: Record<number, { label: string; color: string }> = {
   4: { label: 'Multi-Stop', color: 'bg-purple-100 text-purple-700' },
 };
 
-type SortField = 'name' | 'totalDistance' | 'priority' | 'status';
+type SortField = 'name' | 'totalDistance' | 'priority' | 'status' | 'type';
 interface SortState { field: SortField; desc: boolean; }
 
 const STATUS_FILTERS: { key: string; label: string; value?: number; color: string; statKey?: string }[] = [
@@ -88,17 +88,22 @@ export default function RoutesPage() {
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (sort.field) {
+        params.set('sortBy', sort.field);
+        params.set('sortDesc', String(sort.desc));
+      }
       const res = await api.get(`/routes?${params}`);
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, sort]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/routes/stats'); setStats(res.data.data); } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const handleDelete = async (r: RouteDetail) => {
@@ -106,18 +111,10 @@ export default function RoutesPage() {
   };
 
   const items = data?.items ?? [];
-  const sorted = [...items].sort((a, b) => {
-    const mul = sort.desc ? -1 : 1;
-    switch (sort.field) {
-      case 'name': return mul * a.name.localeCompare(b.name);
-      case 'totalDistance': return mul * ((a.totalDistance ?? 0) - (b.totalDistance ?? 0));
-      case 'priority': return mul * ((a.priority ?? 0) - (b.priority ?? 0));
-      case 'status': return mul * (a.status - b.status);
-      default: return 0;
-    }
-  });
+  // Sorting is now server-side; items come pre-sorted from the API
+  const sorted = items;
 
-  const toggleSort = (field: SortField) => setSort(s => ({ field, desc: s.field === field ? !s.desc : false }));
+  const toggleSort = (field: SortField) => { setPage(1); setSort(s => ({ field, desc: s.field === field ? !s.desc : false })); };
 
   const SortIcon = ({ field }: { field: SortField }) => (
     sort.field === field ? (sort.desc ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />) : null

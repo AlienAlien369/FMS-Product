@@ -38,14 +38,14 @@ public class FleetRoutesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] int? status = null, [FromQuery] int? type = null, [FromQuery] int? priority = null)
+        [FromQuery] int? status = null, [FromQuery] int? type = null, [FromQuery] int? priority = null,
+        [FromQuery] string? sortBy = null, [FromQuery] bool sortDesc = false)
     {
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
 
         var query = _db.Routes.AsNoTracking()
             .Where(r => !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId))
-            .Include(r => r.Company).Include(r => r.RouteVehicles).Include(r => r.Trips)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -54,8 +54,19 @@ public class FleetRoutesController : ControllerBase
         if (type.HasValue) query = query.Where(r => (int)r.Type == type.Value);
         if (priority.HasValue) query = query.Where(r => r.Priority == priority.Value);
 
+        // Server-side sorting
+        query = sortBy?.ToLower() switch
+        {
+            "name" => sortDesc ? query.OrderByDescending(r => r.Name) : query.OrderBy(r => r.Name),
+            "totaldistance" => sortDesc ? query.OrderByDescending(r => r.TotalDistance) : query.OrderBy(r => r.TotalDistance),
+            "priority" => sortDesc ? query.OrderByDescending(r => r.Priority) : query.OrderBy(r => r.Priority),
+            "status" => sortDesc ? query.OrderByDescending(r => r.Status) : query.OrderBy(r => r.Status),
+            "type" => sortDesc ? query.OrderByDescending(r => r.Type) : query.OrderBy(r => r.Type),
+            _ => query.OrderByDescending(r => r.CreatedAt)
+        };
+
         var total = await query.CountAsync();
-        var items = await query.OrderByDescending(r => r.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
             .Select(r => new RouteDto
             {
                 Id = r.Id, Name = r.Name, Description = r.Description,

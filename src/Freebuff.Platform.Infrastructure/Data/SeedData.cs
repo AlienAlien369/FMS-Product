@@ -388,6 +388,7 @@ public static class SeedData
                     Type = GeofenceType.Rectangle, Status = EntityStatus.Active,
                     Coordinates = "[{\"lat\":19.05,\"lng\":72.85},{\"lat\":19.08,\"lng\":72.88},{\"lat\":19.03,\"lng\":72.90},{\"lat\":19.01,\"lng\":72.86}]",
                     CenterLatitude = 19.05, CenterLongitude = 72.87, FillColor = "#4CAF5033", BorderColor = "#4CAF50", BorderWidth = 2,
+                    ViolationCount = 12, LastViolationAt = DateTime.UtcNow.AddDays(-2),
                     CompanyId = platformCompany.Id, TenantId = platformCompany.Id
                 });
                 geofences.Add(new Geofence
@@ -396,6 +397,7 @@ public static class SeedData
                     Type = GeofenceType.Circle, Status = EntityStatus.Active,
                     Coordinates = "[]", CenterLatitude = 28.61, CenterLongitude = 77.21, Radius = 15000,
                     FillColor = "#2196F333", BorderColor = "#2196F3", BorderWidth = 2,
+                    ViolationCount = 5, LastViolationAt = DateTime.UtcNow.AddDays(-5),
                     CompanyId = platformCompany.Id, TenantId = platformCompany.Id
                 });
                 geofences.Add(new Geofence
@@ -404,6 +406,7 @@ public static class SeedData
                     Type = GeofenceType.Polygon, Status = EntityStatus.Active,
                     Coordinates = "[{\"lat\":12.91,\"lng\":77.64},{\"lat\":12.94,\"lng\":77.67},{\"lat\":12.92,\"lng\":77.70},{\"lat\":12.89,\"lng\":77.68}]",
                     CenterLatitude = 12.92, CenterLongitude = 77.67, FillColor = "#FF980033", BorderColor = "#FF9800", BorderWidth = 3,
+                    ViolationCount = 23, LastViolationAt = DateTime.UtcNow.AddDays(-1),
                     CompanyId = platformCompany.Id, TenantId = platformCompany.Id
                 });
                 db.Geofences.AddRange(geofences);
@@ -416,8 +419,9 @@ public static class SeedData
                 {
                     Id = Guid.NewGuid(), Name = "Ahmedabad Depot", Description = "Primary logistics depot",
                     Type = GeofenceType.Circle, Status = EntityStatus.Active,
-                    Coordinates = "[]", CenterLatitude = 23.02, CenterLongitude = 72.57, Radius = 8000,
+                    Coordinates = "[]",                    CenterLatitude = 23.02, CenterLongitude = 72.57, Radius = 8000,
                     FillColor = "#9C27B033", BorderColor = "#9C27B0", BorderWidth = 2,
+                    ViolationCount = 8, LastViolationAt = DateTime.UtcNow.AddDays(-3),
                     CompanyId = demoCo.Id, TenantId = demoCo.Id
                 });
                 geofences.Add(new Geofence
@@ -426,6 +430,7 @@ public static class SeedData
                     Type = GeofenceType.Rectangle, Status = EntityStatus.Active,
                     Coordinates = "[{\"lat\":21.15,\"lng\":72.80},{\"lat\":21.20,\"lng\":72.85},{\"lat\":21.13,\"lng\":72.87},{\"lat\":21.10,\"lng\":72.82}]",
                     CenterLatitude = 21.17, CenterLongitude = 72.83, FillColor = "#F4433633", BorderColor = "#F44336", BorderWidth = 2,
+                    ViolationCount = 3, LastViolationAt = DateTime.UtcNow.AddDays(-7),
                     CompanyId = demoCo.Id, TenantId = demoCo.Id
                 });
                 geofences.Add(new Geofence
@@ -434,6 +439,7 @@ public static class SeedData
                     Type = GeofenceType.Polygon, Status = EntityStatus.Active,
                     Coordinates = "[{\"lat\":22.29,\"lng\":70.78},{\"lat\":22.32,\"lng\":70.82},{\"lat\":22.28,\"lng\":70.84},{\"lat\":22.26,\"lng\":70.80}]",
                     CenterLatitude = 22.30, CenterLongitude = 70.81, FillColor = "#00BCD433", BorderColor = "#00BCD4", BorderWidth = 2,
+                    ViolationCount = 15, LastViolationAt = DateTime.UtcNow.AddDays(-1),
                     CompanyId = demoCo.Id, TenantId = demoCo.Id
                 });
                 db.Geofences.AddRange(geofences);

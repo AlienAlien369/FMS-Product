@@ -41,7 +41,7 @@ const TYPE_MAP: Record<number, { label: string; color: string; icon: any }> = {
   2: { label: 'Polygon', color: 'bg-orange-100 text-orange-700', icon: Hexagon },
 };
 
-type SortField = 'name' | 'type' | 'status' | 'assignedVehicleCount';
+type SortField = 'name' | 'type' | 'status';
 interface SortState { field: SortField; desc: boolean; }
 
 const STATUS_FILTERS: { key: string; label: string; value?: number; color: string; statKey?: string }[] = [
@@ -72,11 +72,15 @@ export default function GeofencesPage() {
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (sort.field) {
+        params.set('sortBy', sort.field);
+        params.set('sortDesc', String(sort.desc));
+      }
       const res = await api.get(`/geofences?${params}`);
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, sort]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/geofences/stats'); setStats(res.data.data); } catch { /* ignore */ }
@@ -90,18 +94,10 @@ export default function GeofencesPage() {
   };
 
   const items = data?.items ?? [];
-  const sorted = [...items].sort((a, b) => {
-    const mul = sort.desc ? -1 : 1;
-    switch (sort.field) {
-      case 'name': return mul * a.name.localeCompare(b.name);
-      case 'type': return mul * (a.type - b.type);
-      case 'status': return mul * (a.status - b.status);
-      case 'assignedVehicleCount': return mul * (a.assignedVehicleCount - b.assignedVehicleCount);
-      default: return 0;
-    }
-  });
+  // Sorting is now server-side; items come pre-sorted from the API
+  const sorted = items;
 
-  const toggleSort = (field: SortField) => setSort(s => ({ field, desc: s.field === field ? !s.desc : false }));
+  const toggleSort = (field: SortField) => { setPage(1); setSort(s => ({ field, desc: s.field === field ? !s.desc : false })); };
 
   const SortIcon = ({ field }: { field: SortField }) => (
     sort.field === field ? (sort.desc ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />) : null
@@ -184,7 +180,7 @@ export default function GeofencesPage() {
                   { label: 'Type', field: 'type' as SortField },
                   { label: 'Location', field: null },
                   { label: 'Alerts', field: null },
-                  { label: 'Vehicles', field: 'assignedVehicleCount' as SortField },
+                  { label: 'Vehicles', field: null },
                   { label: 'Status', field: 'status' as SortField },
                   { label: 'Actions', field: null },
                 ].map(col => (

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: fms-product-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: ConnectionStrings__Redis
+        sync: false
+      - key: ConnectionStrings__RabbitMQ
+        sync: false
+      - key: Jwt__Key
+        sync: false
+      - key: Jwt__Issuer
+        value: fms-product
+      - key: Jwt__Audience
+        value: fms-product
+      - key: Cors__Origins__0
+        value: https://fms-product-lakshyas-projects-c97e54f6.vercel.app
+      - key: Cors__Origins__1
+        value: https://fms-product.vercel.app
+    healthCheckPath: /health
+    plan: free
+    region: oregon
+    autoDeploy: true
+    branch: main

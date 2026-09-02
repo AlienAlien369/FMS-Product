@@ -91,8 +91,18 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-                builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:5173" })
+        var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>();
+        if (origins == null || origins.Length == 0)
+        {
+            origins = new[]
+            {
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "https://fms-product-lakshyas-projects-c97e54f6.vercel.app",
+                "https://fms-product.vercel.app"
+            };
+        }
+        policy.WithOrigins(origins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -115,7 +125,10 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -123,13 +136,18 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-// ── Auto-setup database in development ───────────────────
-if (app.Environment.IsDevelopment())
+// ── Auto-setup database ─────────────────────────────────
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    // EnsureCreated creates schema from model (dev only; use Migrations in production)
-    await db.Database.EnsureCreatedAsync();
+    if (app.Environment.IsDevelopment())
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
+    else
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
     await Freebuff.Platform.Infrastructure.Data.SeedData.SeedAsync(db);
 }
 

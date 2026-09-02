@@ -1,9 +1,12 @@
 import axios from 'axios';
 
+const PRODUCTION_API = 'https://fms-product-api.onrender.com';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL
     ? `${import.meta.env.VITE_API_URL}/api/v1`
-    : '/api/v1',
+    : window.location.hostname === 'localhost'
+      ? '/api/v1'
+      : `${PRODUCTION_API}/api/v1`,
   headers: { 'Content-Type': 'application/json' },
 });
 

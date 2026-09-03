@@ -54,18 +54,15 @@ public class PermissionsController : ControllerBase
     {
         var tenantId = User.GetTenantId();
 
-        // Non-SuperAdmin users may only see permission groups for pages whose
-        // top-level module is in their company's package — they cannot even
-        // select (or request) a permission their company isn't entitled to.
+        // Non-SuperAdmin users may only see permission groups their company is
+        // entitled to: package-enabled modules AND pages that are neither Planned
+        // nor Inactive (same DB-driven set the effective-permission engine uses,
+        // so the selector can never offer a permission that would be rejected).
         var permissionQuery = _db.Permissions.AsNoTracking().Where(p => !p.IsDeleted);
         if (!User.IsSuperAdmin())
         {
-            var enabledModules = await _permissionService.GetEnabledModuleCodesAsync(tenantId);
-            var allowedPageKeys = PageRegistry.All
-                .Where(p => enabledModules.Contains(p.Module))
-                .Select(p => p.Key)
-                .ToHashSet();
-            permissionQuery = permissionQuery.Where(p => allowedPageKeys.Contains(p.Module));
+            var allowedCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(tenantId);
+            permissionQuery = permissionQuery.Where(p => allowedCodes.Contains(p.Code));
         }
 
         var permissions = await permissionQuery

@@ -295,6 +295,102 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
     }
 
     [Fact]
+    public async Task Registry_InactivePage_RevokesApiAndSelectorAccess()
+    {
+        var sa = await SuperAdminTokenAsync();
+        var demo = await DemoTokenAsync();
+
+        var geoPageId = Guid.Parse((await _db.ScalarAsync(
+            "SELECT \"Id\"::text FROM \"Pages\" WHERE \"Key\" = 'geofence' AND \"IsDeleted\" = false"))!);
+
+        // Baseline: API 200 and the geofence group present in the RoleModal selector.
+        var (before, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+        _checker.Check("Geofence API 200 before Inactive toggle", before == 200, $"status={before}");
+        var (groupedBefore, groupedDataBefore) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            "/api/v1/permissions/grouped", token: demo);
+        var hadGroupBefore = groupedDataBefore != null && groupedDataBefore.Value.EnumerateArray()
+            .Any(g => g.GetProperty("module").GetString() == "geofence");
+        _checker.Check("Selector offers geofence group before toggle", groupedBefore == 200 && hadGroupBefore,
+            $"status={groupedBefore}");
+
+        // SuperAdmin toggles the page to Inactive (EntityStatus.Inactive = 1).
+        var (toggle, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Put, $"/api/v1/admin/pages/{geoPageId}",
+            new { status = 1 }, sa);
+        _checker.Check("Toggle geofence page to Inactive succeeds", toggle == 200, $"status={toggle}");
+
+        // Fleet Manager snapshot for the non-destructive escalation probe.
+        var fleetManagerId = Guid.Parse((await _db.ScalarAsync(
+            "SELECT \"Id\"::text FROM \"Roles\" WHERE \"Name\" = 'Fleet Manager' AND \"IsDeleted\" = false LIMIT 1"))!);
+        var beforePermIds = await _db.ScalarAsync($"""
+            SELECT string_agg(rp."PermissionId"::text, ',')
+            FROM "RolePermissions" rp WHERE rp."RoleId" = '{fleetManagerId}' AND rp."IsDeleted" = false
+            """);
+
+        try
+        {
+            // API 403 immediately (cache invalidated by the toggle).
+            var (after, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+            _checker.Check("Geofence API 403 after Inactive toggle", after == 403, $"status={after}");
+
+            // Effective permissions lose the page's codes.
+            var (perms, permData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+                "/api/v1/auth/permissions", token: demo);
+            _checker.Check("geofence.view absent from effective permissions",
+                perms == 200 && !ApiJson.ContainsPermission(permData, "geofence.view"),
+                $"status={perms}, count={ApiJson.PermissionCount(permData)}");
+
+            // Roles & Permissions selector stops offering the group.
+            var (grouped, groupedData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+                "/api/v1/permissions/grouped", token: demo);
+            var hadGroup = groupedData != null && groupedData.Value.EnumerateArray()
+                .Any(g => g.GetProperty("module").GetString() == "geofence");
+            _checker.Check("Selector drops geofence group after Inactive toggle", grouped == 200 && !hadGroup,
+                $"status={grouped}");
+
+            // Server never grants Inactive-page permissions even if the ids are
+            // crafted directly into the request (disallowed ids are dropped).
+            var geoPermIds = (await _db.ScalarAsync(
+                "SELECT string_agg(\"Id\"::text, ',' ) FROM \"Permissions\" WHERE \"Module\" = 'geofence' AND \"Code\" IN ('geofence.view','geofence.create') AND \"IsDeleted\" = false"))!
+                .Split(',').Select(Guid.Parse).ToList();
+            var (assign, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Put,
+                $"/api/v1/roles/{fleetManagerId}",
+                new { permissionIds = geoPermIds }, demo);
+            var rolePermCodes = await _db.ScalarAsync($"""
+                SELECT string_agg(p."Code", ',' ORDER BY p."Code")
+                FROM "RolePermissions" rp JOIN "Permissions" p ON p."Id" = rp."PermissionId"
+                WHERE rp."RoleId" = '{fleetManagerId}' AND rp."IsDeleted" = false AND p."IsDeleted" = false
+                """);
+            _checker.Check("Inactive-page permissions never granted to role",
+                assign == 200 && (rolePermCodes == null || !rolePermCodes.Contains("geofence.")),
+                $"status={assign}");
+        }
+        finally
+        {
+            // Restore the page to Active first (so the role's original permissions
+            // are assignable again), then restore the Fleet Manager role's exact
+            // prior permission set — the PUT replaces the whole set.
+            await ApiJson.SendAsync(_db.Client, HttpMethod.Put, $"/api/v1/admin/pages/{geoPageId}",
+                new { status = 0 }, sa);
+            if (!string.IsNullOrEmpty(beforePermIds))
+            {
+                await ApiJson.SendAsync(_db.Client, HttpMethod.Put, $"/api/v1/roles/{fleetManagerId}",
+                    new { permissionIds = beforePermIds.Split(',').Select(Guid.Parse).ToList() }, demo);
+            }
+        }
+
+        var (restored, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+        _checker.Check("Geofence API 200 again after restoring", restored == 200, $"status={restored}");
+        var (grouped2, groupedData2) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            "/api/v1/permissions/grouped", token: demo);
+        var hadGroup2 = groupedData2 != null && groupedData2.Value.EnumerateArray()
+            .Any(g => g.GetProperty("module").GetString() == "geofence");
+        _checker.Check("Selector offers geofence group again after restore", grouped2 == 200 && hadGroup2,
+            $"status={grouped2}");
+
+        _checker.AssertAll();
+    }
+
+    [Fact]
     public async Task Registry_Reorder_Persists()
     {
         var sa = await SuperAdminTokenAsync();

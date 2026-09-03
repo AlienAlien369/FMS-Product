@@ -301,6 +301,59 @@ public static class SeedData
         }
         await db.SaveChangesAsync();
 
+        // ── Idempotent: assign ALL permissions to Company Admin roles ──
+        // This runs every startup to handle cases where permissions were wiped
+        var companyAdminRoles = await db.Roles
+            .Where(r => r.Name == "Company Admin" && r.IsSystemRole && !r.IsDeleted && r.Status == EntityStatus.Active)
+            .ToListAsync();
+        var allPerms = await db.Permissions.Where(p => !p.IsDeleted).ToListAsync();
+        foreach (var role in companyAdminRoles)
+        {
+            var existingPermIds = await db.RolePermissions
+                .Where(rp => rp.RoleId == role.Id && !rp.IsDeleted)
+                .Select(rp => rp.PermissionId)
+                .ToListAsync();
+            var missingPerms = allPerms.Where(p => !existingPermIds.Contains(p.Id)).ToList();
+            if (missingPerms.Count > 0)
+            {
+                foreach (var perm in missingPerms)
+                {
+                    db.RolePermissions.Add(new RolePermission
+                    {
+                        Id = Guid.NewGuid(), RoleId = role.Id, PermissionId = perm.Id,
+                        TenantId = role.CompanyId
+                    });
+                }
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // ── Idempotent: assign fleet permissions to Fleet Manager roles ──
+        var fleetManagerRoles = await db.Roles
+            .Where(r => r.Name == "Fleet Manager" && !r.IsDeleted && r.Status == EntityStatus.Active)
+            .ToListAsync();
+        var fleetModules = new[] { "vehicle", "driver", "trip", "geofence", "alert", "fuel", "maintenance", "report", "client" };
+        foreach (var role in fleetManagerRoles)
+        {
+            var existingFmPermIds = await db.RolePermissions
+                .Where(rp => rp.RoleId == role.Id && !rp.IsDeleted)
+                .Select(rp => rp.PermissionId)
+                .ToListAsync();
+            var missingFmPerms = allPerms.Where(p => fleetModules.Contains(p.Module) && !existingFmPermIds.Contains(p.Id)).ToList();
+            if (missingFmPerms.Count > 0)
+            {
+                foreach (var perm in missingFmPerms)
+                {
+                    db.RolePermissions.Add(new RolePermission
+                    {
+                        Id = Guid.NewGuid(), RoleId = role.Id, PermissionId = perm.Id,
+                        TenantId = role.CompanyId
+                    });
+                }
+            }
+        }
+        await db.SaveChangesAsync();
+
         // Ensure lakshya@gmail.com test user exists in Demo Fleet Company
         if (!await db.Users.AnyAsync(u => u.Email == "lakshya@gmail.com" && !u.IsDeleted))
         {

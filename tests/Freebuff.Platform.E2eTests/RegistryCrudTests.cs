@@ -35,10 +35,22 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
         ?? throw new Xunit.Sdk.XunitException("Demo admin login failed on fresh seed");
 
     private async Task<Guid> ModuleIdAsync(string code) =>
-        Guid.Parse((await _db.ScalarAsync($"SELECT \"Id\"::text FROM \"Modules\" WHERE \"Code\" = '{code}' AND \"IsDeleted\" = false"))!);
+        Guid.Parse((await _db.ScalarAsync($"SELECT \"Id\"::text FROM \"Modules\" WHERE \"Code\" = '{code}' AND \"IsDeleted\" = false"))!);    private async Task<int> PermissionCountForPageAsync(string key)
+        => int.Parse((await _db.ScalarAsync($"SELECT COUNT(*)::text FROM \"Permissions\" WHERE \"Module\" = '{key}' AND \"IsDeleted\" = false"))!);
 
-    private async Task<int> PermissionCountForPageAsync(string key) =>
-        int.Parse((await _db.ScalarAsync($"SELECT COUNT(*)::text FROM \"Permissions\" WHERE \"Module\" = '{key}' AND \"IsDeleted\" = false"))!);
+    /// <summary>True when the caller's /modules catalog lists the page by key.</summary>
+    private async Task<bool> CatalogHasPageAsync(string token, string key)
+    {
+        var (status, data) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            "/api/v1/modules?pageSize=50", token: token);
+        if (status != 200 || data == null) return false;
+        foreach (var m in data.Value.GetProperty("items").EnumerateArray())
+        {
+            if (!m.TryGetProperty("pages", out var pages)) continue;
+            if (pages.EnumerateArray().Any(p => p.GetProperty("key").GetString() == key)) return true;
+        }
+        return false;
+    }
 
     [Fact]
     public async Task Registry_WriteEndpoints_403ForNonSuperAdmin()
@@ -280,6 +292,13 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
             _checker.Check("geofence.view absent from effective permissions",
                 perms == 200 && !ApiJson.ContainsPermission(permData, "geofence.view"),
                 $"status={perms}, count={ApiJson.PermissionCount(permData)}");
+
+            // Read-only catalog: tenants no longer see the planned page,
+            // SuperAdmin still does (registry management needs it).
+            _checker.Check("Tenant catalog hides planned page",
+                !await CatalogHasPageAsync(demo, "geofence"));
+            _checker.Check("SuperAdmin catalog still shows planned page",
+                await CatalogHasPageAsync(sa, "geofence"));
         }
         finally
         {
@@ -347,6 +366,13 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
             _checker.Check("Selector drops geofence group after Inactive toggle", grouped == 200 && !hadGroup,
                 $"status={grouped}");
 
+            // Read-only catalog: tenants no longer see the inactive page,
+            // SuperAdmin still does (registry management needs it).
+            _checker.Check("Tenant catalog hides inactive page",
+                !await CatalogHasPageAsync(demo, "geofence"));
+            _checker.Check("SuperAdmin catalog still shows inactive page",
+                await CatalogHasPageAsync(sa, "geofence"));
+
             // Server never grants Inactive-page permissions even if the ids are
             // crafted directly into the request (disallowed ids are dropped).
             var geoPermIds = (await _db.ScalarAsync(
@@ -386,6 +412,8 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
             .Any(g => g.GetProperty("module").GetString() == "geofence");
         _checker.Check("Selector offers geofence group again after restore", grouped2 == 200 && hadGroup2,
             $"status={grouped2}");
+        _checker.Check("Tenant catalog shows the page again after restore",
+            await CatalogHasPageAsync(demo, "geofence"));
 
         _checker.AssertAll();
     }

@@ -1,6 +1,7 @@
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,7 +26,15 @@ public class ModulesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
+        var isSuperAdmin = User.IsSuperAdmin();
+
+        // SuperAdmin sees the full catalog (they manage the registry, including
+        // planned/inactive entries). Tenants only see what is live for them:
+        // Active modules and Active, non-Planned pages — the same set the
+        // permission engine grants and the sidebar renders.
         var query = _db.Modules.AsNoTracking().Where(m => !m.IsDeleted);
+        if (!isSuperAdmin)
+            query = query.Where(m => m.Status == EntityStatus.Active);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(m => m.Name.Contains(filter.Search) || m.Code.Contains(filter.Search));
@@ -34,7 +43,11 @@ public class ModulesController : ControllerBase
 
         var total = await query.CountAsync();
         var rows = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
-        var pagesByModule = (await _db.Pages.AsNoTracking().Where(p => !p.IsDeleted).ToListAsync())
+
+        var pagesQuery = _db.Pages.AsNoTracking().Where(p => !p.IsDeleted);
+        if (!isSuperAdmin)
+            pagesQuery = pagesQuery.Where(p => !p.Planned && p.Status == EntityStatus.Active);
+        var pagesByModule = (await pagesQuery.ToListAsync())
             .GroupBy(p => p.ModuleId)
             .ToDictionary(g => g.Key, g => g.OrderBy(p => p.DisplayOrder).ToList());
 
@@ -42,7 +55,9 @@ public class ModulesController : ControllerBase
         {
             var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
                 ? dbPages
-                : PageRegistry.PagesInModule(m.Code).Select(ToPage).ToList();
+                : PageRegistry.PagesInModule(m.Code)
+                    .Where(p => isSuperAdmin || !p.Planned)
+                    .Select(ToPage).ToList();
             return (object)new
             {
                 m.Id, m.Code, m.Name, m.Description, m.Icon,

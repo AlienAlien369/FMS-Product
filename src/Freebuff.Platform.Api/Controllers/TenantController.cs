@@ -55,6 +55,20 @@ public class TenantController : ControllerBase
         return Ok(ApiResponse<object>.Ok(clients));
     }
 
+    /// <summary>
+    /// The company's modules for a company admin: only the live modules/pages
+    /// the company can actually use, derived from its package — the same
+    /// visibility rule as the tenant /modules catalog. SuperAdmin's full detail
+    /// view lives on the admin endpoint (CompanyDetail Modules tab).
+    /// </summary>
+    [HttpGet("company/modules")]
+    public async Task<ActionResult<ApiResponse<object>>> GetCompanyModules()
+    {
+        var result = await CompanyModulesQuery.ForCompanyAsync(_db, GetTenantId(), tenantView: true);
+        if (result == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+        return Ok(ApiResponse<object>.Ok(result));
+    }
+
     [HttpGet("company")]
     public async Task<ActionResult<ApiResponse<object>>> GetCompany()
     {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Eye, Building2, X, CheckCircle, AlertCircle, Globe, Clock, DollarSign, Users } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Eye, Building2, X, CheckCircle, AlertCircle, Globe, Clock, DollarSign, Users, Package } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import CompanyEditModal from '../components/company/CompanyEditModal';
@@ -204,9 +204,16 @@ function CompanyAdminList() {
 // ── Company admin: their own company's card (they have no cross-company view) ──
 function MyCompanyCard() {
   const [company, setCompany] = useState<any>(null);
+  const [modules, setModules] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    api.get('/tenant/company').then(r => setCompany(r.data.data)).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      api.get('/tenant/company').catch(() => null),
+      api.get('/tenant/company/modules').catch(() => null),
+    ]).then(([c, m]) => {
+      if (c?.data?.data) setCompany(c.data.data);
+      if (m?.data?.data) setModules(m.data.data);
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
@@ -245,9 +252,43 @@ function MyCompanyCard() {
           </div>
         </div>
       </div>
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2">
-        <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <span>The modules your company can use come from the package assigned by the platform administrator — package changes apply to all your users on their next request.</span>
+      {/* Modules the company can use — live only (the same set the sidebar shows) */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Package className="w-4 h-4 text-blue-600" />
+          <h3 className="text-sm font-semibold text-gray-900">Modules Your Company Can Use</h3>
+          {modules?.packageName && <span className="text-xs text-gray-400">· {modules.packageName} package</span>}
+        </div>
+        {(modules?.modules?.length || 0) > 0 ? (
+          <div className="space-y-3">
+            {modules.modules.map((m: any) => (
+              <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-gray-100 p-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">{m.name}</span>
+                    {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
+                  </div>
+                  {m.pages?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {m.pages.map((p: any) => (
+                        <span key={p.key} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {p.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 flex-shrink-0">Included</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No package assigned yet — contact the platform administrator.</p>
+        )}
+        <p className="text-xs text-gray-400 mt-4 flex items-start gap-1.5">
+          <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          These come from the package assigned by the platform administrator — package changes apply to all your users on their next request.
+        </p>
       </div>
     </div>
   );

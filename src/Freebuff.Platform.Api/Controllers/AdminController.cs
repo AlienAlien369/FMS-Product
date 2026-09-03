@@ -208,77 +208,14 @@ public class AdminController : ControllerBase
     // ── Company Modules (derived from the company's package) ────────────────
     // There is no per-company module override. A company can use exactly the
     // modules its package grants; page-level access inside a module is RBAC.
+    // SuperAdmin sees the full detail view (planned/adminOnly pages included);
+    // company admins get the live-only view via /tenant/company/modules.
     [HttpGet("companies/{id:guid}/modules")]
     public async Task<ActionResult<ApiResponse<object>>> GetCompanyModules(Guid id)
     {
-        var company = await _db.Companies.AsNoTracking()
-            .Where(c => c.Id == id && !c.IsDeleted)
-            .Select(c => new { c.PackageId, c.SubscriptionId })
-            .FirstOrDefaultAsync();
-        if (company == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
-
-        var packageId = company.PackageId;
-        if (packageId == null && company.SubscriptionId != null)
-        {
-            packageId = await _db.Subscriptions.AsNoTracking()
-                .Where(s => s.Id == company.SubscriptionId && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
-                .Select(s => (Guid?)s.PackageId)
-                .FirstOrDefaultAsync();
-        }
-
-        string? packageName = null;
-        HashSet<Guid> includedModuleIds = new();
-        if (packageId != null)
-        {
-            var pkg = await _db.Packages.AsNoTracking().FirstOrDefaultAsync(p => p.Id == packageId.Value && !p.IsDeleted);
-            packageName = pkg?.Name;
-            var granted = await _db.PackageModules.AsNoTracking()
-                .Where(pm => pm.PackageId == packageId.Value && !pm.IsDeleted)
-                .Select(pm => pm.ModuleId)
-                .ToListAsync();
-            includedModuleIds = granted.ToHashSet();
-        }
-        else
-        {
-            // Legacy companies without a package keep their historical rows until a package is assigned.
-            var legacy = await _db.ModuleConfigurations.AsNoTracking()
-                .Where(mc => mc.CompanyId == id && !mc.IsDeleted && mc.Status == EntityStatus.Active)
-                .Select(mc => mc.ModuleId)
-                .ToListAsync();
-            includedModuleIds = legacy.ToHashSet();
-        }
-
-        var modules = await _db.Modules.AsNoTracking()
-            .Where(m => !m.IsDeleted)
-            .OrderBy(m => m.DisplayOrder)
-            .ToListAsync();
-        var pagesByModule = (await _db.Pages.AsNoTracking().Where(p => !p.IsDeleted).ToListAsync())
-            .GroupBy(p => p.ModuleId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(p => p.DisplayOrder).ToList());
-
-        var result = modules.Select(m =>
-        {
-            var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
-                ? dbPages
-                : PageRegistry.PagesInModule(m.Code).Select(ToPage).ToList();
-            return new
-            {
-                m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore,
-                Status = (int)m.Status, m.DisplayOrder,
-                Included = includedModuleIds.Contains(m.Id),
-                PageCount = pages.Count(p => !p.Planned),
-                PlannedPageCount = pages.Count(p => p.Planned),
-                Pages = pages.Select(PageRegistry.PageView).ToList()
-            };
-        }).ToList();
-
-        return Ok(ApiResponse<object>.Ok(new
-        {
-            PackageId = packageId,
-            PackageName = packageName,
-            IncludedModuleCodes = result.Where(r => r.Included).Select(r => r.Code).ToList(),
-            Modules = result
-        }));
+        var result = await CompanyModulesQuery.ForCompanyAsync(_db, id, tenantView: false);
+        if (result == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+        return Ok(ApiResponse<object>.Ok(result));
     }
 
     // ── Company Documents ───────────────────────────────
@@ -330,7 +267,7 @@ public class AdminController : ControllerBase
         {
             var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
                 ? dbPages
-                : PageRegistry.PagesInModule(m.Code).Select(ToPage).ToList();
+                : PageRegistry.PagesInModule(m.Code).Select(CompanyModulesQuery.ToPage).ToList();
             return new
             {
                 m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore, m.DisplayOrder,
@@ -637,21 +574,6 @@ public class AdminController : ControllerBase
     private static bool IsValidSlug(string slug) =>
         !string.IsNullOrWhiteSpace(slug) && Regex.IsMatch(slug, "^[a-z0-9]+(?:-[a-z0-9]+)*$");
 
-    private static Page ToPage(PageDefinition p) => new()
-    {
-        Id = Guid.Empty,
-        Key = p.Key,
-        Name = p.Label,
-        Route = p.Route,
-        Icon = p.Icon,
-        Nav = p.Nav,
-        AdminOnly = p.AdminOnly,
-        Planned = p.Planned,
-        IsCore = p.IsCore,
-        Status = EntityStatus.Active,
-        DisplayOrder = p.Order,
-        Description = p.Description
-    };
 
     private static IEnumerable<Permission> BuildPagePermissions(Page page, int startOrder)
     {

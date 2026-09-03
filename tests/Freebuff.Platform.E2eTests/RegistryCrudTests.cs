@@ -419,6 +419,79 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
     }
 
     [Fact]
+    public async Task Registry_Catalog_HidesAdminOnlyPagesFromTenants()
+    {
+        var sa = await SuperAdminTokenAsync();
+        var demo = await DemoTokenAsync();
+
+        // Pages a tenant cannot navigate to (SuperAdmin-only or no live route)
+        // must never appear in the tenant catalog — but SuperAdmin needs them
+        // for registry management.
+        foreach (var key in new[] { "platform", "package", "module", "document", "subscription" })
+        {
+            _checker.Check($"Tenant catalog hides '{key}'",
+                !await CatalogHasPageAsync(demo, key));
+            _checker.Check($"SuperAdmin catalog still shows '{key}'",
+                await CatalogHasPageAsync(sa, key));
+        }
+
+        _checker.AssertAll();
+    }
+
+    [Fact]
+    public async Task CompanyModules_TenantSplit()
+    {
+        var sa = await SuperAdminTokenAsync();
+        var demo = await DemoTokenAsync();
+
+        var demoCompanyId = Guid.Parse((await _db.ScalarAsync(
+            "SELECT \"CompanyId\"::text FROM \"Users\" WHERE \"Email\" = 'admin@demofleet.com' AND \"IsDeleted\" = false"))!);
+
+        // SuperAdmin (CompanyDetail Modules tab): full detail view — planned and
+        // adminOnly pages included so the package's full scope is reviewable.
+        var (full, fullData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            $"/api/v1/admin/companies/{demoCompanyId}/modules", token: sa);
+        var fullKeys = new List<string>();
+        if (fullData != null)
+            foreach (var m in fullData.Value.GetProperty("modules").EnumerateArray())
+                foreach (var p in m.GetProperty("pages").EnumerateArray())
+                    fullKeys.Add(p.GetProperty("key").GetString()!);
+        _checker.Check("SuperAdmin company modules 200", full == 200, $"status={full}");
+        _checker.Check("Full view includes planned page (trip)", fullKeys.Contains("trip"));
+        _checker.Check("Full view includes adminOnly page (platform)", fullKeys.Contains("platform"));
+
+        // Company admin: live modules/pages only, own company, package-derived.
+        var (ten, tenData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            "/api/v1/tenant/company/modules", token: demo);
+        var tenCodes = new List<string>();
+        var tenKeys = new List<string>();
+        if (tenData != null)
+            foreach (var m in tenData.Value.GetProperty("modules").EnumerateArray())
+            {
+                tenCodes.Add(m.GetProperty("code").GetString()!);
+                foreach (var p in m.GetProperty("pages").EnumerateArray())
+                    tenKeys.Add(p.GetProperty("key").GetString()!);
+            }
+        tenCodes.Sort();
+        _checker.Check("Tenant company modules 200", ten == 200, $"status={ten}");
+        _checker.Check("Tenant sees only included modules (dashboard,fleet,organization)",
+            string.Join(",", tenCodes) == "dashboard,fleet,organization",
+            $"codes={string.Join(",", tenCodes)}");
+        _checker.Check("Tenant view excludes planned page", !tenKeys.Contains("trip"));
+        _checker.Check("Tenant view excludes adminOnly page", !tenKeys.Contains("platform"));
+        _checker.Check("Tenant view excludes non-nav page (subscription)", !tenKeys.Contains("subscription"));
+        _checker.Check("Tenant view keeps live pages (vehicle, route)",
+            tenKeys.Contains("vehicle") && tenKeys.Contains("route"));
+
+        // Company admin cannot read the admin endpoint (SuperAdmin-only).
+        var (forbidden, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            $"/api/v1/admin/companies/{demoCompanyId}/modules", token: demo);
+        _checker.Check("Company admin 403 on admin company-modules", forbidden == 403, $"status={forbidden}");
+
+        _checker.AssertAll();
+    }
+
+    [Fact]
     public async Task Registry_Reorder_Persists()
     {
         var sa = await SuperAdminTokenAsync();

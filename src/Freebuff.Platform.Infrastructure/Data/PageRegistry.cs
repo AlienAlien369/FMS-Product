@@ -1,4 +1,5 @@
 using Freebuff.Platform.Domain.Entities;
+using Freebuff.Platform.Domain.Enums;
 
 namespace Freebuff.Platform.Infrastructure.Data;
 
@@ -126,6 +127,19 @@ public static class PageRegistry
 
     public static bool IsKnownAction(string action)
         => Actions.Contains(action);
+
+    /// <summary>
+    /// Tenant-visibility rule: what a tenant can actually navigate to. Active,
+    /// non-Planned, non-AdminOnly pages that are in the sidebar with a real
+    /// route — the same set the tenant /modules catalog, sidebar and permission
+    /// engine expose. (The SQL predicate in ModulesController mirrors this.)
+    /// </summary>
+    public static bool IsLiveForTenant(Page p)
+        => !p.Planned && p.Status == EntityStatus.Active && !p.AdminOnly && p.Nav && p.Route != null;
+
+    /// <summary>Tenant-visibility rule for a module: Active only.</summary>
+    public static bool IsLiveModuleForTenant(Module m)
+        => m.Status == EntityStatus.Active;
 
     /// <summary>
     /// Canonical page view used by every catalog endpoint (public Modules screen,

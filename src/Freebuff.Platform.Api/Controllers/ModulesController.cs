@@ -29,8 +29,9 @@ public class ModulesController : ControllerBase
         var isSuperAdmin = User.IsSuperAdmin();
 
         // SuperAdmin sees the full catalog (they manage the registry, including
-        // planned/inactive entries). Tenants only see what is live for them:
-        // Active modules and Active, non-Planned pages — the same set the
+        // planned/inactive entries). Tenants only see what they can actually
+        // navigate to: Active modules and Active, non-Planned, non-AdminOnly
+        // pages that are in the sidebar with a real route — the same set the
         // permission engine grants and the sidebar renders.
         var query = _db.Modules.AsNoTracking().Where(m => !m.IsDeleted);
         if (!isSuperAdmin)
@@ -46,7 +47,8 @@ public class ModulesController : ControllerBase
 
         var pagesQuery = _db.Pages.AsNoTracking().Where(p => !p.IsDeleted);
         if (!isSuperAdmin)
-            pagesQuery = pagesQuery.Where(p => !p.Planned && p.Status == EntityStatus.Active);
+            pagesQuery = pagesQuery.Where(p => !p.Planned && p.Status == EntityStatus.Active
+                && !p.AdminOnly && p.Nav && p.Route != null);
         var pagesByModule = (await pagesQuery.ToListAsync())
             .GroupBy(p => p.ModuleId)
             .ToDictionary(g => g.Key, g => g.OrderBy(p => p.DisplayOrder).ToList());
@@ -56,7 +58,7 @@ public class ModulesController : ControllerBase
             var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
                 ? dbPages
                 : PageRegistry.PagesInModule(m.Code)
-                    .Where(p => isSuperAdmin || !p.Planned)
+                    .Where(p => isSuperAdmin || (!p.Planned && !p.AdminOnly && p.Nav && p.Route != null))
                     .Select(ToPage).ToList();
             return (object)new
             {

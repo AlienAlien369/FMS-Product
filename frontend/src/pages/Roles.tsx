@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Shield, Users, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import RoleModal from '../components/RoleModal';
+import { pageByKey } from '../config/pages';
 
 interface Role {
   id: string; name: string; description?: string; isSystemRole: boolean;
@@ -156,10 +157,14 @@ export default function Roles() {
           {allPerms.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 text-center py-12 text-gray-400">No permissions found</div>
           ) : (
-            allPerms.map(g => (
+            allPerms
+              .map(g => ({ group: g, page: pageByKey(g.module) }))
+              .filter(({ page }) => !!page)
+              .sort((a, b) => a.page!.order - b.page!.order)
+              .map(({ group: g, page }) => (
               <div key={g.module} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-900 capitalize">{g.module}</h3>
+                  <h3 className="text-sm font-semibold text-gray-900">{page!.label}{page!.planned && <span className="ml-2 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">Planned</span>}</h3>
                 </div>
                 <div className="p-4 flex flex-wrap gap-1.5">
                   {g.permissions.map(p => (

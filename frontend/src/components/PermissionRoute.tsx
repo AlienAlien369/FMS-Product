@@ -7,15 +7,19 @@ import { useAuth } from '../contexts/AuthContext';
  *
  * Usage in App.tsx:
  *   <Route path="/drivers" element={<PermissionRoute permission="driver.view"><Drivers /></PermissionRoute>} />
+ *   <Route path="/packages" element={<PermissionRoute permission="package.view" adminOnly><Packages /></PermissionRoute>} />
  */
 export default function PermissionRoute({
   permission,
+  adminOnly = false,
   children,
 }: {
   permission?: string;
+  /** SuperAdmin-only page — blocks non-SuperAdmin even if they hold the permission */
+  adminOnly?: boolean;
   children: React.ReactNode;
 }) {
-  const { hasPermission, isLoading } = useAuth();
+  const { hasPermission, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -28,7 +32,13 @@ export default function PermissionRoute({
   // No permission required → always allow
   if (!permission) return <>{children}</>;
 
-  // SuperAdmin always passes (hasPermission already handles this)
+  // SuperAdmin bypasses both the permission and the adminOnly check
+  if (user?.roles?.includes('SuperAdmin')) return <>{children}</>;
+
+  // SuperAdmin-only pages block everyone else regardless of held permissions
+  if (adminOnly) return <Navigate to="/" replace />;
+
+  // Permission gate (hasPermission already returns true for SuperAdmin)
   if (hasPermission(permission)) return <>{children}</>;
 
   // Default deny → redirect to home

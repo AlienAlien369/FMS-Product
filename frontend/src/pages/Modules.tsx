@@ -16,8 +16,8 @@ interface Feature {
 
 export default function Modules() {
   const { can } = usePermissions();
-  const canView = can('configuration.view');
-  const canUpdate = can('configuration.update');
+  const canView = can('module.view');
+  const canUpdate = can('module.update');
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);

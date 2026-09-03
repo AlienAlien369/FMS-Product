@@ -19,6 +19,7 @@ import Packages from './pages/Packages';
 import RoutesPage from './pages/Routes';
 import GeofencesPage from './pages/Geofences';
 import type { ReactNode } from 'react';
+import { pagePermission } from './config/pages';
 
 const queryClient = new QueryClient();
 
@@ -33,20 +34,20 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="/" element={<PermissionRoute permission="dashboard.view"><Dashboard /></PermissionRoute>} />
-        <Route path="/companies" element={<PermissionRoute permission="company.view"><Companies /></PermissionRoute>} />
-        <Route path="/vehicles" element={<PermissionRoute permission="vehicle.view"><Vehicles /></PermissionRoute>} />
-        <Route path="/drivers" element={<PermissionRoute permission="driver.view"><Drivers /></PermissionRoute>} />
-        <Route path="/geofences" element={<PermissionRoute permission="geofence.view"><GeofencesPage /></PermissionRoute>} />
-        <Route path="/admin/companies" element={<PermissionRoute permission="company.view"><AdminCompanies /></PermissionRoute>} />
-        <Route path="/admin/companies/:id" element={<PermissionRoute permission="company.view"><CompanyDetail /></PermissionRoute>} />
-        <Route path="/users" element={<PermissionRoute permission="user.view"><Users /></PermissionRoute>} />
-        <Route path="/roles" element={<PermissionRoute permission="role.view"><Roles /></PermissionRoute>} />
-        <Route path="/packages" element={<PermissionRoute permission="package.view"><Packages /></PermissionRoute>} />
-        <Route path="/modules" element={<PermissionRoute permission="configuration.view"><Modules /></PermissionRoute>} />
-        <Route path="/routes" element={<PermissionRoute permission="route.view"><RoutesPage /></PermissionRoute>} />
-        <Route path="/localization" element={<PermissionRoute permission="configuration.view"><Localization /></PermissionRoute>} />
-        <Route path="/settings" element={<PermissionRoute permission="configuration.edit"><Settings /></PermissionRoute>} />
+        <Route path="/" element={<PermissionRoute permission={pagePermission('dashboard')}><Dashboard /></PermissionRoute>} />
+        <Route path="/companies" element={<PermissionRoute permission={pagePermission('company')}><Companies /></PermissionRoute>} />
+        <Route path="/vehicles" element={<PermissionRoute permission={pagePermission('vehicle')}><Vehicles /></PermissionRoute>} />
+        <Route path="/drivers" element={<PermissionRoute permission={pagePermission('driver')}><Drivers /></PermissionRoute>} />
+        <Route path="/geofences" element={<PermissionRoute permission={pagePermission('geofence')}><GeofencesPage /></PermissionRoute>} />
+        <Route path="/admin/companies" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><AdminCompanies /></PermissionRoute>} />
+        <Route path="/admin/companies/:id" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><CompanyDetail /></PermissionRoute>} />
+        <Route path="/users" element={<PermissionRoute permission={pagePermission('user')}><Users /></PermissionRoute>} />
+        <Route path="/roles" element={<PermissionRoute permission={pagePermission('role')}><Roles /></PermissionRoute>} />
+        <Route path="/packages" element={<PermissionRoute permission={pagePermission('package')} adminOnly><Packages /></PermissionRoute>} />
+        <Route path="/modules" element={<PermissionRoute permission={pagePermission('module')} adminOnly><Modules /></PermissionRoute>} />
+        <Route path="/routes" element={<PermissionRoute permission={pagePermission('route')}><RoutesPage /></PermissionRoute>} />
+        <Route path="/localization" element={<PermissionRoute permission={pagePermission('localization')}><Localization /></PermissionRoute>} />
+        <Route path="/settings" element={<PermissionRoute permission={pagePermission('settings')}><Settings /></PermissionRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

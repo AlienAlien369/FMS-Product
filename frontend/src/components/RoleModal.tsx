@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { X, Shield, Check } from 'lucide-react';
+import { PAGES, pageByKey } from '../config/pages';
 
 interface GroupedPerm { module: string; permissions: { id: string; code: string; name: string; action: string; }[]; }
 
@@ -136,7 +137,12 @@ export default function RoleModal({ role, onClose, onSaved }: Props) {
                     You have no permissions assigned. Contact your administrator.
                   </div>
                 )}
-                {allPerms.map(g => {
+                {allPerms
+                  // Render groups in canonical registry order; skip anything not in the registry
+                  .map(g => ({ group: g, page: pageByKey(g.module) }))
+                  .filter(({ page }) => !!page)
+                  .sort((a, b) => a.page!.order - b.page!.order)
+                  .map(({ group: g, page }) => {
                   // Filter: only show permissions the caller has
                   const available = isSuperAdmin ? g.permissions : g.permissions.filter(p => myPermIds.has(p.id));
                   if (available.length === 0) return null;
@@ -149,7 +155,8 @@ export default function RoleModal({ role, onClose, onSaved }: Props) {
                           className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${allChecked ? 'bg-blue-600 border-blue-600' : someChecked ? 'bg-blue-100 border-blue-400' : 'border-gray-300 hover:border-gray-400'}`}>
                           {(allChecked || someChecked) && <Check className="w-3 h-3 text-white" />}
                         </button>
-                        <span className="text-sm font-semibold text-gray-800 capitalize">{g.module}</span>
+                        <span className="text-sm font-semibold text-gray-800">{page!.label}</span>
+                        {page!.planned && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">Planned</span>}
                         <span className="text-xs text-gray-400">{available.length} permissions</span>
                       </div>
                       <div className="p-3 flex flex-wrap gap-1.5">

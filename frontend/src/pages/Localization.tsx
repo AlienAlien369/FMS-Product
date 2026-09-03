@@ -9,7 +9,7 @@ interface PagedData<T> { items: T[]; totalCount: number; page: number; pageSize:
 
 export default function Localization() {
   const { can } = usePermissions();
-  const canView = can('configuration.view');
+  const canView = can('localization.view');
   const [tab, setTab] = useState<'languages' | 'currencies'>('languages');
   const [langs, setLangs] = useState<PagedData<Lang> | null>(null);
   const [currencies, setCurrencies] = useState<PagedData<Curr> | null>(null);

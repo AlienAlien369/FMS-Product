@@ -32,53 +32,79 @@ public static class SeedData
             );
         }
 
-        // Modules — idempotent: load existing + add missing
+        // ── Legacy migrations FIRST (before module/permission creation so the
+        //    canonical loops below never collide with renamed rows) ─────────────
+
+        // Legacy '.edit' codes → '.update' (rename in place so role grants survive)
+        var legacyEditPerms = await db.Permissions
+            .Where(p => !p.IsDeleted && p.Code.EndsWith(".edit"))
+            .ToListAsync();
+        if (legacyEditPerms.Count > 0)
+        {
+            foreach (var p in legacyEditPerms)
+            {
+                p.Code = p.Code.Replace(".edit", ".update");
+                p.Name = p.Name.Replace("Edit ", "Update ");
+            }
+            await db.SaveChangesAsync();
+        }
+
+        // Legacy 'configuration' catch-all gated three distinct pages (Modules,
+        // Localization, Settings). Rename it to 'settings' IN PLACE (FKs unchanged,
+        // role grants survive); 'module'/'localization'/'platform' are added below.
+        var legacyModuleRow = await db.Modules
+            .FirstOrDefaultAsync(m => m.Code == "configuration" && !m.IsDeleted);
+        if (legacyModuleRow != null)
+        {
+            legacyModuleRow.Code = "settings";
+            legacyModuleRow.Name = "Settings";
+            legacyModuleRow.Description = "Company settings and preferences";
+            legacyModuleRow.Icon = "settings";
+            legacyModuleRow.Route = "/settings";
+            legacyModuleRow.IsCore = false;
+            legacyModuleRow.DisplayOrder = 13;
+            await db.SaveChangesAsync();
+        }
+
+        var legacyConfigPerms = await db.Permissions.Where(p => p.Module == "configuration" && !p.IsDeleted).ToListAsync();
+        if (legacyConfigPerms.Count > 0)
+        {
+            foreach (var p in legacyConfigPerms)
+            {
+                var action = p.Code.Split('.').Last();
+                p.Code = $"settings.{action}";
+                p.Module = "settings";
+                p.Name = $"{action} Settings";
+            }
+            await db.SaveChangesAsync();
+        }
+
+        // ── Modules + Permissions — driven by the canonical PageRegistry ──────
+        // Single source of truth: every Module row and Permission row derives from
+        // PageRegistry.All. There is no second list to keep in sync.
         var modules = new Dictionary<string, Module>();
         var existingModuleCodes = (await db.Modules.Where(m => !m.IsDeleted).Select(m => m.Code).ToListAsync()).ToHashSet();
         foreach (var m in await db.Modules.Where(m => !m.IsDeleted).ToListAsync())
             modules[m.Code] = m;
 
-        // Module codes MUST match permission module names (e.g. "vehicle" not "vehicles")
-        // so PermissionService.GetEnabledModuleCodesAsync can match permissions to modules.
-        var moduleList = new (string Code, string Name, string? Desc, bool IsCore, int Order)[]
-        {
-            ("vehicle", "Vehicle Management", "Vehicle CRUD and tracking", true, 1),
-            ("driver", "Driver Management", "Driver profiles and management", true, 2),
-            ("trip", "Trip Management", "Trip planning and execution", true, 3),
-            ("geofence", "Geofencing", "Geofence creation and monitoring", false, 4),
-            ("route", "Route Management", "Route planning and optimization", false, 5),
-            ("alert", "Alerts & Alarms", "Configurable alert system", true, 6),
-            ("fuel", "Fuel Monitoring", "Fuel level and consumption tracking", false, 7),
-            ("maintenance", "Maintenance", "Preventive and corrective maintenance", false, 8),
-            ("client", "Client Management", "Client profiles and management", false, 9),
-            ("document", "Document Management", "Document upload and compliance", false, 10),
-            ("report", "Reports & Analytics", "Reporting and dashboards", true, 11),
-            ("user", "User Management", "User profiles and access control", true, 12),
-            ("role", "Role Management", "Role and permission management", true, 13),
-            ("company", "Company Management", "Company administration", true, 14),
-            ("configuration", "Configuration", "System configuration and settings", true, 15),
-            ("subscription", "Subscription Management", "Subscription and billing", false, 16),
-            ("package", "Package Management", "Package and plan management", false, 17),
-            ("dashboard", "Dashboard", "Analytics and overview dashboard", true, 18),
-            ("notification", "Notifications", "Notification system", true, 19),
-        };
-
         var newModules = new List<Module>();
-        foreach (var (code, name, desc, isCore, modOrder) in moduleList)
+        foreach (var def in PageRegistry.All)
         {
-            if (existingModuleCodes.Contains(code)) continue;
+            if (existingModuleCodes.Contains(def.Key)) continue;
             var module = new Module
             {
                 Id = Guid.NewGuid(),
-                Code = code,
-                Name = name,
-                Description = desc,
-                IsCore = isCore,
-                DisplayOrder = modOrder,
+                Code = def.Key,
+                Name = def.Label,
+                Description = def.Description,
+                Icon = def.Icon,
+                Route = def.Route,
+                IsCore = def.IsCore,
+                DisplayOrder = def.Order,
                 Status = EntityStatus.Active
             };
             newModules.Add(module);
-            modules[code] = module;
+            modules[def.Key] = module;
         }
         if (newModules.Count > 0)
         {
@@ -86,32 +112,23 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // Permissions — comprehensive set covering every module × action
-        // Always add missing permissions (idempotent — safe to run on existing DBs)
+        // Permissions — exactly 6 actions (view/create/update/delete/export/import) per registered page.
         var existingPermCodes = (await db.Permissions.Where(p => !p.IsDeleted).Select(p => p.Code).ToListAsync()).ToHashSet();
-        var permModules = new string[] {
-            "vehicle", "driver", "trip", "geofence", "route",
-            "alert", "fuel", "maintenance", "client", "document",
-            "report", "user", "role", "company", "configuration",
-            "subscription", "package", "dashboard", "notification"
-        };
-        var permActions = new string[] { "view", "create", "update", "delete", "export", "import" };
-
         var order = existingPermCodes.Count;
         var newPerms = new List<Permission>();
-        foreach (var mod in permModules)
+        foreach (var def in PageRegistry.All)
         {
-            foreach (var action in permActions)
+            foreach (var action in PageRegistry.Actions)
             {
-                var code = $"{mod}.{action}";
+                var code = $"{def.Key}.{action}";
                 if (existingPermCodes.Contains(code)) continue;
                 order++;
                 newPerms.Add(new Permission
                 {
                     Id = Guid.NewGuid(),
                     Code = code,
-                    Name = $"{action} {mod}",
-                    Module = mod,
+                    Name = $"{action} {def.Label}",
+                    Module = def.Key,
                     Action = action switch
                     {
                         "view" => PermissionAction.Read,
@@ -133,44 +150,91 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // ── Idempotent migration: rename '.edit' permissions to '.update' ──
-        var editPerms = await db.Permissions
-            .Where(p => !p.IsDeleted && p.Code.EndsWith(".edit"))
-            .ToListAsync();
-        if (editPerms.Count > 0)
+        // ── Migration: copy 'settings' grants (formerly 'configuration') onto the
+        //    new per-page keys so no role loses access to Modules/Localization ──
+        var settingsPerms = await db.Permissions.AsNoTracking()
+            .Where(p => p.Module == "settings" && !p.IsDeleted).ToListAsync();
+        var modulePerms = await db.Permissions.AsNoTracking()
+            .Where(p => p.Module == "module" && !p.IsDeleted).ToListAsync();
+        var localizationPerms = await db.Permissions.AsNoTracking()
+            .Where(p => p.Module == "localization" && !p.IsDeleted).ToListAsync();
+        if (settingsPerms.Count > 0)
         {
-            foreach (var p in editPerms)
+            var rolesWithSettings = await db.RolePermissions.AsNoTracking()
+                .Where(rp => settingsPerms.Select(s => s.Id).Contains(rp.PermissionId) && !rp.IsDeleted)
+                .Select(rp => rp.RoleId)
+                .Distinct()
+                .ToListAsync();
+            foreach (var roleId in rolesWithSettings)
             {
-                p.Code = p.Code.Replace(".edit", ".update");
-                p.Name = p.Name.Replace("Edit ", "Update ");
+                var role = await db.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
+                if (role == null) continue;
+
+                var grantedIds = (await db.RolePermissions
+                    .Where(rp => rp.RoleId == roleId && !rp.IsDeleted)
+                    .Select(rp => rp.PermissionId).ToListAsync()).ToHashSet();
+
+                // For each settings.action granted, ensure module.action + localization.action are also granted
+                foreach (var settingsPerm in settingsPerms)
+                {
+                    if (!grantedIds.Contains(settingsPerm.Id)) continue;
+                    var action = settingsPerm.Code.Split('.').Last();
+                    foreach (var target in new[] { modulePerms, localizationPerms }.SelectMany(x => x))
+                    {
+                        if (!target.Code.EndsWith($".{action}")) continue;
+                        if (grantedIds.Contains(target.Id)) continue;
+                        db.RolePermissions.Add(new RolePermission
+                        {
+                            Id = Guid.NewGuid(),
+                            RoleId = roleId,
+                            PermissionId = target.Id,
+                            TenantId = role.CompanyId
+                        });
+                    }
+                }
             }
             await db.SaveChangesAsync();
         }
 
-        // ── Idempotent migration: collapse to 6 standard actions only ──
-        // Remove permissions for actions not in {view, create, update, delete, export, import}
-        var standardActions = new HashSet<string> { "view", "create", "update", "delete", "export", "import" };
-        var nonStandardPerms = await db.Permissions
+        // ── Drift check: flag + soft-delete anything in the DB that is NOT in the
+        //    canonical PageRegistry (no silent orphans, no silent duplicates) ──
+        var registryKeys = PageRegistry.All.Select(p => p.Key).ToHashSet();
+        var registryCodes = PageRegistry.All.SelectMany(p => PageRegistry.CodesFor(p.Key)).ToHashSet();
+
+        var unknownPerms = await db.Permissions.AsNoTracking()
             .Where(p => !p.IsDeleted)
+            .Select(p => new { p.Id, p.Code })
             .ToListAsync();
-        var toRemove = nonStandardPerms.Where(p => !standardActions.Contains(p.Code.Split('.').Last())).ToList();
-        if (toRemove.Count > 0)
+        var orphans = unknownPerms.Where(p => !registryCodes.Contains(p.Code)).ToList();
+        if (orphans.Count > 0)
         {
-            var removeIds = toRemove.Select(p => p.Id).ToHashSet();
-            // Hard-delete RolePermission records referencing non-standard permissions
-            var orphanRps = await db.RolePermissions.Where(rp => removeIds.Contains(rp.PermissionId)).ToListAsync();
-            if (orphanRps.Count > 0)
-            {
-                db.RolePermissions.RemoveRange(orphanRps);
-                await db.SaveChangesAsync();
-            }
-            // Soft-delete the non-standard permissions
-            foreach (var p in toRemove)
+            var orphanIds = orphans.Select(o => o.Id).ToHashSet();
+            var orphanRps = await db.RolePermissions.Where(rp => orphanIds.Contains(rp.PermissionId) && !rp.IsDeleted).ToListAsync();
+            db.RolePermissions.RemoveRange(orphanRps);
+            await db.SaveChangesAsync();
+
+            var permsToDelete = await db.Permissions.Where(p => orphanIds.Contains(p.Id)).ToListAsync();
+            foreach (var p in permsToDelete)
             {
                 p.IsDeleted = true;
                 p.DeletedAt = DateTime.UtcNow;
             }
             await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Drift check: soft-deleted {orphans.Count} permission rows not in PageRegistry: {string.Join(", ", orphans.Select(o => o.Code))}");
+        }
+
+        var unknownModules = await db.Modules.AsNoTracking()
+            .Where(m => !m.IsDeleted && !registryKeys.Contains(m.Code))
+            .ToListAsync();
+        if (unknownModules.Count > 0)
+        {
+            foreach (var m in unknownModules)
+            {
+                m.IsDeleted = true;
+                m.DeletedAt = DateTime.UtcNow;
+            }
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Drift check: soft-deleted {unknownModules.Count} module rows not in PageRegistry: {string.Join(", ", unknownModules.Select(m => m.Code))}");
         }
 
         // Packages

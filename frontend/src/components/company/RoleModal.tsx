@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 import { X, Check } from 'lucide-react';
+import { pageByKey } from '../../config/pages';
 
 const INPUT = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500";
 const LABEL = "block text-sm font-medium text-gray-700 mb-1";
@@ -46,7 +47,11 @@ export default function RoleModal({ companyId, role, allPerms, onClose, onSaved 
           <div className="grid grid-cols-2 gap-4"><div><label className={LABEL}>Role Name *</label><input className={INPUT} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Fleet Manager" /></div><div><label className={LABEL}>Description</label><input className={INPUT} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional" /></div></div>
           <div>
             <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium text-gray-700">Permissions</label><span className="text-xs text-gray-400">{selectedPerms.size} selected</span></div>
-            <div className="space-y-3">{allPerms.map(g => {
+            <div className="space-y-3">{allPerms
+              .map(g => ({ group: g, page: pageByKey(g.module) }))
+              .filter(({ page }) => !!page)
+              .sort((a, b) => a.page!.order - b.page!.order)
+              .map(({ group: g, page }) => {
               const allChecked = g.permissions.every(p => selectedPerms.has(p.id));
               const someChecked = g.permissions.some(p => selectedPerms.has(p.id));
               const toggleModule = () => { const n = new Set(selectedPerms); g.permissions.forEach(p => { if (allChecked) n.delete(p.id); else n.add(p.id); }); setSelectedPerms(n); };
@@ -54,7 +59,8 @@ export default function RoleModal({ companyId, role, allPerms, onClose, onSaved 
                 <div key={g.module} className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
                     <button onClick={toggleModule} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${allChecked ? 'bg-blue-600 border-blue-600' : someChecked ? 'bg-blue-100 border-blue-400' : 'border-gray-300'}`}>{(allChecked || someChecked) && <Check className="w-3 h-3 text-white" />}</button>
-                    <span className="text-sm font-semibold text-gray-800 capitalize">{g.module}</span><span className="text-xs text-gray-400">{g.permissions.length}</span>
+                    <span className="text-sm font-semibold text-gray-800">{page!.label}</span>
+                    {page!.planned && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">Planned</span>}<span className="text-xs text-gray-400">{g.permissions.length}</span>
                   </div>
                   <div className="p-3 flex flex-wrap gap-1.5">{g.permissions.map(p => (
                     <button key={p.id} onClick={() => { const n = new Set(selectedPerms); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); setSelectedPerms(n); }}

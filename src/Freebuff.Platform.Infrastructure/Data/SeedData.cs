@@ -38,22 +38,29 @@ public static class SeedData
         foreach (var m in await db.Modules.Where(m => !m.IsDeleted).ToListAsync())
             modules[m.Code] = m;
 
+        // Module codes MUST match permission module names (e.g. "vehicle" not "vehicles")
+        // so PermissionService.GetEnabledModuleCodesAsync can match permissions to modules.
         var moduleList = new (string Code, string Name, string? Desc, bool IsCore, int Order)[]
         {
-            ("fleet", "Fleet Management", "Core fleet management module", true, 1),
-            ("vehicles", "Vehicle Management", "Vehicle CRUD and tracking", true, 2),
-            ("drivers", "Driver Management", "Driver profiles and management", true, 3),
-            ("geofencing", "Geofencing", "Geofence creation and monitoring", false, 4),
-            ("trips", "Trip Management", "Trip planning and execution", true, 5),
-            ("tracking", "Live Tracking", "Real-time vehicle tracking", true, 6),
+            ("vehicle", "Vehicle Management", "Vehicle CRUD and tracking", true, 1),
+            ("driver", "Driver Management", "Driver profiles and management", true, 2),
+            ("trip", "Trip Management", "Trip planning and execution", true, 3),
+            ("geofence", "Geofencing", "Geofence creation and monitoring", false, 4),
+            ("route", "Route Management", "Route planning and optimization", false, 5),
+            ("alert", "Alerts & Alarms", "Configurable alert system", true, 6),
             ("fuel", "Fuel Monitoring", "Fuel level and consumption tracking", false, 7),
             ("maintenance", "Maintenance", "Preventive and corrective maintenance", false, 8),
-            ("alerts", "Alerts & Alarms", "Configurable alert system", true, 9),
-            ("compliance", "Compliance", "Document and compliance management", false, 10),
-            ("pod", "Proof of Delivery", "Digital proof of delivery", false, 11),
-            ("cctv", "CCTV / Video Telematics", "Video monitoring and playback", false, 12),
-            ("route-optimization", "Route Optimization", "Optimal route calculation", false, 13),
-            ("reports", "Reports & Analytics", "Reporting and dashboards", true, 14)
+            ("client", "Client Management", "Client profiles and management", false, 9),
+            ("document", "Document Management", "Document upload and compliance", false, 10),
+            ("report", "Reports & Analytics", "Reporting and dashboards", true, 11),
+            ("user", "User Management", "User profiles and access control", true, 12),
+            ("role", "Role Management", "Role and permission management", true, 13),
+            ("company", "Company Management", "Company administration", true, 14),
+            ("configuration", "Configuration", "System configuration and settings", true, 15),
+            ("subscription", "Subscription Management", "Subscription and billing", false, 16),
+            ("package", "Package Management", "Package and plan management", false, 17),
+            ("dashboard", "Dashboard", "Analytics and overview dashboard", true, 18),
+            ("notification", "Notifications", "Notification system", true, 19),
         };
 
         var newModules = new List<Module>();

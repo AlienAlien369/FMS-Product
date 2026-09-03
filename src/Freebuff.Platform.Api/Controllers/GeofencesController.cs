@@ -244,7 +244,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/assign-vehicle")]
-    [RequirePermission("geofence.assign")]
+    [RequirePermission("geofence.update")]
     public async Task<IActionResult> AssignVehicle(Guid id, [FromBody] AssignVehicleGeofenceDto dto)
     {
 

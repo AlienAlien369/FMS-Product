@@ -95,7 +95,7 @@ public static class SeedData
             "report", "user", "role", "company", "configuration",
             "subscription", "package", "dashboard", "notification"
         };
-        var permActions = new string[] { "view", "create", "update", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
+        var permActions = new string[] { "view", "create", "update", "delete", "export", "import" };
 
         var order = existingPermCodes.Count;
         var newPerms = new List<Permission>();
@@ -118,12 +118,8 @@ public static class SeedData
                         "create" => PermissionAction.Create,
                         "update" => PermissionAction.Update,
                         "delete" => PermissionAction.Delete,
-                        "import" => PermissionAction.Import,
                         "export" => PermissionAction.Export,
-                        "assign" => PermissionAction.Assign,
-                        "track" => PermissionAction.Execute,
-                        "immobilize" => PermissionAction.Manage,
-                        "approve" => PermissionAction.Approve,
+                        "import" => PermissionAction.Import,
                         _ => PermissionAction.Read
                     },
                     Status = EntityStatus.Active,
@@ -138,7 +134,6 @@ public static class SeedData
         }
 
         // ── Idempotent migration: rename '.edit' permissions to '.update' ──
-        // Handles existing databases where the old action name was used.
         var editPerms = await db.Permissions
             .Where(p => !p.IsDeleted && p.Code.EndsWith(".edit"))
             .ToListAsync();
@@ -148,6 +143,32 @@ public static class SeedData
             {
                 p.Code = p.Code.Replace(".edit", ".update");
                 p.Name = p.Name.Replace("Edit ", "Update ");
+            }
+            await db.SaveChangesAsync();
+        }
+
+        // ── Idempotent migration: collapse to 6 standard actions only ──
+        // Remove permissions for actions not in {view, create, update, delete, export, import}
+        var standardActions = new HashSet<string> { "view", "create", "update", "delete", "export", "import" };
+        var nonStandardPerms = await db.Permissions
+            .Where(p => !p.IsDeleted)
+            .ToListAsync();
+        var toRemove = nonStandardPerms.Where(p => !standardActions.Contains(p.Code.Split('.').Last())).ToList();
+        if (toRemove.Count > 0)
+        {
+            var removeIds = toRemove.Select(p => p.Id).ToHashSet();
+            // Hard-delete RolePermission records referencing non-standard permissions
+            var orphanRps = await db.RolePermissions.Where(rp => removeIds.Contains(rp.PermissionId)).ToListAsync();
+            if (orphanRps.Count > 0)
+            {
+                db.RolePermissions.RemoveRange(orphanRps);
+                await db.SaveChangesAsync();
+            }
+            // Soft-delete the non-standard permissions
+            foreach (var p in toRemove)
+            {
+                p.IsDeleted = true;
+                p.DeletedAt = DateTime.UtcNow;
             }
             await db.SaveChangesAsync();
         }

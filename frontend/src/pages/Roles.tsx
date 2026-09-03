@@ -57,8 +57,7 @@ export default function Roles() {
     const m: Record<string, string> = {
       Read: 'bg-blue-50 text-blue-700', Create: 'bg-green-50 text-green-700',
       Update: 'bg-yellow-50 text-yellow-700', Delete: 'bg-red-50 text-red-700',
-      Export: 'bg-purple-50 text-purple-700', Assign: 'bg-cyan-50 text-cyan-700',
-      Execute: 'bg-orange-50 text-orange-700', Manage: 'bg-gray-50 text-gray-700',
+      Export: 'bg-purple-50 text-purple-700', Import: 'bg-cyan-50 text-cyan-700',
     };
     return m[a] || 'bg-gray-50 text-gray-700';
   };

@@ -1,10 +1,13 @@
 import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Module-level permission helper.
- * Usage: const { can, canAny } = usePermissions();
- *        can('vehicle.create') → boolean
- *        canAny('vehicle.export', 'vehicle.import') → boolean
+ * Module-level permission helper — exactly 6 standardized actions per module.
+ *
+ * Usage:
+ *   const { can, canAny, canAll, modulePerms } = usePermissions();
+ *   can('vehicle.create')              → boolean
+ *   canAny('vehicle.export', 'vehicle.import') → boolean
+ *   modulePerms('vehicle')             → { view, create, update, delete, export, import }
  */
 export function usePermissions() {
   const { hasPermission, hasAnyPermission, hasAllPermissions, user } = useAuth();
@@ -19,7 +22,10 @@ export function usePermissions() {
   /** Check if ALL of the listed permissions are granted */
   const canAll = (...permissions: string[]): boolean => hasAllPermissions(permissions);
 
-  /** Convenience: returns an object of common CRUD+export flags for a module */
+  /**
+   * Returns exactly 6 boolean flags for a module:
+   *   view, create, update, delete, export, import
+   */
   const modulePerms = (module: string) => ({
     view:    can(`${module}.view`),
     create:  can(`${module}.create`),
@@ -27,9 +33,6 @@ export function usePermissions() {
     delete:  can(`${module}.delete`),
     export:  can(`${module}.export`),
     import:  can(`${module}.import`),
-    assign:  can(`${module}.assign`),
-    track:   can(`${module}.track`),
-    approve: can(`${module}.approve`),
   });
 
   return { can, canAny, canAll, modulePerms, isSuperAdmin };

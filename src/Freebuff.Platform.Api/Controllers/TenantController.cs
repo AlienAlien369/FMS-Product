@@ -123,8 +123,10 @@ public class TenantController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetSubscription()
     {
         var cid = GetTenantId();
-        var sub = await _db.Subscriptions.AsNoTracking()
-            .Include(s => s.Package)
+        // EffectivePrice computed in C# AFTER the query (not in the projection):
+        // Postgres numeric division yields scale > 28 values which Npgsql cannot
+        // convert to System.Decimal (OverflowException → 500).
+        var row = await _db.Subscriptions.AsNoTracking()
             .Where(s => s.CompanyId == cid && !s.IsDeleted)
             .OrderByDescending(s => s.StartDate)
             .Select(s => new
@@ -133,11 +135,22 @@ public class TenantController : ControllerBase
                 PackageName = s.Package.Name,
                 Status = (int)s.Status, s.StartDate, s.EndDate,
                 s.CurrentPrice, s.Currency, s.BillingCycle,
-                EffectivePrice = s.CurrentPrice * (1 - (s.DiscountPercentage ?? 0) / 100) * (1 + (s.TaxPercentage ?? 0) / 100),
+                s.DiscountPercentage, s.TaxPercentage,
                 MaxUsers = s.MaxUsers ?? s.Package.MaxUsers,
                 MaxVehicles = s.MaxVehicles ?? s.Package.MaxVehicles,
                 MaxDrivers = s.MaxDrivers ?? s.Package.MaxDrivers
             }).FirstOrDefaultAsync();
-        return Ok(ApiResponse<object>.Ok(sub));
+        if (row == null)
+            return Ok(ApiResponse<object>.Ok(null));
+        var result = new
+        {
+            row.Id, row.CompanyId, row.PackageId, row.PackageName,
+            row.Status, row.StartDate, row.EndDate,
+            row.CurrentPrice, row.Currency, row.BillingCycle,
+            row.DiscountPercentage, row.TaxPercentage,
+            EffectivePrice = row.CurrentPrice * (1 - (row.DiscountPercentage ?? 0) / 100m) * (1 + (row.TaxPercentage ?? 0) / 100m),
+            row.MaxUsers, row.MaxVehicles, row.MaxDrivers
+        };
+        return Ok(ApiResponse<object>.Ok(result));
     }
 }

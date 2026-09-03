@@ -26,8 +26,12 @@ public class SubscriptionController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> Get(Guid cid)
     {
-        var sub = await _db.Subscriptions.AsNoTracking()
-            .Include(s => s.Package)
+        // NOTE: EffectivePrice is deliberately computed in C# AFTER the query,
+        // not inside the EF projection. PostgreSQL numeric division yields values
+        // with scale up to ~40+ digits (e.g. 149.0000…), and Npgsql cannot convert
+        // a scale > 28 numeric into a System.Decimal — it throws OverflowException
+        // ("Numeric value does not fit in a System.Decimal"), 500ing this endpoint.
+        var row = await _db.Subscriptions.AsNoTracking()
             .Where(s => s.CompanyId == cid && !s.IsDeleted)
             .OrderByDescending(s => s.StartDate)
             .Select(s => new
@@ -37,12 +41,25 @@ public class SubscriptionController : ControllerBase
                 Status = (int)s.Status, s.StartDate, s.EndDate, s.CanceledAt,
                 s.CurrentPrice, s.Currency, s.BillingCycle,
                 s.DiscountPercentage, s.TaxPercentage,
-                EffectivePrice = s.CurrentPrice * (1 - (s.DiscountPercentage ?? 0) / 100) * (1 + (s.TaxPercentage ?? 0) / 100),
                 s.MaxUsers, s.MaxVehicles, s.MaxDrivers,
                 s.CreatedAt
             }).FirstOrDefaultAsync();
 
-        return Ok(ApiResponse<object>.Ok(sub));
+        if (row == null)
+            return Ok(ApiResponse<object>.Ok(null));
+
+        var result = new
+        {
+            row.Id, row.CompanyId, row.PackageId, row.PackageName,
+            row.Status, row.StartDate, row.EndDate, row.CanceledAt,
+            row.CurrentPrice, row.Currency, row.BillingCycle,
+            row.DiscountPercentage, row.TaxPercentage,
+            EffectivePrice = row.CurrentPrice * (1 - (row.DiscountPercentage ?? 0) / 100m) * (1 + (row.TaxPercentage ?? 0) / 100m),
+            row.MaxUsers, row.MaxVehicles, row.MaxDrivers,
+            row.CreatedAt
+        };
+
+        return Ok(ApiResponse<object>.Ok(result));
     }
 
     [HttpPost]

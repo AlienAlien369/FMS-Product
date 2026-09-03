@@ -36,12 +36,7 @@ function AppRoutes() {
         <Route path="/companies" element={<Companies />} />
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
-        <Route path="/trips" element={<Placeholder title="Trips" />} />
         <Route path="/geofences" element={<GeofencesPage />} />
-        <Route path="/fuel" element={<Placeholder title="Fuel Monitoring" />} />
-        <Route path="/maintenance" element={<Placeholder title="Maintenance" />} />
-        <Route path="/alerts" element={<Placeholder title="Alerts & Alarms" />} />
-        <Route path="/documents" element={<Placeholder title="Documents" />} />
         <Route path="/admin/companies" element={<AdminCompanies />} />
         <Route path="/admin/companies/:id" element={<CompanyDetail />} />
         <Route path="/users" element={<Users />} />
@@ -54,17 +49,6 @@ function AppRoutes() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
-}
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-96">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-        <p className="text-gray-500 mt-2">Coming soon — this module is under development</p>
-      </div>
-    </div>
   );
 }
 

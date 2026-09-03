@@ -23,7 +23,7 @@ export interface NavItem {
  */
 export const NAVIGATION: NavItem[] = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
-  { path: '/companies', label: 'Companies', icon: Building2, permission: 'company.view', adminOnly: true },
+  { path: '/companies', label: 'Companies', icon: Building2, permission: 'company.view' },
   { path: '/vehicles', label: 'Vehicles', icon: Truck, permission: 'vehicle.view' },
   { path: '/drivers', label: 'Drivers', icon: Users, permission: 'driver.view' },
   { path: '/geofences', label: 'Geofences', icon: Globe, permission: 'geofence.view' },

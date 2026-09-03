@@ -12,7 +12,7 @@ export default function Companies() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/companies?page=${page}&pageSize=10&search=${search}`);
+      const res = await api.get(`/admin/companies?page=${page}&pageSize=10&search=${search}`);
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);

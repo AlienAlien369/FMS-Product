@@ -32,87 +32,102 @@ public static class SeedData
             );
         }
 
-        // Modules
+        // Modules — idempotent: load existing + add missing
         var modules = new Dictionary<string, Module>();
-        if (!await db.Modules.AnyAsync())
-        {
-            var moduleList = new (string Code, string Name, string? Desc, bool IsCore, int Order)[]
-            {
-                ("fleet", "Fleet Management", "Core fleet management module", true, 1),
-                ("vehicles", "Vehicle Management", "Vehicle CRUD and tracking", true, 2),
-                ("drivers", "Driver Management", "Driver profiles and management", true, 3),
-                ("geofencing", "Geofencing", "Geofence creation and monitoring", false, 4),
-                ("trips", "Trip Management", "Trip planning and execution", true, 5),
-                ("tracking", "Live Tracking", "Real-time vehicle tracking", true, 6),
-                ("fuel", "Fuel Monitoring", "Fuel level and consumption tracking", false, 7),
-                ("maintenance", "Maintenance", "Preventive and corrective maintenance", false, 8),
-                ("alerts", "Alerts & Alarms", "Configurable alert system", true, 9),
-                ("compliance", "Compliance", "Document and compliance management", false, 10),
-                ("pod", "Proof of Delivery", "Digital proof of delivery", false, 11),
-                ("cctv", "CCTV / Video Telematics", "Video monitoring and playback", false, 12),
-                ("route-optimization", "Route Optimization", "Optimal route calculation", false, 13),
-                ("reports", "Reports & Analytics", "Reporting and dashboards", true, 14)
-            };
+        var existingModuleCodes = (await db.Modules.Where(m => !m.IsDeleted).Select(m => m.Code).ToListAsync()).ToHashSet();
+        foreach (var m in await db.Modules.Where(m => !m.IsDeleted).ToListAsync())
+            modules[m.Code] = m;
 
-            foreach (var (code, name, desc, isCore, order) in moduleList)
+        var moduleList = new (string Code, string Name, string? Desc, bool IsCore, int Order)[]
+        {
+            ("fleet", "Fleet Management", "Core fleet management module", true, 1),
+            ("vehicles", "Vehicle Management", "Vehicle CRUD and tracking", true, 2),
+            ("drivers", "Driver Management", "Driver profiles and management", true, 3),
+            ("geofencing", "Geofencing", "Geofence creation and monitoring", false, 4),
+            ("trips", "Trip Management", "Trip planning and execution", true, 5),
+            ("tracking", "Live Tracking", "Real-time vehicle tracking", true, 6),
+            ("fuel", "Fuel Monitoring", "Fuel level and consumption tracking", false, 7),
+            ("maintenance", "Maintenance", "Preventive and corrective maintenance", false, 8),
+            ("alerts", "Alerts & Alarms", "Configurable alert system", true, 9),
+            ("compliance", "Compliance", "Document and compliance management", false, 10),
+            ("pod", "Proof of Delivery", "Digital proof of delivery", false, 11),
+            ("cctv", "CCTV / Video Telematics", "Video monitoring and playback", false, 12),
+            ("route-optimization", "Route Optimization", "Optimal route calculation", false, 13),
+            ("reports", "Reports & Analytics", "Reporting and dashboards", true, 14)
+        };
+
+        var newModules = new List<Module>();
+        foreach (var (code, name, desc, isCore, modOrder) in moduleList)
+        {
+            if (existingModuleCodes.Contains(code)) continue;
+            var module = new Module
             {
-                var module = new Module
-                {
-                    Id = Guid.NewGuid(),
-                    Code = code,
-                    Name = name,
-                    Description = desc,
-                    IsCore = isCore,
-                    DisplayOrder = order,
-                    Status = EntityStatus.Active
-                };
-                db.Modules.Add(module);
-                modules[code] = module;
-            }
+                Id = Guid.NewGuid(),
+                Code = code,
+                Name = name,
+                Description = desc,
+                IsCore = isCore,
+                DisplayOrder = modOrder,
+                Status = EntityStatus.Active
+            };
+            newModules.Add(module);
+            modules[code] = module;
+        }
+        if (newModules.Count > 0)
+        {
+            db.Modules.AddRange(newModules);
+            await db.SaveChangesAsync();
         }
 
         // Permissions — comprehensive set covering every module × action
-        if (!await db.Permissions.AnyAsync())
-        {
-            var modulesList = new[] {
-                "vehicle", "driver", "trip", "geofence", "route",
-                "alert", "fuel", "maintenance", "client", "document",
-                "report", "user", "role", "company", "configuration",
-                "subscription", "package", "dashboard", "notification"
-            };
-            var actions = new[] { "view", "create", "edit", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
+        // Always add missing permissions (idempotent — safe to run on existing DBs)
+        var existingPermCodes = (await db.Permissions.Where(p => !p.IsDeleted).Select(p => p.Code).ToListAsync()).ToHashSet();
+        var permModules = new string[] {
+            "vehicle", "driver", "trip", "geofence", "route",
+            "alert", "fuel", "maintenance", "client", "document",
+            "report", "user", "role", "company", "configuration",
+            "subscription", "package", "dashboard", "notification"
+        };
+        var permActions = new string[] { "view", "create", "edit", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
 
-            var order = 0;
-            foreach (var mod in modulesList)
+        var order = existingPermCodes.Count;
+        var newPerms = new List<Permission>();
+        foreach (var mod in permModules)
+        {
+            foreach (var action in permActions)
             {
-                foreach (var action in actions)
+                var code = $"{mod}.{action}";
+                if (existingPermCodes.Contains(code)) continue;
+                order++;
+                newPerms.Add(new Permission
                 {
-                    order++;
-                    db.Permissions.Add(new Permission
+                    Id = Guid.NewGuid(),
+                    Code = code,
+                    Name = $"{action} {mod}",
+                    Module = mod,
+                    Action = action switch
                     {
-                        Id = Guid.NewGuid(),
-                        Code = $"{mod}.{action}",
-                        Name = $"{action} {mod}",
-                        Module = mod,
-                        Action = action switch
-                        {
-                            "view" => PermissionAction.Read,
-                            "create" => PermissionAction.Create,
-                            "edit" => PermissionAction.Update,
-                            "delete" => PermissionAction.Delete,
-                            "import" => PermissionAction.Import,
-                            "export" => PermissionAction.Export,
-                            "assign" => PermissionAction.Assign,
-                            "track" => PermissionAction.Execute,
-                            "immobilize" => PermissionAction.Manage,
-                            "approve" => PermissionAction.Approve,
-                            _ => PermissionAction.Read
-                        },
-                        Status = EntityStatus.Active,
-                        DisplayOrder = order
-                    });
-                }
+                        "view" => PermissionAction.Read,
+                        "create" => PermissionAction.Create,
+                        "edit" => PermissionAction.Update,
+                        "delete" => PermissionAction.Delete,
+                        "import" => PermissionAction.Import,
+                        "export" => PermissionAction.Export,
+                        "assign" => PermissionAction.Assign,
+                        "track" => PermissionAction.Execute,
+                        "immobilize" => PermissionAction.Manage,
+                        "approve" => PermissionAction.Approve,
+                        _ => PermissionAction.Read
+                    },
+                    Status = EntityStatus.Active,
+                    DisplayOrder = order
+                });
             }
+        }
+        if (newPerms.Count > 0)
+        {
+            db.Permissions.AddRange(newPerms);
+            await db.SaveChangesAsync();
         }
 
         // Packages

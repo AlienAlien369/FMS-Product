@@ -3,6 +3,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,12 @@ namespace Freebuff.Platform.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public AdminController(ApplicationDbContext db) => _db = db;
+    private readonly IPermissionService _permissionService;
+    public AdminController(ApplicationDbContext db, IPermissionService permissionService)
+    {
+        _db = db;
+        _permissionService = permissionService;
+    }
 
     // ── Platform Overview ───────────────────────────────
     [HttpGet("overview")]
@@ -754,6 +760,7 @@ public class AdminController : ControllerBase
         if (dto.DisplayOrder.HasValue) module.DisplayOrder = dto.DisplayOrder.Value;
 
         await _db.SaveChangesAsync();
+        _permissionService.InvalidateAllCache();
         return Ok(ApiResponse.Ok(message: "Module updated"));
     }
 
@@ -777,6 +784,7 @@ public class AdminController : ControllerBase
         module.IsDeleted = true;
         module.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        _permissionService.InvalidateAllCache();
         return Ok(ApiResponse.Ok(message: "Module deleted"));
     }
 
@@ -900,6 +908,7 @@ public class AdminController : ControllerBase
         if (dto.Description != null) page.Description = dto.Description;
 
         await _db.SaveChangesAsync();
+        _permissionService.InvalidateAllCache();
         return Ok(ApiResponse.Ok(message: "Page updated"));
     }
 
@@ -914,6 +923,7 @@ public class AdminController : ControllerBase
 
         await DeletePageCoreAsync(page);
         await _db.SaveChangesAsync();
+        _permissionService.InvalidateAllCache();
         return Ok(ApiResponse.Ok(message: "Page deleted"));
     }
 

@@ -1,9 +1,31 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, ChevronLeft, Menu, Bell } from 'lucide-react';
+import { LogOut, ChevronLeft, Menu, Bell, Search } from 'lucide-react';
 import { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
-import { NAVIGATION, NAV_GROUPS } from '../config/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '../lib/api';
+import { NAV_GROUPS } from '../config/navigation';
+import type { NavGroup, NavItem } from '../config/navigation';
+import { PAGES, pagePermission } from '../config/pages';
+
+// DB registry DTOs (mirror of the /modules catalog endpoint). The sidebar is
+// derived from the DB registry — module/page displayOrder and status decide what
+// renders and in which order. The static NAV_GROUPS config remains only as a
+// fallback until the catalog loads (or if the fetch fails).
+interface RegistryPageDto {
+  id: string; key: string; label: string; planned: boolean; nav: boolean;
+  route?: string; adminOnly: boolean; isCore: boolean; status: number; displayOrder: number;
+}
+interface RegistryModuleDto {
+  id: string; code: string; name: string; description?: string; icon?: string;
+  isCore: boolean; status: number; displayOrder: number; pages: RegistryPageDto[];
+}
+
+/** Map a registry page onto its nav icon (static config holds the icon components). */
+const iconFor = (key: string): any => PAGES.find(p => p.key === key)?.icon;
+
+/** Generic icon for pages the frontend doesn't render yet (custom/planned rows). */
+const FallbackIcon = PAGES.find(p => p.key === 'module')?.icon;
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -15,11 +37,46 @@ export default function Layout() {
 
   const { hasPermission } = useAuth();
 
+  // Live DB module/page registry. Same query key as the Modules management page,
+  // so a SuperAdmin reorder/status change there invalidates ['modules'] and the
+  // sidebar re-renders from the server data automatically.
+  const { data: dbModules } = useQuery({
+    queryKey: ['modules'],
+    queryFn: async () => {
+      const r = await api.get('/modules?pageSize=50');
+      return (r.data?.data?.items ?? []) as RegistryModuleDto[];
+    },
+  });
+
+  // Build the nav from the DB registry: only Active modules/pages, ordered by
+  // each row's displayOrder. Falls back to the static config while loading/error.
+  const baseGroups: NavGroup[] = useMemo(() => {
+    if (!dbModules || dbModules.length === 0) return NAV_GROUPS;
+    return dbModules
+      .filter(m => m.status === 0) // Active modules only
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map(m => ({
+        code: m.code,
+        label: m.name,
+        items: m.pages
+          .filter(p => p.nav && !p.planned && p.status === 0 && !!p.route) // live nav pages only
+          .sort((a, b) => a.displayOrder - b.displayOrder)
+          .map<NavItem>(p => ({
+            path: p.route!,
+            label: p.label,
+            icon: iconFor(p.key) ?? FallbackIcon,
+            permission: pagePermission(p.key),
+            adminOnly: p.adminOnly,
+          })),
+      }))
+      .filter(g => g.items.length > 0);
+  }, [dbModules]);
+
   // Nav is grouped by top-level module. A group is shown only when at least one
   // of its pages is visible (page-level View permission / SuperAdmin-only).
   const visibleGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return NAV_GROUPS
+    return baseGroups
       .map(group => ({
         ...group,
         items: group.items.filter(item => {
@@ -32,7 +89,12 @@ export default function Layout() {
         }),
       }))
       .filter(group => group.items.length > 0);
-  }, [user?.roles, searchQuery, hasPermission]);
+  }, [baseGroups, user?.roles, searchQuery, hasPermission]);
+
+  // Header title lookup from the same nav source.
+  const pageTitle = useMemo(() => {
+    return baseGroups.flatMap(g => g.items).find(i => i.path === location.pathname)?.label ?? 'Freebuff';
+  }, [baseGroups, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -102,7 +164,7 @@ export default function Layout() {
             <button onClick={() => setMobileOpen(true)} className="lg:hidden p-1 hover:bg-gray-100 rounded">
               <Menu className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">{NAVIGATION.find(i => i.path === location.pathname)?.label || 'Freebuff'}</h1>
+            <h1 className="text-lg font-semibold text-gray-800">{pageTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
             <Bell className="w-5 h-5 text-gray-500 hover:text-gray-700 cursor-pointer" />

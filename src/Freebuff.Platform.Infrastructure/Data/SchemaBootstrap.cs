@@ -72,6 +72,15 @@ public static class SchemaBootstrap
         );
         CREATE INDEX IF NOT EXISTS "IX_Pages_ModuleId" ON "Pages" ("ModuleId");
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_Pages_Key" ON "Pages" ("Key") WHERE "IsDeleted" = false;
+        """,
+
+        // Columns added to PRE-EXISTING tables after the initial release.
+        // EnsureCreatedAsync does not add columns to an existing database, so
+        // without this, legacy deployments 500 on every query touching them
+        // (observed on production: "column g.ViolationCount does not exist").
+        """
+        ALTER TABLE "Geofences" ADD COLUMN IF NOT EXISTS "ViolationCount" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "Geofences" ADD COLUMN IF NOT EXISTS "LastViolationAt" timestamp with time zone NULL;
         """
     };
 

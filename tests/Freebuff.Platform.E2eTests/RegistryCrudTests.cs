@@ -250,6 +250,51 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
     }
 
     [Fact]
+    public async Task Registry_PlannedPage_RevokesApiAccess()
+    {
+        var sa = await SuperAdminTokenAsync();
+        var demo = await DemoTokenAsync();
+
+        // Baseline: demo admin holds geofence.view (Company Admin role + fleet
+        // module in the demo company's Professional package) and can hit the API.
+        var (before, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+        _checker.Check("Geofence API 200 before planned toggle", before == 200, $"status={before}");
+
+        var geoPageId = Guid.Parse((await _db.ScalarAsync(
+            "SELECT \"Id\"::text FROM \"Pages\" WHERE \"Key\" = 'geofence' AND \"IsDeleted\" = false"))!);
+
+        // SuperAdmin toggles the page to Planned.
+        var (toggle, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Put, $"/api/v1/admin/pages/{geoPageId}",
+            new { planned = true }, sa);
+        _checker.Check("Toggle geofence page to Planned succeeds", toggle == 200, $"status={toggle}");
+
+        try
+        {
+            // Immediate API 403 (cache invalidated by the toggle, not left to TTL).
+            var (after, afterRoot) = await ApiJson.SendRawAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+            _checker.Check("Geofence API 403 after planned toggle", after == 403, $"status={after}");
+
+            // Effective permissions no longer include the page's codes.
+            var (perms, permData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+                "/api/v1/auth/permissions", token: demo);
+            _checker.Check("geofence.view absent from effective permissions",
+                perms == 200 && !ApiJson.ContainsPermission(permData, "geofence.view"),
+                $"status={perms}, count={ApiJson.PermissionCount(permData)}");
+        }
+        finally
+        {
+            // Restore so other tests / future runs see geofence active again.
+            await ApiJson.SendAsync(_db.Client, HttpMethod.Put, $"/api/v1/admin/pages/{geoPageId}",
+                new { planned = false }, sa);
+        }
+
+        var (restored, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/geofences", token: demo);
+        _checker.Check("Geofence API 200 again after restoring", restored == 200, $"status={restored}");
+
+        _checker.AssertAll();
+    }
+
+    [Fact]
     public async Task Registry_Reorder_Persists()
     {
         var sa = await SuperAdminTokenAsync();

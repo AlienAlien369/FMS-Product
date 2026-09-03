@@ -128,11 +128,21 @@ public class PermissionService : IPermissionService
     /// <summary>
     /// All permission codes a company may grant: every registered page whose
     /// top-level module is included in the company's package. Unknown/planned
-    /// pages are handled here — a page must be registered AND its module enabled.
+    /// pages are handled here — a page must be registered AND its module enabled,
+    /// AND the page itself must not be Planned or Inactive (a page toggled to
+    /// Planned grants no nav/route/API access anywhere, regardless of role grants).
     /// </summary>
     public async Task<HashSet<string>> GetCompanyAllowedPermissionsAsync(Guid tenantId)
     {
         var enabledModules = await GetEnabledModuleCodesAsync(tenantId);
+
+        // Pages that must not grant access right now (Planned or Inactive).
+        var blockedPageKeys = await _db.Pages
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && (p.Planned || p.Status != EntityStatus.Active))
+            .Select(p => p.Key)
+            .ToListAsync();
+        var blocked = blockedPageKeys.ToHashSet();
 
         var permissionRows = await _db.Permissions
             .AsNoTracking()
@@ -141,7 +151,8 @@ public class PermissionService : IPermissionService
             .ToListAsync();
 
         var allowed = permissionRows
-            .Where(p => PageRegistry.ModuleOfPage(p.Module) is string mod && enabledModules.Contains(mod))
+            .Where(p => !blocked.Contains(p.Module)
+                        && PageRegistry.ModuleOfPage(p.Module) is string mod && enabledModules.Contains(mod))
             .Select(p => p.Code)
             .ToHashSet();
 

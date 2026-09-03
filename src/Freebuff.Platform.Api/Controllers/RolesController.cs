@@ -59,8 +59,10 @@ public class RolesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> GetById(Guid id)
     {
+        var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var role = await _db.Roles.AsNoTracking()
-            .Where(r => r.Id == id && !r.IsDeleted)
+            .Where(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId))
             .Select(r => new
             {
                 r.Id, r.Name, r.Description, r.IsSystemRole,
@@ -75,8 +77,10 @@ public class RolesController : ControllerBase
     [HttpGet("{id:guid}/permissions")]
     public async Task<ActionResult<ApiResponse<object>>> GetPermissions(Guid id)
     {
+        var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var permissions = await _db.RolePermissions.AsNoTracking()
-            .Where(rp => rp.RoleId == id && !rp.IsDeleted)
+            .Where(rp => rp.RoleId == id && !rp.IsDeleted && (isSuperAdmin || rp.Role.CompanyId == tenantId))
             .Select(rp => new
             {
                 rp.Id,
@@ -189,8 +193,9 @@ public class RolesController : ControllerBase
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateRoleDto dto)
     {
         var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var role = await _db.Roles
-            .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && r.CompanyId == tenantId);
+            .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
 
         if (role == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Role not found"));
         if (role.IsSystemRole) return BadRequest(ApiResponse.Fail("FORBIDDEN", "System roles cannot be modified"));
@@ -200,9 +205,11 @@ public class RolesController : ControllerBase
 
         if (dto.PermissionIds != null)
         {
-            var existing = await _db.RolePermissions
-                .Where(rp => rp.RoleId == id && !rp.IsDeleted).ToListAsync();
-            _db.RolePermissions.RemoveRange(existing);
+            // Hard-delete old role-permissions immediately via SQL,
+            // bypassing the change tracker to avoid unique-constraint violations
+            await _db.RolePermissions
+                .Where(rp => rp.RoleId == id && !rp.IsDeleted)
+                .ExecuteDeleteAsync();
 
             // Company Admin can only assign permissions the company is entitled to
             var allowedPermCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(tenantId);
@@ -257,8 +264,9 @@ public class RolesController : ControllerBase
     public async Task<ActionResult<ApiResponse>> Delete(Guid id)
     {
         var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var role = await _db.Roles
-            .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && r.CompanyId == tenantId);
+            .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
 
         if (role == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Role not found"));
         if (role.IsSystemRole) return BadRequest(ApiResponse.Fail("FORBIDDEN", "System roles cannot be deleted"));

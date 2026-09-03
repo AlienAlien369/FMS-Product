@@ -55,7 +55,7 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
 {
     public void Configure(EntityTypeBuilder<UserRole> b)
     {
-        b.HasIndex(ur => new { ur.UserId, ur.RoleId }).IsUnique();
+        b.HasIndex(ur => new { ur.UserId, ur.RoleId }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.HasOne(ur => ur.User).WithMany(u => u.UserRoles).HasForeignKey(ur => ur.UserId);
         b.HasOne(ur => ur.Role).WithMany(r => r.UserRoles).HasForeignKey(ur => ur.RoleId);
         b.HasQueryFilter(ur => !ur.IsDeleted);
@@ -66,7 +66,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
 {
     public void Configure(EntityTypeBuilder<RolePermission> b)
     {
-        b.HasIndex(rp => new { rp.RoleId, rp.PermissionId }).IsUnique();
+        b.HasIndex(rp => new { rp.RoleId, rp.PermissionId }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.HasOne(rp => rp.Role).WithMany(r => r.RolePermissions).HasForeignKey(rp => rp.RoleId);
         b.HasOne(rp => rp.Permission).WithMany(p => p.RolePermissions).HasForeignKey(rp => rp.PermissionId);
         b.HasQueryFilter(rp => !rp.IsDeleted);

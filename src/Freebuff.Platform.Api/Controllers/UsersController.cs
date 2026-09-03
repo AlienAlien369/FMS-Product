@@ -58,9 +58,10 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetById(Guid id)
     {
         var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var user = await _db.Users.AsNoTracking()
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && u.CompanyId == tenantId);
+            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && (isSuperAdmin || u.CompanyId == tenantId));
 
         if (user == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "User not found"));
 
@@ -124,9 +125,10 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
         var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var user = await _db.Users
             .Include(u => u.UserRoles)
-            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && u.CompanyId == tenantId);
+            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && (isSuperAdmin || u.CompanyId == tenantId));
 
         if (user == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "User not found"));
 
@@ -163,8 +165,9 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<ApiResponse>> Delete(Guid id)
     {
         var tenantId = User.GetTenantId();
+        var isSuperAdmin = User.IsSuperAdmin();
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && u.CompanyId == tenantId);
+            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted && (isSuperAdmin || u.CompanyId == tenantId));
 
         if (user == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "User not found"));
 

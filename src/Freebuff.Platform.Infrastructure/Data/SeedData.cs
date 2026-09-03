@@ -169,6 +169,77 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
+        // ── Pages — DB rows seeded from the canonical PageRegistry ──────────
+        // Page rows are the runtime state SuperAdmin manages (status, order,
+        // planned flags, names). The seed only creates missing rows and fills
+        // unset presentation fields — it never overwrites a SuperAdmin's edits.
+        // Registry-known pages that were soft-deleted are restored (they are
+        // canonical); user-created (non-registry) pages are left untouched.
+        var dbPagesAll = await db.Pages.ToListAsync();
+        var livePages = dbPagesAll.Where(p => !p.IsDeleted).ToList();
+        var pageByKey = livePages
+            .Where(p => !string.IsNullOrWhiteSpace(p.Key))
+            .GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderBy(p => p.CreatedAt).First());
+        var seededPages = 0;
+        foreach (var def in PageRegistry.All)
+        {
+            if (!moduleByCode.TryGetValue(def.Module, out var moduleId) || !moduleById.ContainsKey(moduleId))
+                continue;
+            if (pageByKey.TryGetValue(def.Key, out var existing))
+            {
+                // Re-home if the registry moved it; fill unset presentation fields.
+                if (existing.ModuleId != moduleId) existing.ModuleId = moduleId;
+                existing.Route ??= def.Route;
+                existing.Icon ??= def.Icon;
+                existing.Description ??= def.Description;
+            }
+            else
+            {
+                var resurrect = dbPagesAll.FirstOrDefault(p => p.IsDeleted && p.Key == def.Key);
+                if (resurrect != null)
+                {
+                    resurrect.IsDeleted = false;
+                    resurrect.DeletedAt = null;
+                    resurrect.ModuleId = moduleId;
+                    resurrect.Name = def.Label;
+                    resurrect.Route ??= def.Route;
+                    resurrect.Icon ??= def.Icon;
+                    resurrect.Planned = def.Planned;
+                    resurrect.IsCore = def.IsCore;
+                    resurrect.Nav = def.Nav;
+                    resurrect.AdminOnly = def.AdminOnly;
+                    resurrect.Description ??= def.Description;
+                    pageByKey[def.Key] = resurrect;
+                }
+                else
+                {
+                    db.Pages.Add(new Page
+                    {
+                        Id = Guid.NewGuid(),
+                        ModuleId = moduleId,
+                        Key = def.Key,
+                        Name = def.Label,
+                        Route = def.Route,
+                        Icon = def.Icon,
+                        Nav = def.Nav,
+                        AdminOnly = def.AdminOnly,
+                        Planned = def.Planned,
+                        IsCore = def.IsCore,
+                        Status = EntityStatus.Active,
+                        DisplayOrder = def.Order,
+                        Description = def.Description
+                    });
+                    seededPages++;
+                }
+            }
+        }
+        if (seededPages > 0)
+        {
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Seeded {seededPages} page rows from PageRegistry");
+        }
+
         // Permissions — exactly 6 actions (view/create/update/delete/export/import) per registered page.
         var existingPermCodes = (await db.Permissions.Where(p => !p.IsDeleted).Select(p => p.Code).ToListAsync()).ToHashSet();
         var order = existingPermCodes.Count;
@@ -207,14 +278,18 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // ── Drift check: permissions that are not a registered page's 6 actions ──
-        var registryCodes = PageRegistry.All.SelectMany(p => PageRegistry.CodesFor(p.Key)).ToHashSet();
+        // ── Drift check: permissions whose page no longer exists ─────────────
+        // Permission rows follow LIVE pages (registry-known OR SuperAdmin-created
+        // via the admin API), not just the static registry — otherwise a page
+        // created through CRUD would lose its 6 permissions on the next restart.
+        var livePageKeys = (await db.Pages.AsNoTracking().Where(p => !p.IsDeleted).Select(p => p.Key).ToListAsync())
+            .ToHashSet();
 
         var unknownPerms = await db.Permissions.AsNoTracking()
             .Where(p => !p.IsDeleted)
-            .Select(p => new { p.Id, p.Code })
+            .Select(p => new { p.Id, p.Code, p.Module })
             .ToListAsync();
-        var orphans = unknownPerms.Where(p => !registryCodes.Contains(p.Code)).ToList();
+        var orphans = unknownPerms.Where(p => !livePageKeys.Contains(p.Module)).ToList();
         if (orphans.Count > 0)
         {
             var orphanIds = orphans.Select(o => o.Id).ToHashSet();

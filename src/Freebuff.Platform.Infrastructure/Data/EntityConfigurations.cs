@@ -84,6 +84,20 @@ public class ModuleEntityTypeConfiguration : IEntityTypeConfiguration<Module>
     }
 }
 
+public class PageConfiguration : IEntityTypeConfiguration<Page>
+{
+    public void Configure(EntityTypeBuilder<Page> b)
+    {
+        // Permission codes derive from the page key ("vehicle.view"), and
+        // Permission.Code is globally unique, so the key must be globally unique.
+        b.HasIndex(p => p.Key).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.Property(p => p.Key).HasMaxLength(100).IsRequired();
+        b.Property(p => p.Name).HasMaxLength(200).IsRequired();
+        b.HasOne(p => p.Module).WithMany(m => m.Pages).HasForeignKey(p => p.ModuleId);
+        b.HasQueryFilter(p => !p.IsDeleted);
+    }
+}
+
 public class FeatureConfiguration : IEntityTypeConfiguration<Feature>
 {
     public void Configure(EntityTypeBuilder<Feature> b)

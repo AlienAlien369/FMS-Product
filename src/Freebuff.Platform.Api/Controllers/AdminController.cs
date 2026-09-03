@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
@@ -245,10 +246,15 @@ public class AdminController : ControllerBase
             .Where(m => !m.IsDeleted)
             .OrderBy(m => m.DisplayOrder)
             .ToListAsync();
+        var pagesByModule = (await _db.Pages.AsNoTracking().Where(p => !p.IsDeleted).ToListAsync())
+            .GroupBy(p => p.ModuleId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(p => p.DisplayOrder).ToList());
 
         var result = modules.Select(m =>
         {
-            var pages = PageRegistry.PagesInModule(m.Code).ToList();
+            var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
+                ? dbPages
+                : PageRegistry.PagesInModule(m.Code).Select(ToPage).ToList();
             return new
             {
                 m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore,
@@ -256,7 +262,7 @@ public class AdminController : ControllerBase
                 Included = includedModuleIds.Contains(m.Id),
                 PageCount = pages.Count(p => !p.Planned),
                 PlannedPageCount = pages.Count(p => p.Planned),
-                Pages = pages.Select(p => new { p.Key, p.Label, p.Planned, p.Nav, p.Route }).ToList()
+                Pages = pages.Select(PageRegistry.PageView).ToList()
             };
         }).ToList();
 
@@ -301,6 +307,8 @@ public class AdminController : ControllerBase
     }
 
     // ── Platform Modules (all) — module groups with their pages ─────────────
+    // Pages come from the DB (seeded from PageRegistry, manageable by SuperAdmin);
+    // falls back to the static registry for modules that have no DB rows yet.
     [HttpGet("modules")]
     public async Task<ActionResult<ApiResponse<object>>> GetAllModules()
     {
@@ -308,17 +316,22 @@ public class AdminController : ControllerBase
             .Where(m => !m.IsDeleted)
             .OrderBy(m => m.DisplayOrder)
             .ToListAsync();
+        var pagesByModule = (await _db.Pages.AsNoTracking().Where(p => !p.IsDeleted).ToListAsync())
+            .GroupBy(p => p.ModuleId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(p => p.DisplayOrder).ToList());
 
         var result = modules.Select(m =>
         {
-            var pages = PageRegistry.PagesInModule(m.Code).ToList();
+            var pages = pagesByModule.TryGetValue(m.Id, out var dbPages) && dbPages.Count > 0
+                ? dbPages
+                : PageRegistry.PagesInModule(m.Code).Select(ToPage).ToList();
             return new
             {
                 m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore, m.DisplayOrder,
                 Status = (int)m.Status,
                 PageCount = pages.Count(p => !p.Planned),
                 PlannedPageCount = pages.Count(p => p.Planned),
-                Pages = pages.Select(p => new { p.Key, p.Label, p.Planned, p.Nav, p.Route }).ToList()
+                Pages = pages.Select(PageRegistry.PageView).ToList()
             };
         }).ToList();
 
@@ -605,6 +618,334 @@ public class AdminController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(message: "Company updated"));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Module + Page/Form registry CRUD — SuperAdmin only (class-level role
+    // filter returns 403 for every other role; the UI hides the controls, the
+    // API is the enforcement point). Registry identity is canonical: core
+    // modules/pages cannot be renamed or deleted (status/order toggle only),
+    // and the key of a registry-known page is its permission identity.
+    // ════════════════════════════════════════════════════════════════════════
+
+    private static bool IsValidSlug(string slug) =>
+        !string.IsNullOrWhiteSpace(slug) && Regex.IsMatch(slug, "^[a-z0-9]+(?:-[a-z0-9]+)*$");
+
+    private static Page ToPage(PageDefinition p) => new()
+    {
+        Id = Guid.Empty,
+        Key = p.Key,
+        Name = p.Label,
+        Route = p.Route,
+        Icon = p.Icon,
+        Nav = p.Nav,
+        AdminOnly = p.AdminOnly,
+        Planned = p.Planned,
+        IsCore = p.IsCore,
+        Status = EntityStatus.Active,
+        DisplayOrder = p.Order,
+        Description = p.Description
+    };
+
+    private static IEnumerable<Permission> BuildPagePermissions(Page page, int startOrder)
+    {
+        var order = startOrder;
+        foreach (var (action, pa) in new[]
+        {
+            ("view", PermissionAction.Read),
+            ("create", PermissionAction.Create),
+            ("update", PermissionAction.Update),
+            ("delete", PermissionAction.Delete),
+            ("export", PermissionAction.Export),
+            ("import", PermissionAction.Import)
+        })
+        {
+            order++;
+            yield return new Permission
+            {
+                Id = Guid.NewGuid(),
+                Code = $"{page.Key}.{action}",
+                Name = $"{action} {page.Name}",
+                Module = page.Key,
+                Action = pa,
+                Status = EntityStatus.Active,
+                DisplayOrder = order
+            };
+        }
+    }
+
+    private Task<List<Permission>> PagePermissionsAsync(Page page) =>
+        _db.Permissions.Where(p => p.Module == page.Key && !p.IsDeleted).ToListAsync();
+
+    // ── Create Module ────────────────────────────────────
+    [HttpPost("modules")]
+    public async Task<ActionResult<ApiResponse<object>>> CreateModule([FromBody] CreateModuleDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Code) || !IsValidSlug(dto.Code))
+            return BadRequest(ApiResponse.Fail("INVALID_SLUG", "Module code must be a lowercase kebab-case slug, e.g. \"fleet-ops\"."));
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest(ApiResponse.Fail("VALIDATION", "Module name is required"));
+        if (await _db.Modules.AnyAsync(m => m.Code == dto.Code && !m.IsDeleted))
+            return BadRequest(ApiResponse.Fail("DUPLICATE_SLUG", $"A module with code '{dto.Code}' already exists"));
+
+        var module = new Module
+        {
+            Id = Guid.NewGuid(),
+            Code = dto.Code,
+            Name = dto.Name,
+            Description = dto.Description,
+            Icon = dto.Icon,
+            IsCore = dto.IsCore,
+            Status = (EntityStatus)(dto.Status ?? (int)EntityStatus.Active),
+            DisplayOrder = dto.DisplayOrder ?? 0
+        };
+        _db.Modules.Add(module);
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse<object>.Ok(new { module.Id, module.Code, module.Name }));
+    }
+
+    // ── Module Detail ────────────────────────────────────
+    [HttpGet("modules/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<object>>> GetModule(Guid id)
+    {
+        var module = await _db.Modules.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted);
+        if (module == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Module not found"));
+        var pages = await _db.Pages.AsNoTracking().Where(p => p.ModuleId == id && !p.IsDeleted)
+            .OrderBy(p => p.DisplayOrder).ToListAsync();
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            module.Id, module.Code, module.Name, module.Description, module.Icon,
+            module.IsCore, Status = (int)module.Status, module.DisplayOrder,
+            PageCount = pages.Count(p => !p.Planned),
+            PlannedPageCount = pages.Count(p => p.Planned),
+            Pages = pages.Select(PageRegistry.PageView).ToList()
+        }));
+    }
+
+    // ── Update Module ────────────────────────────────────
+    [HttpPut("modules/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> UpdateModule(Guid id, [FromBody] UpdateModuleDto dto)
+    {
+        var module = await _db.Modules.FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted);
+        if (module == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Module not found"));
+
+        // System/core modules: only status and display order may be toggled —
+        // name, slug, description and icon are system-protected (change-detected
+        // so a status-only edit from the UI still succeeds).
+        if (module.IsCore &&
+            ((dto.Code != null && dto.Code != module.Code) ||
+             (dto.Name != null && dto.Name != module.Name) ||
+             (dto.Description != null && dto.Description != module.Description) ||
+             (dto.Icon != null && dto.Icon != module.Icon)))
+            return BadRequest(ApiResponse.Fail("FORBIDDEN", "Core modules can only have status and display order toggled — name, slug, description and icon are system-protected."));
+
+        if (dto.Code != null && dto.Code != module.Code)
+        {
+            if (!IsValidSlug(dto.Code))
+                return BadRequest(ApiResponse.Fail("INVALID_SLUG", "Module code must be a lowercase kebab-case slug"));
+            if (await _db.Modules.AnyAsync(m => m.Code == dto.Code && m.Id != id && !m.IsDeleted))
+                return BadRequest(ApiResponse.Fail("DUPLICATE_SLUG", $"A module with code '{dto.Code}' already exists"));
+            module.Code = dto.Code;
+        }
+        if (dto.Name != null) module.Name = dto.Name;
+        if (dto.Description != null) module.Description = dto.Description;
+        if (dto.Icon != null) module.Icon = dto.Icon;
+        if (dto.Status.HasValue) module.Status = (EntityStatus)dto.Status.Value;
+        if (dto.DisplayOrder.HasValue) module.DisplayOrder = dto.DisplayOrder.Value;
+
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Module updated"));
+    }
+
+    // ── Delete Module (cascade optional) ─────────────────
+    [HttpDelete("modules/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> DeleteModule(Guid id, [FromQuery] bool cascade = false)
+    {
+        var module = await _db.Modules.FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted);
+        if (module == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Module not found"));
+        if (module.IsCore)
+            return BadRequest(ApiResponse.Fail("FORBIDDEN", "Core modules cannot be deleted"));
+
+        var pages = await _db.Pages.Where(p => p.ModuleId == id && !p.IsDeleted).ToListAsync();
+        if (pages.Count > 0 && !cascade)
+            return BadRequest(ApiResponse.Fail("HAS_PAGES", $"This module contains {pages.Count} page(s). Delete them first or confirm cascade delete."));
+
+        foreach (var page in pages)
+        {
+            await DeletePageCoreAsync(page);
+        }
+        module.IsDeleted = true;
+        module.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Module deleted"));
+    }
+
+    // ── Reorder Modules ──────────────────────────────────
+    [HttpPut("modules/reorder")]
+    public async Task<ActionResult<ApiResponse>> ReorderModules([FromBody] ReorderModulesDto dto)
+    {
+        if (dto.ModuleIds.Count == 0) return BadRequest(ApiResponse.Fail("VALIDATION", "moduleIds is required"));
+        var all = await _db.Modules.Where(m => !m.IsDeleted).ToListAsync();
+        var byId = all.ToDictionary(m => m.Id);
+        var requested = dto.ModuleIds.Where(byId.ContainsKey).ToList();
+        var rest = all.Where(m => !requested.Contains(m.Id)).OrderBy(m => m.DisplayOrder).ToList();
+        var order = 1;
+        foreach (var id in requested) byId[id].DisplayOrder = order++;
+        foreach (var m in rest) m.DisplayOrder = order++;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Module order updated"));
+    }
+
+    // ── Create Page in Module ────────────────────────────
+    // New pages default to Planned: they are registered (visible on the Modules
+    // screen, 6 permission rows created for RBAC) but grant no nav/route access
+    // until a developer builds the page and flips the flag.
+    [HttpPost("modules/{moduleId:guid}/pages")]
+    public async Task<ActionResult<ApiResponse<object>>> CreatePage(Guid moduleId, [FromBody] CreatePageDto dto)
+    {
+        var module = await _db.Modules.FirstOrDefaultAsync(m => m.Id == moduleId && !m.IsDeleted);
+        if (module == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Module not found"));
+        if (string.IsNullOrWhiteSpace(dto.Key) || !IsValidSlug(dto.Key))
+            return BadRequest(ApiResponse.Fail("INVALID_SLUG", "Page key must be a lowercase kebab-case slug, e.g. \"trip-log\"."));
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest(ApiResponse.Fail("VALIDATION", "Page name is required"));
+        if (await _db.Pages.AnyAsync(p => p.Key == dto.Key && !p.IsDeleted))
+            return BadRequest(ApiResponse.Fail("DUPLICATE_SLUG", $"A page with key '{dto.Key}' already exists (keys are globally unique — permission codes derive from them)"));
+
+        var maxOrder = await _db.Pages.Where(p => p.ModuleId == moduleId && !p.IsDeleted).MaxAsync(p => (int?)p.DisplayOrder) ?? 0;
+        var page = new Page
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = moduleId,
+            Key = dto.Key,
+            Name = dto.Name,
+            Route = dto.Route,
+            Icon = dto.Icon,
+            Nav = dto.Nav,
+            AdminOnly = dto.AdminOnly,
+            Planned = dto.Planned,
+            IsCore = dto.IsCore,
+            Status = (EntityStatus)(dto.Status ?? (int)EntityStatus.Active),
+            DisplayOrder = dto.DisplayOrder ?? maxOrder + 1,
+            Description = dto.Description
+        };
+        _db.Pages.Add(page);
+
+        var startOrder = await _db.Permissions.MaxAsync(p => (int?)p.DisplayOrder) ?? 0;
+        _db.Permissions.AddRange(BuildPagePermissions(page, startOrder));
+
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse<object>.Ok(new { page.Id, page.Key, page.Name, page.Planned }));
+    }
+
+    // ── Update Page ──────────────────────────────────────
+    [HttpPut("pages/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> UpdatePage(Guid id, [FromBody] UpdatePageDto dto)
+    {
+        var page = await _db.Pages.FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+        if (page == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Page not found"));
+
+        // System/core pages: only status and display order may be toggled — name,
+        // slug, route and flags are system-protected (change-detected so a
+        // no-op/status-only edit from the UI still succeeds).
+        if (page.IsCore &&
+            ((dto.Key != null && dto.Key != page.Key) ||
+             (dto.Name != null && dto.Name != page.Name) ||
+             (dto.Route != null && dto.Route != page.Route) ||
+             (dto.Icon != null && dto.Icon != page.Icon) ||
+             (dto.Nav.HasValue && dto.Nav.Value != page.Nav) ||
+             (dto.AdminOnly.HasValue && dto.AdminOnly.Value != page.AdminOnly) ||
+             (dto.Planned.HasValue && dto.Planned.Value != page.Planned) ||
+             (dto.Description != null && dto.Description != page.Description)))
+            return BadRequest(ApiResponse.Fail("FORBIDDEN", "Core pages can only have status and display order toggled — name, slug, route and flags are system-protected."));
+
+        if (dto.Key != null && dto.Key != page.Key)
+        {
+            if (PageRegistry.ByKey(page.Key) != null)
+                return BadRequest(ApiResponse.Fail("FORBIDDEN", "Registry pages are canonical — the key is the permission identity. Rename the display name instead, or delete and re-create the page."));
+            if (!IsValidSlug(dto.Key))
+                return BadRequest(ApiResponse.Fail("INVALID_SLUG", "Page key must be a lowercase kebab-case slug"));
+            if (await _db.Pages.AnyAsync(p => p.Key == dto.Key && p.Id != id && !p.IsDeleted))
+                return BadRequest(ApiResponse.Fail("DUPLICATE_SLUG", $"A page with key '{dto.Key}' already exists"));
+            // Rewrite the 6 permission codes in place so existing role grants survive.
+            var perms = await PagePermissionsAsync(page);
+            foreach (var perm in perms)
+            {
+                var action = perm.Code.Split('.').Last();
+                perm.Code = $"{dto.Key}.{action}";
+                perm.Module = dto.Key;
+                perm.Name = $"{action} {dto.Name ?? page.Name}";
+            }
+            page.Key = dto.Key;
+        }
+        if (dto.Name != null)
+        {
+            page.Name = dto.Name;
+            // Keep permission display names in sync (also covers the key-rename path,
+            // where the rewrite above used the pre-update name).
+            var perms = await PagePermissionsAsync(page);
+            foreach (var perm in perms)
+            {
+                var action = perm.Code.Split('.').Last();
+                perm.Name = $"{action} {page.Name}";
+            }
+        }
+        if (dto.Route != null) page.Route = dto.Route;
+        if (dto.Icon != null) page.Icon = dto.Icon;
+        if (dto.Nav.HasValue) page.Nav = dto.Nav.Value;
+        if (dto.AdminOnly.HasValue) page.AdminOnly = dto.AdminOnly.Value;
+        if (dto.Planned.HasValue) page.Planned = dto.Planned.Value;
+        if (dto.Status.HasValue) page.Status = (EntityStatus)dto.Status.Value;
+        if (dto.DisplayOrder.HasValue) page.DisplayOrder = dto.DisplayOrder.Value;
+        if (dto.Description != null) page.Description = dto.Description;
+
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Page updated"));
+    }
+
+    // ── Delete Page ──────────────────────────────────────
+    [HttpDelete("pages/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> DeletePage(Guid id)
+    {
+        var page = await _db.Pages.FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+        if (page == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Page not found"));
+        if (page.IsCore)
+            return BadRequest(ApiResponse.Fail("FORBIDDEN", "Core pages cannot be deleted"));
+
+        await DeletePageCoreAsync(page);
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Page deleted"));
+    }
+
+    // Soft-delete a page plus its 6 permission rows and any role grants.
+    private async Task DeletePageCoreAsync(Page page)
+    {
+        var permIds = (await PagePermissionsAsync(page)).Select(p => p.Id).ToHashSet();
+        if (permIds.Count > 0)
+        {
+            var rolePerms = await _db.RolePermissions.Where(rp => permIds.Contains(rp.PermissionId) && !rp.IsDeleted).ToListAsync();
+            foreach (var rp in rolePerms) { rp.IsDeleted = true; rp.DeletedAt = DateTime.UtcNow; }
+            var perms = await _db.Permissions.Where(p => permIds.Contains(p.Id)).ToListAsync();
+            foreach (var perm in perms) { perm.IsDeleted = true; perm.DeletedAt = DateTime.UtcNow; }
+        }
+        page.IsDeleted = true;
+        page.DeletedAt = DateTime.UtcNow;
+    }
+
+    // ── Reorder Pages ────────────────────────────────────
+    [HttpPut("pages/reorder")]
+    public async Task<ActionResult<ApiResponse>> ReorderPages([FromBody] ReorderPagesDto dto)
+    {
+        if (dto.PageIds.Count == 0) return BadRequest(ApiResponse.Fail("VALIDATION", "pageIds is required"));
+        var all = await _db.Pages.Where(p => p.ModuleId == dto.ModuleId && !p.IsDeleted).ToListAsync();
+        var byId = all.ToDictionary(p => p.Id);
+        var requested = dto.PageIds.Where(byId.ContainsKey).ToList();
+        var rest = all.Where(p => !requested.Contains(p.Id)).OrderBy(p => p.DisplayOrder).ToList();
+        var order = 1;
+        foreach (var pid in requested) byId[pid].DisplayOrder = order++;
+        foreach (var p in rest) p.DisplayOrder = order++;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(message: "Page order updated"));
     }
 
 }

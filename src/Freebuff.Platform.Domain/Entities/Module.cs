@@ -22,4 +22,5 @@ public class Module : BaseEntity
     // Navigation
     public ICollection<Feature> Features { get; set; } = new List<Feature>();
     public ICollection<ModuleConfiguration> ModuleConfigurations { get; set; } = new List<ModuleConfiguration>();
+    public ICollection<Page> Pages { get; set; } = new List<Page>();
 }

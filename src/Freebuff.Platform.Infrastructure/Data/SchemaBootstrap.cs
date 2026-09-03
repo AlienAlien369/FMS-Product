@@ -39,6 +39,39 @@ public static class SchemaBootstrap
         );
         CREATE INDEX IF NOT EXISTS "IX_PackageModules_PackageId" ON "PackageModules" ("PackageId");
         CREATE INDEX IF NOT EXISTS "IX_PackageModules_ModuleId" ON "PackageModules" ("ModuleId");
+        """,
+
+        // Page rows inside a Module — the DB-driven page/form registry (seeded
+        // from PageRegistry, fully manageable by SuperAdmin).
+        """
+        CREATE TABLE IF NOT EXISTS "Pages" (
+            "Id" uuid NOT NULL,
+            "ModuleId" uuid NOT NULL,
+            "Key" text NOT NULL,
+            "Name" text NOT NULL,
+            "Route" text NULL,
+            "Icon" text NULL,
+            "Nav" boolean NOT NULL,
+            "AdminOnly" boolean NOT NULL,
+            "Planned" boolean NOT NULL,
+            "IsCore" boolean NOT NULL,
+            "Status" integer NOT NULL,
+            "DisplayOrder" integer NOT NULL,
+            "Description" text NULL,
+            "TenantId" uuid NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_Pages" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_Pages_ModuleId" ON "Pages" ("ModuleId");
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Pages_Key" ON "Pages" ("Key") WHERE "IsDeleted" = false;
         """
     };
 

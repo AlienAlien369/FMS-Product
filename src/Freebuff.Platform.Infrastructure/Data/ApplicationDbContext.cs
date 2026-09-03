@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext
 
     // Platform
     public DbSet<Module> Modules => Set<Module>();
+    public DbSet<Page> Pages => Set<Page>();
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<Package> Packages => Set<Package>();
     public DbSet<PackageModule> PackageModules => Set<PackageModule>();

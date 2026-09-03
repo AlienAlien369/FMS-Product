@@ -1,3 +1,5 @@
+using Freebuff.Platform.Domain.Entities;
+
 namespace Freebuff.Platform.Infrastructure.Data;
 
 /// <summary>
@@ -124,4 +126,28 @@ public static class PageRegistry
 
     public static bool IsKnownAction(string action)
         => Actions.Contains(action);
+
+    /// <summary>
+    /// Canonical page view used by every catalog endpoint (public Modules screen,
+    /// admin company-modules, admin modules). Field names are stable: Key/Label
+    /// are what nav + permission groups consume.
+    /// </summary>
+    public static object PageView(Page p) => new
+    {
+        p.Id,
+        p.Key,
+        Label = p.Name,
+        p.Planned,
+        p.Nav,
+        p.Route,
+        p.AdminOnly,
+        p.IsCore,
+        Status = (int)p.Status,
+        p.DisplayOrder,
+        p.Description
+    };
+
+    /// <summary>All 6 permission codes for a page key, in canonical order.</summary>
+    public static string[] PagePermissionCodes(string key)
+        => Actions.Select(a => $"{key}.{a}").ToArray();
 }

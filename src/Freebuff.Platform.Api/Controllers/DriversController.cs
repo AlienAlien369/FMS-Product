@@ -1,3 +1,4 @@
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
@@ -24,17 +25,8 @@ public class DriversController : ControllerBase
         _db = db;
     }
 
-    private async Task<bool> HasPermissionAsync(string permissionCode)
-    {
-        if (User.IsSuperAdmin()) return true;
-        var userId = User.GetUserId();
-        return await _db.UserRoles
-            .Where(ur => ur.UserId == userId && !ur.IsDeleted)
-            .SelectMany(ur => ur.Role.RolePermissions)
-            .AnyAsync(rp => !rp.IsDeleted && rp.Permission.Code == permissionCode);
-    }
-
     [HttpGet]
+    [RequirePermission("driver.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<DriverDto>>>> GetAll([FromQuery] PagedRequest filter)
     {
         var result = await _driverService.GetListAsync(filter);
@@ -42,6 +34,7 @@ public class DriversController : ControllerBase
     }
 
     [HttpGet("stats")]
+    [RequirePermission("driver.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
         var query = _db.Drivers.AsNoTracking().Where(d => !d.IsDeleted);
@@ -77,10 +70,9 @@ public class DriversController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("driver.create")]
     public async Task<ActionResult<ApiResponse<DriverDto>>> Create([FromBody] CreateDriverDto dto)
     {
-        if (!await HasPermissionAsync("driver.create"))
-            return StatusCode(403, ApiResponse<DriverDto>.Fail("FORBIDDEN", "You do not have permission to create drivers"));
 
         var userId = User.GetUserIdString();
         var result = await _driverService.CreateAsync(dto, userId);
@@ -88,10 +80,9 @@ public class DriversController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("driver.edit")]
     public async Task<ActionResult<ApiResponse<DriverDto>>> Update(Guid id, [FromBody] UpdateDriverDto dto)
     {
-        if (!await HasPermissionAsync("driver.edit"))
-            return StatusCode(403, ApiResponse<DriverDto>.Fail("FORBIDDEN", "You do not have permission to edit drivers"));
 
         var userId = User.GetUserIdString();
         var result = await _driverService.UpdateAsync(id, dto, userId);
@@ -100,10 +91,9 @@ public class DriversController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("driver.delete")]
     public async Task<ActionResult<ApiResponse>> Delete(Guid id, [FromQuery] string? reason = null)
     {
-        if (!await HasPermissionAsync("driver.delete"))
-            return StatusCode(403, ApiResponse.Fail("FORBIDDEN", "You do not have permission to delete drivers"));
 
         var userId = User.GetUserIdString();
         var deleted = await _driverService.SoftDeleteAsync(id, userId, reason);
@@ -112,10 +102,9 @@ public class DriversController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
+    [RequirePermission("driver.edit")]
     public async Task<ActionResult<ApiResponse>> Restore(Guid id)
     {
-        if (!await HasPermissionAsync("driver.edit"))
-            return StatusCode(403, ApiResponse.Fail("FORBIDDEN", "You do not have permission to restore drivers"));
 
         var userId = User.GetUserIdString();
         var restored = await _driverService.RestoreAsync(id, userId);
@@ -124,6 +113,7 @@ public class DriversController : ControllerBase
     }
 
     [HttpGet("{id:guid}/audit")]
+    [RequirePermission("driver.view")]
     public async Task<ActionResult<ApiResponse<List<AuditEntryDto>>>> GetAuditHistory(Guid id)
     {
         var result = await _driverService.GetAuditHistoryAsync(id);

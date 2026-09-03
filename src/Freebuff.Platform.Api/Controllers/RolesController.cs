@@ -1,3 +1,4 @@
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
@@ -25,6 +26,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission("role.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
         var tenantId = User.GetTenantId();
@@ -57,6 +59,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("role.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetById(Guid id)
     {
         var tenantId = User.GetTenantId();
@@ -75,6 +78,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/permissions")]
+    [RequirePermission("role.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetPermissions(Guid id)
     {
         var tenantId = User.GetTenantId();
@@ -119,6 +123,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("role.create")]
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] CreateRoleDto dto)
     {
         var tenantId = User.GetTenantId();
@@ -176,11 +181,15 @@ public class RolesController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
+        // Invalidate all permission caches for this tenant
+        _permissionService.InvalidateAllCache();
+
         return CreatedAtAction(nameof(GetById), new { id = role.Id },
             ApiResponse<object>.Ok(new { role.Id, role.Name, role.Description }));
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("role.edit")]
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateRoleDto dto)
     {
         var tenantId = User.GetTenantId();
@@ -263,10 +272,14 @@ public class RolesController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
+        // Invalidate all permission caches for this tenant
+        _permissionService.InvalidateAllCache();
+
         return Ok(ApiResponse.Ok(message: "Role updated"));
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("role.delete")]
     public async Task<ActionResult<ApiResponse>> Delete(Guid id)
     {
         var tenantId = User.GetTenantId();
@@ -295,6 +308,9 @@ public class RolesController : ControllerBase
             EntityName = roleName
         });
         await _db.SaveChangesAsync();
+
+        // Invalidate all permission caches for this tenant
+        _permissionService.InvalidateAllCache();
 
         return Ok(ApiResponse.Ok(message: "Role deleted"));
     }

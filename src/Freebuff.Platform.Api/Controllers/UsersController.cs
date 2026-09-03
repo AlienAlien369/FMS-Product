@@ -1,3 +1,4 @@
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
@@ -19,6 +20,7 @@ public class UsersController : ControllerBase
     public UsersController(ApplicationDbContext db) => _db = db;
 
     [HttpGet]
+    [RequirePermission("user.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
         var tenantId = User.GetTenantId();
@@ -55,6 +57,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("user.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetById(Guid id)
     {
         var tenantId = User.GetTenantId();
@@ -75,6 +78,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("user.create")]
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] CreateUserDto dto)
     {
         var tenantId = User.GetTenantId();
@@ -122,6 +126,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("user.edit")]
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
         var tenantId = User.GetTenantId();
@@ -162,6 +167,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("user.delete")]
     public async Task<ActionResult<ApiResponse>> Delete(Guid id)
     {
         var tenantId = User.GetTenantId();

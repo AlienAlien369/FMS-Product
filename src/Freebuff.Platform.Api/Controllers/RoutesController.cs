@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
@@ -23,19 +24,8 @@ public class FleetRoutesController : ControllerBase
     private bool IsSuperAdmin() => User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
     private Guid GetUserId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private async Task<bool> HasPermissionAsync(string code)
-    {
-        if (IsSuperAdmin()) return true;
-        var userId = GetUserId();
-        var tenantId = GetTenantId();
-        return await _db.UserRoles
-            .Where(ur => ur.UserId == userId && ur.Role.RolePermissions.Any(rp => rp.Permission.Code == code))
-            .AnyAsync(ur => ur.Role.CompanyId == tenantId);
-    }
-
-    private IActionResult NoPermission() => StatusCode(403, new ApiResponse<object> { Success = false, Message = "You don't have permission to perform this action." });
-
     [HttpGet]
+    [RequirePermission("route.view")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] int? status = null, [FromQuery] int? type = null, [FromQuery] int? priority = null,
@@ -96,6 +86,7 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpGet("stats")]
+    [RequirePermission("route.view")]
     public async Task<IActionResult> GetStats()
     {
         var tenantId = GetTenantId();
@@ -120,6 +111,7 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("route.view")]
     public async Task<IActionResult> Get(Guid id)
     {
         var tenantId = GetTenantId();
@@ -159,10 +151,9 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("route.create")]
     public async Task<IActionResult> Create([FromBody] CreateRouteDto dto)
     {
-        if (!await HasPermissionAsync("geofence.create") && !await HasPermissionAsync("trip.create"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var r = new FleetRoute
@@ -187,10 +178,9 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("route.edit")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRouteDto dto)
     {
-        if (!await HasPermissionAsync("geofence.edit") && !await HasPermissionAsync("trip.edit"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
@@ -229,10 +219,9 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("route.delete")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        if (!await HasPermissionAsync("geofence.delete") && !await HasPermissionAsync("trip.delete"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
@@ -246,10 +235,9 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
+    [RequirePermission("route.edit")]
     public async Task<IActionResult> Restore(Guid id)
     {
-        if (!await HasPermissionAsync("geofence.edit") && !await HasPermissionAsync("trip.edit"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();

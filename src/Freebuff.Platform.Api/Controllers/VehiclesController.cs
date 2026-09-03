@@ -1,3 +1,4 @@
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
@@ -23,17 +24,8 @@ public class VehiclesController : ControllerBase
         _db = db;
     }
 
-    private async Task<bool> HasPermissionAsync(string permissionCode)
-    {
-        if (User.IsSuperAdmin()) return true;
-        var userId = User.GetUserId();
-        return await _db.UserRoles
-            .Where(ur => ur.UserId == userId && !ur.IsDeleted)
-            .SelectMany(ur => ur.Role.RolePermissions)
-            .AnyAsync(rp => !rp.IsDeleted && rp.Permission.Code == permissionCode);
-    }
-
     [HttpGet]
+    [RequirePermission("vehicle.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<VehicleDto>>>> GetAll([FromQuery] PagedRequest filter)
     {
         var result = await _vehicleService.GetListAsync(filter);
@@ -41,6 +33,7 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpGet("stats")]
+    [RequirePermission("vehicle.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
         var query = _db.Vehicles.AsNoTracking().Where(v => !v.IsDeleted);
@@ -76,10 +69,9 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("vehicle.create")]
     public async Task<ActionResult<ApiResponse<VehicleDto>>> Create([FromBody] CreateVehicleDto dto)
     {
-        if (!await HasPermissionAsync("vehicle.create"))
-            return StatusCode(403, ApiResponse<VehicleDto>.Fail("FORBIDDEN", "You do not have permission to create vehicles"));
 
         var userId = User.GetUserIdString();
         var result = await _vehicleService.CreateAsync(dto, userId);
@@ -87,10 +79,9 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("vehicle.edit")]
     public async Task<ActionResult<ApiResponse<VehicleDto>>> Update(Guid id, [FromBody] UpdateVehicleDto dto)
     {
-        if (!await HasPermissionAsync("vehicle.edit"))
-            return StatusCode(403, ApiResponse<VehicleDto>.Fail("FORBIDDEN", "You do not have permission to edit vehicles"));
 
         var userId = User.GetUserIdString();
         var result = await _vehicleService.UpdateAsync(id, dto, userId);
@@ -99,10 +90,9 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("vehicle.delete")]
     public async Task<ActionResult<ApiResponse>> Delete(Guid id, [FromQuery] string? reason = null)
     {
-        if (!await HasPermissionAsync("vehicle.delete"))
-            return StatusCode(403, ApiResponse.Fail("FORBIDDEN", "You do not have permission to delete vehicles"));
 
         var userId = User.GetUserIdString();
         var deleted = await _vehicleService.SoftDeleteAsync(id, userId, reason);
@@ -111,10 +101,9 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
+    [RequirePermission("vehicle.edit")]
     public async Task<ActionResult<ApiResponse>> Restore(Guid id)
     {
-        if (!await HasPermissionAsync("vehicle.edit"))
-            return StatusCode(403, ApiResponse.Fail("FORBIDDEN", "You do not have permission to restore vehicles"));
 
         var userId = User.GetUserIdString();
         var restored = await _vehicleService.RestoreAsync(id, userId);
@@ -123,6 +112,7 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/audit")]
+    [RequirePermission("vehicle.view")]
     public async Task<ActionResult<ApiResponse<List<AuditEntryDto>>>> GetAuditHistory(Guid id)
     {
         var result = await _vehicleService.GetAuditHistoryAsync(id);

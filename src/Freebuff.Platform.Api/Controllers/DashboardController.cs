@@ -1,3 +1,4 @@
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Shared.Extensions;
@@ -17,6 +18,7 @@ public class DashboardController : ControllerBase
     public DashboardController(ApplicationDbContext db) => _db = db;
 
     [HttpGet("stats")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
         var tenantId = User.GetTenantId();
@@ -44,6 +46,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("vehicles/by-status")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetVehiclesByStatus()
     {
         var tenantId = User.GetTenantId();
@@ -57,6 +60,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("vehicles/by-fuel-type")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetVehiclesByFuelType()
     {
         var tenantId = User.GetTenantId();
@@ -70,6 +74,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("drivers/by-status")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetDriversByStatus()
     {
         var tenantId = User.GetTenantId();
@@ -83,6 +88,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("drivers/top-safety")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetTopSafetyDrivers()
     {
         var tenantId = User.GetTenantId();
@@ -97,6 +103,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("vehicles/recent")]
+    [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetRecentVehicles()
     {
         var tenantId = User.GetTenantId();

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Shared.Models;
@@ -22,19 +23,8 @@ public class GeofencesController : ControllerBase
     private bool IsSuperAdmin() => User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
     private Guid GetUserId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private async Task<bool> HasPermissionAsync(string code)
-    {
-        if (IsSuperAdmin()) return true;
-        var userId = GetUserId();
-        var tenantId = GetTenantId();
-        return await _db.UserRoles
-            .Where(ur => ur.UserId == userId && ur.Role.RolePermissions.Any(rp => rp.Permission.Code == code))
-            .AnyAsync(ur => ur.Role.CompanyId == tenantId);
-    }
-
-    private IActionResult NoPermission() => StatusCode(403, new ApiResponse<object> { Success = false, Message = "You don't have permission to perform this action." });
-
     [HttpGet]
+    [RequirePermission("geofence.view")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] int? status = null, [FromQuery] int? type = null,
@@ -88,6 +78,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet("stats")]
+    [RequirePermission("geofence.view")]
     public async Task<IActionResult> GetStats()
     {
         var tenantId = GetTenantId();
@@ -113,6 +104,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("geofence.view")]
     public async Task<IActionResult> Get(Guid id)
     {
         var tenantId = GetTenantId();
@@ -146,10 +138,9 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost]
+    [RequirePermission("geofence.create")]
     public async Task<IActionResult> Create([FromBody] CreateGeofenceDto dto)
     {
-        if (!await HasPermissionAsync("geofence.create"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var g = new Geofence
@@ -186,10 +177,9 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequirePermission("geofence.edit")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateGeofenceDto dto)
     {
-        if (!await HasPermissionAsync("geofence.edit"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
@@ -222,10 +212,9 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequirePermission("geofence.delete")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        if (!await HasPermissionAsync("geofence.delete"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
@@ -239,10 +228,9 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
+    [RequirePermission("geofence.edit")]
     public async Task<IActionResult> Restore(Guid id)
     {
-        if (!await HasPermissionAsync("geofence.edit"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();
@@ -256,10 +244,9 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/assign-vehicle")]
+    [RequirePermission("geofence.assign")]
     public async Task<IActionResult> AssignVehicle(Guid id, [FromBody] AssignVehicleGeofenceDto dto)
     {
-        if (!await HasPermissionAsync("geofence.assign"))
-            return NoPermission();
 
         var tenantId = GetTenantId();
         var isSuperAdmin = IsSuperAdmin();

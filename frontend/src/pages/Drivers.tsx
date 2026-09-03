@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -50,10 +50,11 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 
 // ── Main Component ───────────────────────────────────────
 export default function Drivers() {
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission('driver.create');
-  const canEdit = hasPermission('driver.edit');
-  const canDelete = hasPermission('driver.delete');
+  const { can } = usePermissions();
+  const canCreate = can('driver.create');
+  const canEdit = can('driver.edit');
+  const canDelete = can('driver.delete');
+  const canExport = can('driver.export');
 
   const [data, setData] = useState<PagedResult<DriverDetail> | null>(null);
   const [stats, setStats] = useState<DriverStats | null>(null);

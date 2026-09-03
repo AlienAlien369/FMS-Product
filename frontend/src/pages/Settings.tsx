@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Settings as SettingsIcon, Building2, Clock, Globe, DollarSign, MapPin, CreditCard } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 
 interface CompanySettings {
@@ -19,6 +20,8 @@ interface SubscriptionInfo {
 
 export default function Settings() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canEdit = can('configuration.edit');
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,10 +89,12 @@ export default function Settings() {
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Settings</h2>
-        <button onClick={handleSave} disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:bg-blue-400 transition-colors">
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        {canEdit && (
+          <button onClick={handleSave} disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:bg-blue-400 transition-colors">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        )}
       </div>
 
       {message && (

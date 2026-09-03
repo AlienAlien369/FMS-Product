@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Globe, DollarSign } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface Lang { id: string; code: string; name: string; nativeName: string; isRightToLeft: boolean; isDefault: boolean; status: number; displayOrder: number; }
 interface Curr { id: string; code: string; name: string; symbol: string; decimalPlaces: number; isDefault: boolean; status: number; displayOrder: number; }
 interface PagedData<T> { items: T[]; totalCount: number; page: number; pageSize: number; totalPages: number; }
 
 export default function Localization() {
+  const { can } = usePermissions();
+  const canView = can('configuration.view');
   const [tab, setTab] = useState<'languages' | 'currencies'>('languages');
   const [langs, setLangs] = useState<PagedData<Lang> | null>(null);
   const [currencies, setCurrencies] = useState<PagedData<Curr> | null>(null);

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -68,10 +68,11 @@ function fmtDuration(d?: string) {
 
 // ── Main Component ───────────────────────────────────────
 export default function RoutesPage() {
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission('geofence.create') || hasPermission('trip.create');
-  const canEdit = hasPermission('geofence.edit') || hasPermission('trip.edit');
-  const canDelete = hasPermission('geofence.delete') || hasPermission('trip.delete');
+  const { can } = usePermissions();
+  const canCreate = can('route.create');
+  const canEdit = can('route.edit');
+  const canDelete = can('route.delete');
+  const canExport = can('route.export');
 
   const [data, setData] = useState<PagedResult<RouteDetail> | null>(null);
   const [stats, setStats] = useState<RouteStats | null>(null);

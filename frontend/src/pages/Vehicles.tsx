@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -44,10 +44,11 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 
 // ── Main Component ───────────────────────────────────────
 export default function Vehicles() {
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission('vehicle.create');
-  const canEdit = hasPermission('vehicle.edit');
-  const canDelete = hasPermission('vehicle.delete');
+  const { can } = usePermissions();
+  const canCreate = can('vehicle.create');
+  const canEdit = can('vehicle.edit');
+  const canDelete = can('vehicle.delete');
+  const canExport = can('vehicle.export');
 
   const [data, setData] = useState<PagedResult<VehicleDetail> | null>(null);
   const [stats, setStats] = useState<VehicleStats | null>(null);

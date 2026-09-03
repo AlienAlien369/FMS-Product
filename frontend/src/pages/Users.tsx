@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, UserX } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 import UserModal from '../components/UserModal';
 
 interface User {
@@ -14,7 +15,11 @@ interface PagedData { items: User[]; totalCount: number; page: number; pageSize:
 
 export default function Users() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+  const canCreate = can('user.create');
+  const canEdit = can('user.edit');
+  const canDelete = can('user.delete');
   const [data, setData] = useState<PagedData | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -56,10 +61,12 @@ export default function Users() {
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             placeholder="Search by name or email..." />
         </div>
-        <button onClick={() => { setEditUser(null); setModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
-          <Plus className="w-4 h-4" /> Add User
-        </button>
+        {canCreate && (
+          <button onClick={() => { setEditUser(null); setModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" /> Add User
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -121,15 +128,19 @@ export default function Users() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => {
-                          setEditUser({ id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, phoneNumber: u.phoneNumber, roleIds: u.roleIds });
-                          setModalOpen(true);
-                        }} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">
-                          <Pencil className="w-4 h-4 text-gray-500" />
-                        </button>
-                        <button onClick={() => setConfirmDelete(u.id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
+                        {canEdit && (
+                          <button onClick={() => {
+                            setEditUser({ id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, phoneNumber: u.phoneNumber, roleIds: u.roleIds });
+                            setModalOpen(true);
+                          }} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">
+                            <Pencil className="w-4 h-4 text-gray-500" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => setConfirmDelete(u.id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete">
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

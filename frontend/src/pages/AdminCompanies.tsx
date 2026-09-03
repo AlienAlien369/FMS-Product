@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Search, Building2, Users, Truck, Shield, Package, ChevronLeft, ChevronRight, Eye, Plus, X, CreditCard, MapPin, Globe } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 
 interface Company {
@@ -18,6 +19,8 @@ interface PagedData { items: Company[]; totalCount: number; page: number; pageSi
 const subStatusMap = SUBSCRIPTION_STATUS;
 
 export default function AdminCompanies() {
+  const { can } = usePermissions();
+  const canCreate = can('company.create');
   const [data, setData] = useState<PagedData | null>(null);
   const [overview, setOverview] = useState<any>(null);
   const [search, setSearch] = useState('');
@@ -57,10 +60,12 @@ export default function AdminCompanies() {
           <h2 className="text-2xl font-bold text-gray-900">Platform Administration</h2>
           <p className="text-gray-500 text-sm mt-1">Cross-company management and oversight</p>
         </div>
-        <button onClick={() => setCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
-          <Plus className="w-4 h-4" /> Create Company
-        </button>
+        {canCreate && (
+          <button onClick={() => setCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" /> Create Company
+          </button>
+        )}
       </div>
 
       {/* Platform Overview Stats */}

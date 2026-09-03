@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -52,10 +52,11 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 
 // ── Main Component ───────────────────────────────────────
 export default function GeofencesPage() {
-  const { hasPermission } = useAuth();
-  const canCreate = hasPermission('geofence.create');
-  const canEdit = hasPermission('geofence.edit');
-  const canDelete = hasPermission('geofence.delete');
+  const { can } = usePermissions();
+  const canCreate = can('geofence.create');
+  const canEdit = can('geofence.edit');
+  const canDelete = can('geofence.delete');
+  const canExport = can('geofence.export');
 
   const [data, setData] = useState<PagedResult<GeofenceDetail> | null>(null);
   const [stats, setStats] = useState<GeofenceStats | null>(null);

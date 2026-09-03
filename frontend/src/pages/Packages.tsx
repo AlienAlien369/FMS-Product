@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Package, X, Check, DollarSign, Users, Truck, Clock, Headphones, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface PackageItem {
   id: string; name: string; description?: string; shortDescription?: string;
@@ -30,6 +31,10 @@ interface PackageItem {
 interface PagedData { items: PackageItem[]; totalCount: number; page: number; pageSize: number; totalPages: number; hasPrevious: boolean; hasNext: boolean; }
 
 export default function Packages() {
+  const { can } = usePermissions();
+  const canCreate = can('package.create');
+  const canEdit = can('package.edit');
+  const canDelete = can('package.delete');
   const [data, setData] = useState<PagedData | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -70,10 +75,12 @@ export default function Packages() {
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             placeholder="Search packages..." />
         </div>
-        <button onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
-          <Plus className="w-4 h-4" /> Create Package
-        </button>
+        {canCreate && (
+          <button onClick={() => setModal({ open: true })}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" /> Create Package
+          </button>
+        )}
       </div>
 
       {/* Package Cards */}
@@ -99,8 +106,8 @@ export default function Packages() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => setModal({ open: true, edit: p })} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit"><Pencil className="w-4 h-4 text-gray-500" /></button>
-                  <button onClick={() => setDeleteConfirm(p)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>
+                  {canEdit && <button onClick={() => setModal({ open: true, edit: p })} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit"><Pencil className="w-4 h-4 text-gray-500" /></button>}
+                  {canDelete && <button onClick={() => setDeleteConfirm(p)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>}
                 </div>
               </div>
               <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.description || 'No description'}</p>

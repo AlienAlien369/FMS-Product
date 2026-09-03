@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import type { Company, PagedResult } from '../lib/api';
 import { Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function Companies() {
+  const { can } = usePermissions();
+  const canCreate = can('company.create');
+  const canEdit = can('company.edit');
+  const canDelete = can('company.delete');
   const [data, setData] = useState<PagedResult<Company> | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -29,9 +34,11 @@ export default function Companies() {
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             placeholder="Search companies..." />
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-          <Plus className="w-4 h-4" /> Add Company
-        </button>
+        {canCreate && (
+          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Add Company
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -68,8 +75,8 @@ export default function Companies() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button className="p-1 hover:bg-gray-100 rounded"><Edit className="w-4 h-4 text-gray-500" /></button>
-                        <button className="p-1 hover:bg-gray-100 rounded"><Trash2 className="w-4 h-4 text-red-500" /></button>
+                        {canEdit && <button className="p-1 hover:bg-gray-100 rounded"><Edit className="w-4 h-4 text-gray-500" /></button>}
+                        {canDelete && <button className="p-1 hover:bg-gray-100 rounded"><Trash2 className="w-4 h-4 text-red-500" /></button>}
                       </div>
                     </td>
                   </tr>

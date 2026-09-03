@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Shield, Users, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 import RoleModal from '../components/RoleModal';
 
 interface Role {
@@ -14,7 +15,11 @@ interface GroupedPerm { module: string; permissions: { id: string; code: string;
 
 export default function Roles() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
+  const canCreate = can('role.create');
+  const canEdit = can('role.edit');
+  const canDelete = can('role.delete');
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -62,7 +67,7 @@ export default function Roles() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Roles & Permissions</h2>
-        {view === 'roles' && (
+        {view === 'roles' && canCreate && (
           <button onClick={() => { setEditRole(null); setModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
             <Plus className="w-4 h-4" /> Add Role
@@ -108,14 +113,18 @@ export default function Roles() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {(isSuperAdmin || !r.isSystemRole) && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); setEditRole({ id: r.id, name: r.name, description: r.description }); setModalOpen(true); }}
-                          className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">
-                          <Pencil className="w-4 h-4 text-gray-500" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(r.id); }}
-                          className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
+                        {canEdit && (
+                          <button onClick={(e) => { e.stopPropagation(); setEditRole({ id: r.id, name: r.name, description: r.description }); setModalOpen(true); }}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">
+                            <Pencil className="w-4 h-4 text-gray-500" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(r.id); }}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg" title="Delete">
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Package, ChevronRight, ToggleLeft, ToggleRight } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface Module {
   id: string; code: string; name: string; description?: string; icon?: string;
@@ -14,6 +15,9 @@ interface Feature {
 }
 
 export default function Modules() {
+  const { can } = usePermissions();
+  const canView = can('configuration.view');
+  const canManage = can('configuration.manage');
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);

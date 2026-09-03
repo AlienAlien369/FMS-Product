@@ -7,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
  *        canAny('vehicle.export', 'vehicle.import') → boolean
  */
 export function usePermissions() {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, isSuperAdmin } = useAuth();
+  const { hasPermission, hasAnyPermission, hasAllPermissions, user } = useAuth();
+  const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
 
   /** Check a single permission — SuperAdmin always returns true */
   const can = (permission: string): boolean => hasPermission(permission);

@@ -242,6 +242,29 @@ public static class SeedData
             // Save users, roles, companies first so we can query permissions
             await db.SaveChangesAsync();
 
+            // Enable all core modules for both companies (idempotent)
+            var allModules = await db.Modules.Where(m => !m.IsDeleted).ToListAsync();
+            foreach (var company in new[] { platformCompany, demoCompany })
+            {
+                var existingMCs = await db.ModuleConfigurations
+                    .Where(mc => mc.CompanyId == company.Id && !mc.IsDeleted)
+                    .Select(mc => mc.ModuleId)
+                    .ToListAsync();
+                foreach (var mod in allModules)
+                {
+                    if (existingMCs.Contains(mod.Id)) continue;
+                    db.ModuleConfigurations.Add(new ModuleConfiguration
+                    {
+                        Id = Guid.NewGuid(),
+                        CompanyId = company.Id,
+                        ModuleId = mod.Id,
+                        Status = EntityStatus.Active,
+                        TenantId = company.Id
+                    });
+                }
+            }
+            await db.SaveChangesAsync();
+
             // Assign ALL permissions to Company Admin role
             var allPermissions = await db.Permissions.Where(p => !p.IsDeleted).ToListAsync();
             foreach (var perm in allPermissions)

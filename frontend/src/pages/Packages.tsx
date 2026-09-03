@@ -225,7 +225,7 @@ function PackageDetailModal({ pkg, onClose, onEdit }: { pkg: PackageItem; onClos
               <div className="text-sm font-semibold text-gray-900">Overage Pricing</div>
               <div className="grid grid-cols-3 gap-3">
                 {[['Per User', pkg.overagePricePerUser], ['Per Vehicle', pkg.overagePricePerVehicle], ['Per Driver', pkg.overagePricePerDriver], ['Per Trip', pkg.overagePricePerTrip], ['Per API Call', pkg.overagePricePerApiCall], ['Per GB Storage', pkg.overagePricePerGbStorage]].map(([label, val]) => (
-                  <div key={String(label)} className="bg-gray-50 rounded-lg p-3"><div className="text-xs text-gray-500">{label}</div><div className="text-sm font-medium text-gray-900">{val > 0 ? `$${val}` : 'Included'}</div></div>
+                  <div key={String(label)} className="bg-gray-50 rounded-lg p-3"><div className="text-xs text-gray-500">{label}</div><div className="text-sm font-medium text-gray-900">{Number(val) > 0 ? `$${val}` : 'Included'}</div></div>
                 ))}
               </div>
             </div>

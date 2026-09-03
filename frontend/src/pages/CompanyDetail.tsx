@@ -60,7 +60,7 @@ function CompanyDetailInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [company, setCompany] = useState<CompanyInfo | null>(null);
-  const [tab, setTab] = useState<'overview' | 'users' | 'roles' | 'modules' | 'documents' | 'subscription'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'roles' | 'modules' | 'documents' | 'subscription' | 'packages' | 'localization' | 'settings'>('overview');
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [modules, setModules] = useState<any>(null);

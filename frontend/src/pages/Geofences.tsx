@@ -54,7 +54,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 export default function GeofencesPage() {
   const { can } = usePermissions();
   const canCreate = can('geofence.create');
-  const canEdit = can('geofence.edit');
+  const canEdit = can('geofence.update');
   const canDelete = can('geofence.delete');
   const canExport = can('geofence.export');
 

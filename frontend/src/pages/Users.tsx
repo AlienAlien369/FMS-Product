@@ -18,7 +18,7 @@ export default function Users() {
   const { can } = usePermissions();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin');
   const canCreate = can('user.create');
-  const canEdit = can('user.edit');
+  const canEdit = can('user.update');
   const canDelete = can('user.delete');
   const [data, setData] = useState<PagedData | null>(null);
   const [search, setSearch] = useState('');

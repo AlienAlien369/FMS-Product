@@ -33,7 +33,7 @@ interface PagedData { items: PackageItem[]; totalCount: number; page: number; pa
 export default function Packages() {
   const { can } = usePermissions();
   const canCreate = can('package.create');
-  const canEdit = can('package.edit');
+  const canEdit = can('package.update');
   const canDelete = can('package.delete');
   const [data, setData] = useState<PagedData | null>(null);
   const [search, setSearch] = useState('');

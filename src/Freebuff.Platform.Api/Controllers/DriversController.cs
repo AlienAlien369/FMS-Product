@@ -80,7 +80,7 @@ public class DriversController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("driver.edit")]
+    [RequirePermission("driver.update")]
     public async Task<ActionResult<ApiResponse<DriverDto>>> Update(Guid id, [FromBody] UpdateDriverDto dto)
     {
 
@@ -102,7 +102,7 @@ public class DriversController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
-    [RequirePermission("driver.edit")]
+    [RequirePermission("driver.update")]
     public async Task<ActionResult<ApiResponse>> Restore(Guid id)
     {
 

@@ -95,7 +95,7 @@ public static class SeedData
             "report", "user", "role", "company", "configuration",
             "subscription", "package", "dashboard", "notification"
         };
-        var permActions = new string[] { "view", "create", "edit", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
+        var permActions = new string[] { "view", "create", "update", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
 
         var order = existingPermCodes.Count;
         var newPerms = new List<Permission>();
@@ -116,7 +116,7 @@ public static class SeedData
                     {
                         "view" => PermissionAction.Read,
                         "create" => PermissionAction.Create,
-                        "edit" => PermissionAction.Update,
+                        "update" => PermissionAction.Update,
                         "delete" => PermissionAction.Delete,
                         "import" => PermissionAction.Import,
                         "export" => PermissionAction.Export,
@@ -134,6 +134,21 @@ public static class SeedData
         if (newPerms.Count > 0)
         {
             db.Permissions.AddRange(newPerms);
+            await db.SaveChangesAsync();
+        }
+
+        // ── Idempotent migration: rename '.edit' permissions to '.update' ──
+        // Handles existing databases where the old action name was used.
+        var editPerms = await db.Permissions
+            .Where(p => !p.IsDeleted && p.Code.EndsWith(".edit"))
+            .ToListAsync();
+        if (editPerms.Count > 0)
+        {
+            foreach (var p in editPerms)
+            {
+                p.Code = p.Code.Replace(".edit", ".update");
+                p.Name = p.Name.Replace("Edit ", "Update ");
+            }
             await db.SaveChangesAsync();
         }
 

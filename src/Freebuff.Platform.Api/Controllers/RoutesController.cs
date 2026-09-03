@@ -178,7 +178,7 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("route.edit")]
+    [RequirePermission("route.update")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRouteDto dto)
     {
 
@@ -235,7 +235,7 @@ public class FleetRoutesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
-    [RequirePermission("route.edit")]
+    [RequirePermission("route.update")]
     public async Task<IActionResult> Restore(Guid id)
     {
 

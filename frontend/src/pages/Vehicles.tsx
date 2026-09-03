@@ -46,7 +46,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 export default function Vehicles() {
   const { can } = usePermissions();
   const canCreate = can('vehicle.create');
-  const canEdit = can('vehicle.edit');
+  const canEdit = can('vehicle.update');
   const canDelete = can('vehicle.delete');
   const canExport = can('vehicle.export');
 

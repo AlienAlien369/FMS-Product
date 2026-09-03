@@ -126,7 +126,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("user.edit")]
+    [RequirePermission("user.update")]
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
         var tenantId = User.GetTenantId();

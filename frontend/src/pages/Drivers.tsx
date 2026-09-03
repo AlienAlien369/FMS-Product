@@ -52,7 +52,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 export default function Drivers() {
   const { can } = usePermissions();
   const canCreate = can('driver.create');
-  const canEdit = can('driver.edit');
+  const canEdit = can('driver.update');
   const canDelete = can('driver.delete');
   const canExport = can('driver.export');
 

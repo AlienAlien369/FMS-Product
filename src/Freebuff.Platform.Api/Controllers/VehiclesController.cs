@@ -79,7 +79,7 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("vehicle.edit")]
+    [RequirePermission("vehicle.update")]
     public async Task<ActionResult<ApiResponse<VehicleDto>>> Update(Guid id, [FromBody] UpdateVehicleDto dto)
     {
 
@@ -101,7 +101,7 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
-    [RequirePermission("vehicle.edit")]
+    [RequirePermission("vehicle.update")]
     public async Task<ActionResult<ApiResponse>> Restore(Guid id)
     {
 

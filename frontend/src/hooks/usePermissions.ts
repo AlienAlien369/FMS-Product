@@ -23,7 +23,7 @@ export function usePermissions() {
   const modulePerms = (module: string) => ({
     view:    can(`${module}.view`),
     create:  can(`${module}.create`),
-    edit:    can(`${module}.edit`),
+    update:  can(`${module}.update`),
     delete:  can(`${module}.delete`),
     export:  can(`${module}.export`),
     import:  can(`${module}.import`),

@@ -177,7 +177,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("geofence.edit")]
+    [RequirePermission("geofence.update")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateGeofenceDto dto)
     {
 
@@ -228,7 +228,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/restore")]
-    [RequirePermission("geofence.edit")]
+    [RequirePermission("geofence.update")]
     public async Task<IActionResult> Restore(Guid id)
     {
 

@@ -21,7 +21,7 @@ interface SubscriptionInfo {
 export default function Settings() {
   const { user } = useAuth();
   const { can } = usePermissions();
-  const canEdit = can('configuration.edit');
+  const canEdit = can('configuration.update');
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);

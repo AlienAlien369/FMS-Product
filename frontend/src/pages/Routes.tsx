@@ -70,7 +70,7 @@ function fmtDuration(d?: string) {
 export default function RoutesPage() {
   const { can } = usePermissions();
   const canCreate = can('route.create');
-  const canEdit = can('route.edit');
+  const canEdit = can('route.update');
   const canDelete = can('route.delete');
   const canExport = can('route.export');
 

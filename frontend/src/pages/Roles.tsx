@@ -18,7 +18,7 @@ export default function Roles() {
   const { can } = usePermissions();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
   const canCreate = can('role.create');
-  const canEdit = can('role.edit');
+  const canEdit = can('role.update');
   const canDelete = can('role.delete');
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);

@@ -189,7 +189,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequirePermission("role.edit")]
+    [RequirePermission("role.update")]
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateRoleDto dto)
     {
         var tenantId = User.GetTenantId();

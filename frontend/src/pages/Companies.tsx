@@ -7,7 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 export default function Companies() {
   const { can } = usePermissions();
   const canCreate = can('company.create');
-  const canEdit = can('company.edit');
+  const canEdit = can('company.update');
   const canDelete = can('company.delete');
   const [data, setData] = useState<PagedResult<Company> | null>(null);
   const [search, setSearch] = useState('');

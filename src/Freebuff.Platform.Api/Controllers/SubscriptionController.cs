@@ -64,8 +64,8 @@ public class SubscriptionController : ControllerBase
         var subscription = new Subscription
         {
             Id = Guid.NewGuid(), CompanyId = cid, PackageId = dto.PackageId,
-            Status = SubscriptionStatus.Active, StartDate = dto.StartDate,
-            EndDate = dto.EndDate, CurrentPrice = dto.CurrentPrice,
+            Status = SubscriptionStatus.Active, StartDate = dto.StartDate ?? DateTime.UtcNow,
+            EndDate = dto.EndDate, CurrentPrice = dto.CurrentPrice ?? 0,
             Currency = dto.Currency, BillingCycle = dto.BillingCycle,
             DiscountPercentage = dto.DiscountPercentage, TaxPercentage = dto.TaxPercentage,
             MaxUsers = dto.MaxUsers, MaxVehicles = dto.MaxVehicles, MaxDrivers = dto.MaxDrivers,

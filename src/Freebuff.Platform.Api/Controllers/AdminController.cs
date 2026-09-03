@@ -506,20 +506,4 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse.Ok(message: "Company updated"));
     }
 
-    // ── Get all packages (for dropdown) ──────────────────
-    [HttpGet("packages")]
-    public async Task<ActionResult<ApiResponse<object>>> GetPackages()
-    {
-        var packages = await _db.Packages.AsNoTracking()
-            .Where(p => !p.IsDeleted && p.Status == EntityStatus.Active)
-            .OrderBy(p => p.DisplayOrder)
-            .Select(p => new
-            {
-                p.Id, p.Name, p.Description, p.Price, p.Currency, p.BillingCycle,
-                p.MaxUsers, p.MaxVehicles, p.MaxDrivers
-            }).ToListAsync();
-        return Ok(ApiResponse<object>.Ok(packages));
-    }
-
-
 }

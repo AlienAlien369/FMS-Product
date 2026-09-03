@@ -407,6 +407,13 @@ public static class SeedData
                     TenantId = demoCompany.Id
                 });
             }
+
+            // Persist the demo role grants NOW: the idempotent "every startup"
+            // grant blocks below query the database for existing grants, and if
+            // these tracked rows are unsaved they are invisible to that query —
+            // the same (RoleId, PermissionId) pairs would be re-added and the
+            // unique index would reject the duplicate on SaveChanges.
+            await db.SaveChangesAsync();
         }
 
         // Company module access is NOT stored per company any more — it is a pure
@@ -868,8 +875,14 @@ public static class SeedData
             .ToListAsync();
         var liveIds = livePackages.Select(p => p.Id).ToHashSet();
 
+        // Fresh databases create the platform + demo companies without a package;
+        // they would otherwise get zero modules and be locked out. The canonical
+        // seeded companies are assigned their tier defaults here; other companies
+        // without a package are left alone (a deliberate package-less draft state).
         var repairCompanies = await db.Companies
-            .Where(c => !c.IsDeleted && c.PackageId != null && !liveIds.Contains(c.PackageId.Value))
+            .Where(c => !c.IsDeleted
+                && ((c.PackageId == null && (c.Slug == "demo-fleet" || c.Slug == "platform"))
+                    || (c.PackageId != null && !liveIds.Contains(c.PackageId.Value))))
             .ToListAsync();
         foreach (var company in repairCompanies)
         {

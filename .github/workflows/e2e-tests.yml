@@ -1,0 +1,51 @@
+name: E2E tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # The e2e test project boots the REAL API (Program.cs → EnsureCreated +
+      # SchemaBootstrap + seed) against real Postgres, one unique database per
+      # test class. This service container is that Postgres.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      E2E_TEST_POSTGRES: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore Freebuff.Platform.sln
+
+      - name: Build
+        run: dotnet build Freebuff.Platform.sln -c Release --no-restore
+
+      - name: Unit tests
+        run: dotnet test tests/Freebuff.Platform.Tests -c Release --no-build
+
+      - name: E2E tests (real Postgres + real API)
+        run: dotnet test tests/Freebuff.Platform.E2eTests -c Release --no-build

@@ -149,3 +149,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Exposes the auto-generated Program to WebApplicationFactory<Program> so the
+// integration/e2e test project can boot the real API in-process (startup seed
+// and schema bootstrap included) against a real Postgres.
+public partial class Program { }
+

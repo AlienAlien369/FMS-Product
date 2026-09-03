@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, Component, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, ToggleLeft, ToggleRight, MapPin, Building2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, ToggleLeft, ToggleRight, MapPin, Building2, CreditCard, Languages, Settings } from 'lucide-react';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 import CompanyEditModal from '../components/company/CompanyEditModal';
 import SubscriptionModal from '../components/company/SubscriptionModal';
@@ -71,6 +71,10 @@ function CompanyDetailInner() {
   const [rolesList, setRolesList] = useState<RoleOption[]>([]);
   const [allPerms, setAllPerms] = useState<GroupedPerm[]>([]);
   const [packages, setPackages] = useState<PackageOption[]>([]);
+  const [languages, setLanguages] = useState<any[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [allModules, setAllModules] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
 
   const [editCompany, setEditCompany] = useState(false);
   const [userModal, setUserModal] = useState<{ open: boolean; edit?: any }>({ open: false });
@@ -89,6 +93,12 @@ function CompanyDetailInner() {
       else if (tab === 'modules') { const r = await api.get(`/admin/companies/${id}/modules`); setModules(r.data.data); }
       else if (tab === 'documents') { const r = await api.get(`/admin/companies/${id}/documents?pageSize=50`); setDocuments(r.data.data?.items || []); }
       else if (tab === 'subscription') { const r = await api.get(`/admin/companies/${id}/subscription`); setSubscription(r.data.data); }
+      else if (tab === 'packages') { const r = await api.get(`/admin/companies/${id}/subscription`); setSubscription(r.data.data); }
+      else if (tab === 'localization') { setSettings(company); }
+      else if (tab === 'settings') {
+        const r = await api.get(`/admin/companies/${id}/features`); 
+        setSettings(r.data.data);
+      }
     } catch (err) { void err; }
     setTabLoading(false);
   }, [id, tab]);
@@ -99,6 +109,9 @@ function CompanyDetailInner() {
     if (id) {
       api.get(`/admin/companies/${id}/roles`).then(r => setRolesList((r.data.data || []).map((r: any) => ({ id: r.id, name: r.name, description: r.description })))).catch(() => {});
       api.get('/admin/packages?pageSize=100').then(r => setPackages((r.data.data?.items || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, billingCycle: p.billingCycle, maxUsers: p.maxUsers, maxVehicles: p.maxVehicles, maxDrivers: p.maxDrivers })))).catch(() => {});
+      api.get('/languages').then(r => setLanguages(r.data.data || [])).catch(() => {});
+      api.get('/currencies').then(r => setCurrencies(r.data.data || [])).catch(() => {});
+      api.get('/admin/modules').then(r => setAllModules(r.data.data || [])).catch(() => {});
     }
     api.get('/permissions/grouped').then(r => setAllPerms(r.data.data || []) as any).catch(() => {});
   }, [id]);
@@ -118,9 +131,12 @@ function CompanyDetailInner() {
   const tabs = [
     { key: 'overview' as const, label: 'Overview', icon: Building2 },
     { key: 'subscription' as const, label: 'Subscription', icon: CreditCard },
+    { key: 'packages' as const, label: 'Packages', icon: Package },
     { key: 'users' as const, label: 'Users', icon: Users },
     { key: 'roles' as const, label: 'Roles', icon: Shield },
     { key: 'modules' as const, label: 'Modules', icon: Package },
+    { key: 'localization' as const, label: 'Localization', icon: Languages },
+    { key: 'settings' as const, label: 'Settings', icon: Settings },
     { key: 'documents' as const, label: 'Documents', icon: FileText },
   ];
 
@@ -418,6 +434,111 @@ function CompanyDetailInner() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Packages */}
+            {tab === 'packages' && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 font-semibold"><Package className="w-4 h-4" /> Assigned Package</div>
+                {subscription ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div><div className="text-xs text-gray-500">Package</div><div className="text-sm font-medium text-gray-900">{subscription.packageName}</div></div>
+                    <div><div className="text-xs text-gray-500">Price</div><div className="text-sm font-medium text-gray-900">${subscription.currentPrice}/{subscription.billingCycle === 'monthly' ? 'mo' : 'yr'}</div></div>
+                    <div><div className="text-xs text-gray-500">Status</div><div><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${subscription.status === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{subscription.status === 0 ? 'Active' : 'Inactive'}</span></div></div>
+                    <div><div className="text-xs text-gray-500">Start Date</div><div className="text-sm font-medium text-gray-900">{new Date(subscription.startDate).toLocaleDateString()}</div></div>
+                    <div><div className="text-xs text-gray-500">End Date</div><div className="text-sm font-medium text-gray-900">{subscription.endDate ? new Date(subscription.endDate).toLocaleDateString() : 'No end date'}</div></div>
+                    <div><div className="text-xs text-gray-500">Billing Cycle</div><div className="text-sm font-medium text-gray-900 capitalize">{subscription.billingCycle}</div></div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 mb-4">No package assigned</p>
+                    <button onClick={() => setSubModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Assign Package</button>
+                  </div>
+                )}
+                {packages.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 text-gray-900 font-semibold pt-4"><Package className="w-4 h-4" /> Available Packages</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {packages.map(p => (
+                        <div key={p.id} className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-gray-900">{p.name}</span>
+                            <span className="text-sm font-bold text-blue-600">${p.price}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mb-3">{p.billingCycle} &bull; {p.maxUsers} users &bull; {p.maxVehicles} vehicles</p>
+                          <button onClick={() => setSubModal(true)} className="w-full px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-medium text-gray-700 transition-colors">Assign</button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Localization */}
+            {tab === 'localization' && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 font-semibold"><Globe className="w-4 h-4" /> Language & Region</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div><div className="text-xs text-gray-500 mb-1">Default Language</div><div className="text-sm font-medium text-gray-900 uppercase">{company.defaultLanguage}</div></div>
+                  <div><div className="text-xs text-gray-500 mb-1">Default Timezone</div><div className="text-sm font-medium text-gray-900">{company.defaultTimezone}</div></div>
+                  <div><div className="text-xs text-gray-500 mb-1">Default Currency</div><div className="text-sm font-medium text-gray-900">{company.defaultCurrency}</div></div>
+                  <div><div className="text-xs text-gray-500 mb-1">Date Format</div><div className="text-sm font-medium text-gray-900">{company.dateFormat || 'yyyy-MM-dd'}</div></div>
+                  <div><div className="text-xs text-gray-500 mb-1">Time Format</div><div className="text-sm font-medium text-gray-900">{company.timeFormat || 'HH:mm'}</div></div>
+                  <div><div className="text-xs text-gray-500 mb-1">Number Format</div><div className="text-sm font-medium text-gray-900">{company.numberFormat || 'en-US'}</div></div>
+                </div>
+                <button onClick={() => setEditCompany(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"><Pencil className="w-4 h-4" /> Edit Localization Settings</button>
+                {languages.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 text-gray-900 font-semibold pt-4"><Languages className="w-4 h-4" /> Available Languages</div>
+                    <div className="flex flex-wrap gap-2">
+                      {languages.map((l: any) => (
+                        <span key={l.code || l.id} className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-medium border ${l.code === company.defaultLanguage ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>{l.name || l.code}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {currencies.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 text-gray-900 font-semibold pt-4"><DollarSign className="w-4 h-4" /> Available Currencies</div>
+                    <div className="flex flex-wrap gap-2">
+                      {currencies.map((c: any) => (
+                        <span key={c.code || c.id} className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-medium border ${c.code === company.defaultCurrency ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>{c.code} — {c.name || c.symbol}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Settings */}
+            {tab === 'settings' && (
+              <div className="p-6 space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 font-semibold"><Settings className="w-4 h-4" /> Company Settings</div>
+                {allModules.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-gray-500">Configure which modules and features are enabled for this company.</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {allModules.map((m: any) => (
+                        <div key={m.id} className="border border-gray-200 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-semibold text-gray-900">{m.name}</span>
+                            {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
+                          </div>
+                          <p className="text-xs text-gray-500 mb-3">{m.description || m.code}</p>
+                          <div className="text-xs text-gray-400">v{m.moduleVersion} &bull; {m.featureCount} features</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Settings className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No modules configured</p>
+                  </div>
+                )}
               </div>
             )}
 

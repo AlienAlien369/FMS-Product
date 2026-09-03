@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, ChevronLeft, Menu } from 'lucide-react';
+import { LogOut, ChevronLeft, Menu, Bell } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { NAVIGATION, type NavItem } from '../config/navigation';

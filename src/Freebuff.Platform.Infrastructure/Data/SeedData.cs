@@ -242,29 +242,6 @@ public static class SeedData
             // Save users, roles, companies first so we can query permissions
             await db.SaveChangesAsync();
 
-            // Enable all core modules for both companies (idempotent)
-            var allModules = await db.Modules.Where(m => !m.IsDeleted).ToListAsync();
-            foreach (var company in new[] { platformCompany, demoCompany })
-            {
-                var existingMCs = await db.ModuleConfigurations
-                    .Where(mc => mc.CompanyId == company.Id && !mc.IsDeleted)
-                    .Select(mc => mc.ModuleId)
-                    .ToListAsync();
-                foreach (var mod in allModules)
-                {
-                    if (existingMCs.Contains(mod.Id)) continue;
-                    db.ModuleConfigurations.Add(new ModuleConfiguration
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = company.Id,
-                        ModuleId = mod.Id,
-                        Status = EntityStatus.Active,
-                        TenantId = company.Id
-                    });
-                }
-            }
-            await db.SaveChangesAsync();
-
             // Assign ALL permissions to Company Admin role
             var allPermissions = await db.Permissions.Where(p => !p.IsDeleted).ToListAsync();
             foreach (var perm in allPermissions)
@@ -290,6 +267,67 @@ public static class SeedData
                     PermissionId = perm.Id,
                     TenantId = demoCompany.Id
                 });
+            }
+        }
+
+        // Enable all modules for all companies (idempotent — runs every startup)
+        var allModules = await db.Modules.Where(m => !m.IsDeleted).ToListAsync();
+        var allCompanyIds = await db.Companies.Where(c => !c.IsDeleted).Select(c => c.Id).ToListAsync();
+        foreach (var companyId in allCompanyIds)
+        {
+            var existingMCModuleIds = await db.ModuleConfigurations
+                .Where(mc => mc.CompanyId == companyId && !mc.IsDeleted)
+                .Select(mc => mc.ModuleId)
+                .ToListAsync();
+            foreach (var mod in allModules)
+            {
+                if (existingMCModuleIds.Contains(mod.Id)) continue;
+                db.ModuleConfigurations.Add(new ModuleConfiguration
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = companyId,
+                    ModuleId = mod.Id,
+                    Status = EntityStatus.Active,
+                    TenantId = companyId
+                });
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // Ensure lakshya@gmail.com test user exists in Demo Fleet Company
+        if (!await db.Users.AnyAsync(u => u.Email == "lakshya@gmail.com" && !u.IsDeleted))
+        {
+            var demoCo = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
+            if (demoCo != null)
+            {
+                var testUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = "lakshya@gmail.com",
+                    NormalizedEmail = "LAKSHYA@GMAIL.COM",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345678"),
+                    FirstName = "Lakshya",
+                    LastName = "Grover",
+                    CompanyId = demoCo.Id,
+                    Status = EntityStatus.Active,
+                    EmailConfirmed = true,
+                    SecurityStamp = Guid.NewGuid().ToString()
+                };
+                db.Users.Add(testUser);
+
+                // Assign the Company Admin role
+                var adminRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "Company Admin" && r.CompanyId == demoCo.Id && !r.IsDeleted);
+                if (adminRole != null)
+                {
+                    db.UserRoles.Add(new UserRole
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = testUser.Id,
+                        RoleId = adminRole.Id,
+                        TenantId = demoCo.Id
+                    });
+                }
+                await db.SaveChangesAsync();
             }
         }
 

@@ -5,8 +5,14 @@ using Microsoft.EntityFrameworkCore;
 namespace Freebuff.Platform.Infrastructure.Services;
 
 /// <summary>
-/// Centralized permission service. Calculates effective permissions by intersecting
-/// company module entitlements with user role permissions. Single source of truth.
+/// Centralized permission service. Calculates effective permissions as
+///
+///   (pages whose top-level module is in the company's package)
+///   ∩ (permissions granted by the user's roles)
+///
+/// Module access is derived ONLY from the company's assigned package
+/// (company.PackageId → package.PackageModules → module codes). There is no
+/// per-company module override: granting more access means changing package.
 /// </summary>
 public interface IPermissionService
 {
@@ -37,16 +43,7 @@ public class PermissionService : IPermissionService
         if (_cache.TryGetValue(key, out var cached) && (DateTime.UtcNow - cached.cachedAt) < CacheDuration)
             return cached.perms;
 
-        var enabledModules = await GetEnabledModuleCodesAsync(tenantId);
-
-        // Company-allowed: only permissions whose Module is enabled for the company
-        var companyAllowedList = await _db.Permissions
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && p.Status == EntityStatus.Active
-                        && enabledModules.Contains(p.Module))
-            .Select(p => p.Code)
-            .ToListAsync();
-        var companyAllowed = companyAllowedList.ToHashSet();
+        var companyAllowed = await GetCompanyAllowedPermissionsAsync(tenantId);
 
         // User's role permissions (union of all roles)
         var rolePermList = await _db.UserRoles
@@ -61,7 +58,7 @@ public class PermissionService : IPermissionService
             .ToListAsync();
         var rolePermissions = rolePermList.ToHashSet();
 
-        // Effective = rolePermissions ∩ companyAllowed
+        // Effective = rolePermissions ∩ company-allowed (package-derived)
         var effective = rolePermissions.Intersect(companyAllowed).ToHashSet();
 
         _cache[key] = (effective, DateTime.UtcNow);
@@ -80,32 +77,74 @@ public class PermissionService : IPermissionService
         return permissionCodes.Any(p => perms.Contains(p));
     }
 
-    public async Task<HashSet<string>> GetCompanyAllowedPermissionsAsync(Guid tenantId)
-    {
-        var enabledModules = await GetEnabledModuleCodesAsync(tenantId);
-        var list = await _db.Permissions
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && p.Status == EntityStatus.Active
-                        && enabledModules.Contains(p.Module))
-            .Select(p => p.Code)
-            .ToListAsync();
-        return list.ToHashSet();
-    }
-
     public async Task<bool> IsCompanyModuleEnabledAsync(Guid tenantId, string moduleCode)
     {
         var modules = await GetEnabledModuleCodesAsync(tenantId);
         return modules.Contains(moduleCode);
     }
 
+    /// <summary>Top-level module codes (fleet, organization, …) the company's package grants.</summary>
     public async Task<HashSet<string>> GetEnabledModuleCodesAsync(Guid tenantId)
     {
-        var list = await _db.ModuleConfigurations
+        var company = await _db.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == tenantId && !c.IsDeleted)
+            .Select(c => new { c.PackageId, c.SubscriptionId })
+            .FirstOrDefaultAsync();
+        if (company == null) return new HashSet<string>();
+
+        var packageId = company.PackageId;
+        if (packageId == null && company.SubscriptionId != null)
+        {
+            packageId = await _db.Subscriptions
+                .AsNoTracking()
+                .Where(s => s.Id == company.SubscriptionId && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
+                .Select(s => (Guid?)s.PackageId)
+                .FirstOrDefaultAsync();
+        }
+
+        if (packageId != null)
+        {
+            var codes = await _db.PackageModules
+                .AsNoTracking()
+                .Where(pm => pm.PackageId == packageId.Value && !pm.IsDeleted)
+                .Join(_db.Modules.Where(m => !m.IsDeleted && m.Status == EntityStatus.Active),
+                      pm => pm.ModuleId, m => m.Id, (pm, m) => m.Code)
+                .ToListAsync();
+            return codes.ToHashSet();
+        }
+
+        // Legacy fallback: companies that predate package-driven access keep their
+        // historical per-company module rows until a package is assigned.
+        var legacy = await _db.ModuleConfigurations
             .AsNoTracking()
             .Where(mc => mc.CompanyId == tenantId && !mc.IsDeleted && mc.Status == EntityStatus.Active)
             .Join(_db.Modules.Where(m => !m.IsDeleted && m.Status == EntityStatus.Active),
                   mc => mc.ModuleId, m => m.Id, (mc, m) => m.Code)
             .ToListAsync();
-        return list.ToHashSet();
+        return legacy.ToHashSet();
+    }
+
+    /// <summary>
+    /// All permission codes a company may grant: every registered page whose
+    /// top-level module is included in the company's package. Unknown/planned
+    /// pages are handled here — a page must be registered AND its module enabled.
+    /// </summary>
+    public async Task<HashSet<string>> GetCompanyAllowedPermissionsAsync(Guid tenantId)
+    {
+        var enabledModules = await GetEnabledModuleCodesAsync(tenantId);
+
+        var permissionRows = await _db.Permissions
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && p.Status == EntityStatus.Active)
+            .Select(p => new { p.Code, p.Module })
+            .ToListAsync();
+
+        var allowed = permissionRows
+            .Where(p => PageRegistry.ModuleOfPage(p.Module) is string mod && enabledModules.Contains(mod))
+            .Select(p => p.Code)
+            .ToHashSet();
+
+        return allowed;
     }
 }

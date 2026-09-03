@@ -59,9 +59,6 @@ public class AdminController : ControllerBase
             .GroupBy(d => d.CompanyId).Select(g => new { CompanyId = g.Key, Count = g.Count() }).ToListAsync();
         var roleCounts = await _db.Roles.AsNoTracking().Where(r => companyIds.Contains(r.CompanyId) && !r.IsDeleted)
             .GroupBy(r => r.CompanyId).Select(g => new { CompanyId = g.Key, Count = g.Count() }).ToListAsync();
-        var moduleCounts = await _db.ModuleConfigurations.AsNoTracking().Where(m => companyIds.Contains(m.CompanyId) && !m.IsDeleted)
-            .GroupBy(m => m.CompanyId).Select(g => new { CompanyId = g.Key, Count = g.Count() }).ToListAsync();
-
         // Get subscription info for each company
         var subscriptions = await _db.Subscriptions.AsNoTracking()
             .Where(s => companyIds.Contains(s.CompanyId) && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
@@ -72,11 +69,21 @@ public class AdminController : ControllerBase
             .Select(p => new { p.Id, p.Name, p.Price })
             .ToListAsync();
 
+        // Module count comes from the company's package (modules granted), not from
+        // per-company module rows.
+        var relevantPackageIds = subscriptions.Select(s => s.PackageId).Distinct().ToList();
+        var moduleCounts = await _db.PackageModules.AsNoTracking()
+            .Where(pm => relevantPackageIds.Contains(pm.PackageId) && !pm.IsDeleted)
+            .GroupBy(pm => pm.PackageId)
+            .Select(g => new { PackageId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
         var allCompanies = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize)
             .Select(c => new { c.Id, c.Name, c.Slug, c.LogoUrl, c.ContactEmail, c.ContactPhone,
                 c.Country, c.City, c.Website, c.Address,
                 Status = (int)c.Status, c.CreatedAt,
-                c.DefaultLanguage, c.DefaultTimezone, c.DefaultCurrency
+                c.DefaultLanguage, c.DefaultTimezone, c.DefaultCurrency,
+                c.PackageId
             }).ToListAsync();
 
         var items = allCompanies.Select(c =>
@@ -84,6 +91,7 @@ public class AdminController : ControllerBase
             var sub = subscriptions.FirstOrDefault(s => s.CompanyId == c.Id);
             var pkg = sub != null ? packageNames.FirstOrDefault(p => p.Id == sub.PackageId) : null;
             var isExpired = sub?.EndDate != null && sub.EndDate < DateTime.UtcNow;
+            var packageId = sub?.PackageId ?? c.PackageId;
             return (object)new
             {
                 c.Id, c.Name, c.Slug, c.LogoUrl, c.ContactEmail, c.ContactPhone,
@@ -93,7 +101,7 @@ public class AdminController : ControllerBase
                 VehicleCount = vehicleCounts.FirstOrDefault(v => v.CompanyId == c.Id)?.Count ?? 0,
                 DriverCount = driverCounts.FirstOrDefault(d => d.CompanyId == c.Id)?.Count ?? 0,
                 RoleCount = roleCounts.FirstOrDefault(r => r.CompanyId == c.Id)?.Count ?? 0,
-                ModuleCount = moduleCounts.FirstOrDefault(m => m.CompanyId == c.Id)?.Count ?? 0,
+                ModuleCount = packageId != null ? (moduleCounts.FirstOrDefault(mc => mc.PackageId == packageId)?.Count ?? 0) : 0,
                 SubscriptionStatus = sub?.Status,
                 PackageName = pkg?.Name,
                 PackagePrice = pkg?.Price,
@@ -190,37 +198,74 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<object>.Ok(roles));
     }
 
-    // ── Company Modules ─────────────────────────────────
+    // ── Company Modules (derived from the company's package) ────────────────
+    // There is no per-company module override. A company can use exactly the
+    // modules its package grants; page-level access inside a module is RBAC.
     [HttpGet("companies/{id:guid}/modules")]
     public async Task<ActionResult<ApiResponse<object>>> GetCompanyModules(Guid id)
     {
-        // Get all platform modules
-        var allModules = await _db.Modules.AsNoTracking()
+        var company = await _db.Companies.AsNoTracking()
+            .Where(c => c.Id == id && !c.IsDeleted)
+            .Select(c => new { c.PackageId, c.SubscriptionId })
+            .FirstOrDefaultAsync();
+        if (company == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+
+        var packageId = company.PackageId;
+        if (packageId == null && company.SubscriptionId != null)
+        {
+            packageId = await _db.Subscriptions.AsNoTracking()
+                .Where(s => s.Id == company.SubscriptionId && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
+                .Select(s => (Guid?)s.PackageId)
+                .FirstOrDefaultAsync();
+        }
+
+        string? packageName = null;
+        HashSet<Guid> includedModuleIds = new();
+        if (packageId != null)
+        {
+            var pkg = await _db.Packages.AsNoTracking().FirstOrDefaultAsync(p => p.Id == packageId.Value && !p.IsDeleted);
+            packageName = pkg?.Name;
+            var granted = await _db.PackageModules.AsNoTracking()
+                .Where(pm => pm.PackageId == packageId.Value && !pm.IsDeleted)
+                .Select(pm => pm.ModuleId)
+                .ToListAsync();
+            includedModuleIds = granted.ToHashSet();
+        }
+        else
+        {
+            // Legacy companies without a package keep their historical rows until a package is assigned.
+            var legacy = await _db.ModuleConfigurations.AsNoTracking()
+                .Where(mc => mc.CompanyId == id && !mc.IsDeleted && mc.Status == EntityStatus.Active)
+                .Select(mc => mc.ModuleId)
+                .ToListAsync();
+            includedModuleIds = legacy.ToHashSet();
+        }
+
+        var modules = await _db.Modules.AsNoTracking()
             .Where(m => !m.IsDeleted)
             .OrderBy(m => m.DisplayOrder)
-            .Select(m => new
+            .ToListAsync();
+
+        var result = modules.Select(m =>
+        {
+            var pages = PageRegistry.PagesInModule(m.Code).ToList();
+            return new
             {
-                m.Id, m.Code, m.Name, m.Description, m.IsCore, m.ModuleVersion,
-                FeatureCount = m.Features.Count(f => !f.IsDeleted)
-            }).ToListAsync();
-
-        // Get company's enabled modules
-        var enabledModuleIds = await _db.ModuleConfigurations.AsNoTracking()
-            .Where(mc => mc.CompanyId == id && !mc.IsDeleted)
-            .Select(mc => mc.ModuleId)
-            .ToListAsync();
-
-        // Get company's module configs for custom settings
-        var configs = await _db.ModuleConfigurations.AsNoTracking()
-            .Where(mc => mc.CompanyId == id && !mc.IsDeleted)
-            .Select(mc => new { mc.ModuleId, mc.Status, mc.CustomConfig })
-            .ToListAsync();
+                m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore,
+                Status = (int)m.Status, m.DisplayOrder,
+                Included = includedModuleIds.Contains(m.Id),
+                PageCount = pages.Count(p => !p.Planned),
+                PlannedPageCount = pages.Count(p => p.Planned),
+                Pages = pages.Select(p => new { p.Key, p.Label, p.Planned, p.Nav, p.Route }).ToList()
+            };
+        }).ToList();
 
         return Ok(ApiResponse<object>.Ok(new
         {
-            allModules,
-            enabledModuleIds,
-            configs
+            PackageId = packageId,
+            PackageName = packageName,
+            IncludedModuleCodes = result.Where(r => r.Included).Select(r => r.Code).ToList(),
+            Modules = result
         }));
     }
 
@@ -255,22 +300,29 @@ public class AdminController : ControllerBase
         }));
     }
 
-    // ── Platform Modules (all) ──────────────────────────
+    // ── Platform Modules (all) — module groups with their pages ─────────────
     [HttpGet("modules")]
     public async Task<ActionResult<ApiResponse<object>>> GetAllModules()
     {
         var modules = await _db.Modules.AsNoTracking()
             .Where(m => !m.IsDeleted)
             .OrderBy(m => m.DisplayOrder)
-            .Select(m => new
-            {
-                m.Id, m.Code, m.Name, m.Description, m.IsCore,
-                m.ModuleVersion, m.Status,
-                FeatureCount = m.Features.Count(f => !f.IsDeleted),
-                CompanyCount = m.ModuleConfigurations.Count(mc => !mc.IsDeleted)
-            }).ToListAsync();
+            .ToListAsync();
 
-        return Ok(ApiResponse<object>.Ok(modules));
+        var result = modules.Select(m =>
+        {
+            var pages = PageRegistry.PagesInModule(m.Code).ToList();
+            return new
+            {
+                m.Id, m.Code, m.Name, m.Description, m.Icon, m.IsCore, m.DisplayOrder,
+                Status = (int)m.Status,
+                PageCount = pages.Count(p => !p.Planned),
+                PlannedPageCount = pages.Count(p => p.Planned),
+                Pages = pages.Select(p => new { p.Key, p.Label, p.Planned, p.Nav, p.Route }).ToList()
+            };
+        }).ToList();
+
+        return Ok(ApiResponse<object>.Ok(result));
     }
 
     // ── Platform Permissions (all) ──────────────────────
@@ -291,32 +343,15 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<object>.Ok(permissions));
     }
 
-    // ── Company Features (detailed) ─────────────────────
-    [HttpGet("companies/{id:guid}/features")]
-    public async Task<ActionResult<ApiResponse<object>>> GetCompanyFeatures(Guid id)
-    {
-        var features = await _db.Features.AsNoTracking()
-            .Include(f => f.Module)
-            .Where(f => !f.IsDeleted)
-            .OrderBy(f => f.Module.Code).ThenBy(f => f.DisplayOrder)
-            .Select(f => new
-            {
-                f.Id, f.Code, f.Name, f.Description,
-                ModuleCode = f.Module.Code,
-                ModuleName = f.Module.Name,
-                f.IsEnabledByDefault,
-                Status = (int)f.Status
-            }).ToListAsync();
-
-        return Ok(ApiResponse<object>.Ok(features));
-    }
-
     // ── Edit Company ─────────────────────────────────────
     [HttpPut("companies/{id:guid}")]
     public async Task<ActionResult<ApiResponse>> UpdateCompany(Guid id, [FromBody] UpdateCompanyDto dto)
     {
         var company = await _db.Companies.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
         if (company == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+
+        var localeErr = await ValidateCompanyLocaleAsync(dto.DefaultLanguage, dto.DefaultCurrency);
+        if (localeErr != null) return BadRequest(ApiResponse.Fail("INVALID_LOCALE", localeErr));
 
         if (dto.Name != null) company.Name = dto.Name;
         if (dto.ContactEmail != null) company.ContactEmail = dto.ContactEmail;
@@ -444,34 +479,97 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse.Ok(message: "Role deleted"));
     }
 
-    // ── Enable Module for Company ────────────────────────
-    [HttpPost("companies/{cid:guid}/modules/{mid:guid}/enable")]
-    public async Task<ActionResult<ApiResponse>> EnableModule(Guid cid, Guid mid)
+    // ── Create Company ───────────────────────────────────
+    // New companies start from the platform defaults for language/currency and
+    // optionally receive a package immediately (which defines their modules).
+    [HttpPost("companies")]
+    public async Task<ActionResult<ApiResponse<object>>> CreateCompany([FromBody] CreateCompanyDto dto)
     {
-        var exists = await _db.ModuleConfigurations.AnyAsync(mc => mc.CompanyId == cid && mc.ModuleId == mid && !mc.IsDeleted);
-        if (exists) return Ok(ApiResponse.Ok(message: "Module already enabled"));
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest(ApiResponse.Fail("VALIDATION", "Company name is required"));
+        if (await _db.Companies.AnyAsync(c => c.Name == dto.Name && !c.IsDeleted))
+            return BadRequest(ApiResponse.Fail("DUPLICATE", "A company with this name already exists"));
+        if (!string.IsNullOrWhiteSpace(dto.Slug) && await _db.Companies.AnyAsync(c => c.Slug == dto.Slug && !c.IsDeleted))
+            return BadRequest(ApiResponse.Fail("DUPLICATE", "A company with this slug already exists"));
 
-        _db.ModuleConfigurations.Add(new ModuleConfiguration
+        var localeErr = await ValidateCompanyLocaleAsync(dto.DefaultLanguage, dto.DefaultCurrency);
+        if (localeErr != null) return BadRequest(ApiResponse.Fail("INVALID_LOCALE", localeErr));
+
+        var company = new Company
         {
-            Id = Guid.NewGuid(), CompanyId = cid, ModuleId = mid,
-            Status = EntityStatus.Active, TenantId = cid
-        });
+            Id = Guid.NewGuid(),
+            Name = dto.Name,
+            Slug = string.IsNullOrWhiteSpace(dto.Slug) ? null : dto.Slug,
+            ContactEmail = dto.ContactEmail,
+            ContactPhone = dto.ContactPhone,
+            Website = dto.Website,
+            Address = dto.Address,
+            City = dto.City,
+            State = dto.State,
+            Country = dto.Country,
+            PostalCode = dto.PostalCode,
+            DefaultLanguage = string.IsNullOrWhiteSpace(dto.DefaultLanguage) ? "en" : dto.DefaultLanguage,
+            DefaultCurrency = string.IsNullOrWhiteSpace(dto.DefaultCurrency) ? "USD" : dto.DefaultCurrency,
+            DefaultTimezone = string.IsNullOrWhiteSpace(dto.DefaultTimezone) ? "UTC" : dto.DefaultTimezone,
+            Status = EntityStatus.Active
+        };
+        _db.Companies.Add(company);
+
+        if (dto.PackageId != null)
+        {
+            var pkg = await _db.Packages.FirstOrDefaultAsync(p => p.Id == dto.PackageId && !p.IsDeleted);
+            if (pkg == null) return BadRequest(ApiResponse.Fail("NOT_FOUND", "Package not found"));
+            var sub = new Subscription
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = company.Id,
+                PackageId = pkg.Id,
+                Status = SubscriptionStatus.Active,
+                StartDate = DateTime.UtcNow,
+                CurrentPrice = pkg.Price,
+                Currency = pkg.Currency,
+                BillingCycle = pkg.BillingCycle,
+                TenantId = company.Id
+            };
+            _db.Subscriptions.Add(sub);
+            company.SubscriptionId = sub.Id;
+            company.PackageId = pkg.Id;
+        }
+
         await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok(message: "Module enabled"));
+        return Ok(ApiResponse<object>.Ok(new { company.Id, company.Name, company.Slug }));
     }
 
-    // ── Disable Module for Company ───────────────────────
-    [HttpDelete("companies/{cid:guid}/modules/{mid:guid}")]
-    public async Task<ActionResult<ApiResponse>> DisableModule(Guid cid, Guid mid)
+    // ── Delete Company ───────────────────────────────────
+    [HttpDelete("companies/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> DeleteCompany(Guid id)
     {
-        var config = await _db.ModuleConfigurations.FirstOrDefaultAsync(mc => mc.CompanyId == cid && mc.ModuleId == mid && !mc.IsDeleted);
-        if (config == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Module configuration not found"));
-        config.IsDeleted = true; config.DeletedAt = DateTime.UtcNow;
+        var company = await _db.Companies.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (company == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+        if (company.Slug == "platform")
+            return BadRequest(ApiResponse.Fail("FORBIDDEN", "The platform company cannot be deleted"));
+
+        var activeUsers = await _db.Users.CountAsync(u => u.CompanyId == id && !u.IsDeleted && u.Status == EntityStatus.Active);
+        if (activeUsers > 0)
+            return BadRequest(ApiResponse.Fail("HAS_USERS", $"Cannot delete this company: it still has {activeUsers} active user(s). Deactivate or move them first."));
+
+        company.IsDeleted = true;
+        company.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(ApiResponse.Ok(message: "Module disabled"));
+        return Ok(ApiResponse.Ok(message: "Company deleted"));
     }
 
-
+    // ── Locale validation (company may only pick from active master lists) ──
+    private async Task<string?> ValidateCompanyLocaleAsync(string? language, string? currency)
+    {
+        if (!string.IsNullOrWhiteSpace(language) &&
+            !await _db.Languages.AnyAsync(l => l.Code == language && !l.IsDeleted && l.Status == EntityStatus.Active))
+            return $"Language '{language}' is not an active language. Choose from the platform's active language list.";
+        if (!string.IsNullOrWhiteSpace(currency) &&
+            !await _db.Currencies.AnyAsync(c => c.Code == currency && !c.IsDeleted && c.Status == EntityStatus.Active))
+            return $"Currency '{currency}' is not an active currency. Choose from the platform's active currency list.";
+        return null;
+    }
 
     // ── Update Company (extended fields) ─────────────────
     [HttpPut("companies/{id:guid}/extended")]
@@ -479,6 +577,9 @@ public class AdminController : ControllerBase
     {
         var company = await _db.Companies.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
         if (company == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Company not found"));
+
+        var localeErr = await ValidateCompanyLocaleAsync(dto.DefaultLanguage, dto.DefaultCurrency);
+        if (localeErr != null) return BadRequest(ApiResponse.Fail("INVALID_LOCALE", localeErr));
 
         if (dto.Name != null) company.Name = dto.Name;
         if (dto.Slug != null) company.Slug = dto.Slug;

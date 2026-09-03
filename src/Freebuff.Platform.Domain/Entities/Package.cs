@@ -87,6 +87,9 @@ public class Package : BaseEntity
     public bool EnableAuditLog { get; set; } = true;
 
     // ── Navigation ─────────────────────────────────────
+    // Modules this package grants access to (replaces the legacy Package↔Feature concept).
+    public ICollection<PackageModule> PackageModules { get; set; } = new List<PackageModule>();
+    // Legacy: retained only so pre-existing PackageFeature rows keep working schema-wise.
     public ICollection<PackageFeature> PackageFeatures { get; set; } = new List<PackageFeature>();
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
 }

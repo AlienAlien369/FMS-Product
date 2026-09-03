@@ -1,28 +1,21 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { Package, ChevronRight, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Layers } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 
-interface Module {
+interface RegistryPage { key: string; label: string; planned: boolean; nav: boolean; route?: string; }
+interface ModuleRow {
   id: string; code: string; name: string; description?: string; icon?: string;
-  isCore: boolean; moduleVersion: string; featureCount: number;
-  status: number; displayOrder: number;
-}
-
-interface Feature {
-  id: string; code: string; name: string; description?: string;
-  isEnabledByDefault: boolean; status: number; displayOrder: number;
+  isCore: boolean; status: number; displayOrder: number;
+  pageCount: number; plannedPageCount: number;
+  pages: RegistryPage[];
 }
 
 export default function Modules() {
   const { can } = usePermissions();
   const canView = can('module.view');
-  const canUpdate = can('module.update');
-  const [modules, setModules] = useState<Module[]>([]);
+  const [modules, setModules] = useState<ModuleRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [featuresLoading, setFeaturesLoading] = useState(false);
 
   useEffect(() => {
     api.get('/modules?pageSize=50').then(r => {
@@ -30,85 +23,73 @@ export default function Modules() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const toggleExpand = async (moduleId: string) => {
-    if (expanded === moduleId) { setExpanded(null); return; }
-    setExpanded(moduleId);
-    setFeaturesLoading(true);
-    try {
-      const res = await api.get(`/modules/${moduleId}/features`);
-      setFeatures(res.data.data || []);
-    } catch { setFeatures([]); }
-    setFeaturesLoading(false);
-  };
+  if (!canView) return null;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
 
   const statusBadge = (s: number) => s === 0
     ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
     : <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Inactive</span>;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Module Management</h2>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Module Management</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Top-level modules group the product's pages. A company can use a module only when its package includes it.</p>
+        </div>
         <span className="text-sm text-gray-500">{modules.length} modules</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {modules.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">No modules found</div>
+          <div className="col-span-full text-center py-12 text-gray-400">No modules found</div>
         ) : (
-          modules.map(m => (
-            <div key={m.id}>
-              <div className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => toggleExpand(m.id)}>
-                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Package className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900">{m.name}</span>
-                    {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
-                    {statusBadge(m.status)}
+          modules.map(m => {
+            return (
+              <div key={m.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Layers className="w-5 h-5 text-blue-600" />
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{m.description || m.code}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-xs text-gray-500">v{m.moduleVersion}</div>
-                  <div className="text-xs text-gray-400">{m.featureCount} features</div>
-                </div>
-                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${expanded === m.id ? 'rotate-90' : ''}`} />
-              </div>
-
-              {expanded === m.id && (
-                <div className="bg-gray-50 border-t border-gray-100 px-5 py-3">
-                  {featuresLoading ? (
-                    <div className="text-sm text-gray-400 py-2">Loading features...</div>
-                  ) : features.length === 0 ? (
-                    <div className="text-sm text-gray-400 py-2">No features in this module</div>
-                  ) : (
-                    <div className="space-y-1">
-                      <div className="text-xs font-medium text-gray-500 uppercase mb-2">Features</div>
-                      {features.map(f => (
-                        <div key={f.id} className="flex items-center gap-3 px-3 py-2 bg-white rounded-lg border border-gray-200">
-                          <div className="flex-1">
-                            <span className="text-sm font-medium text-gray-800">{f.name}</span>
-                            <span className="text-xs text-gray-400 ml-2">{f.code}</span>
-                          </div>
-                          {f.isEnabledByDefault
-                            ? <ToggleRight className="w-5 h-5 text-green-500 flex-shrink-0" />
-                            : <ToggleLeft className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                          }
-                        </div>
-                      ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-900">{m.name}</span>
+                      {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
+                      {statusBadge(m.status)}
                     </div>
-                  )}
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{m.description || m.code}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-lg font-bold text-gray-900">{m.pageCount}</div>
+                    <div className="text-xs text-gray-400">pages</div>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))
+
+                {/* Pages inside this module */}
+                {m.pages?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {m.pages.map(p => (
+                      <span key={p.key} title={p.route ? `Route: ${p.route}` : 'No standalone page yet'}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-50 border border-gray-200 text-gray-600">
+                        {p.label}
+                        {p.planned && <span className="px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">Planned</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
+
+      {/* Legend for planned pages */}
+      {modules.some(m => m.plannedPageCount > 0) && (
+        <p className="text-xs text-gray-400">
+          <span className="inline-flex px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium mr-1">Planned</span>
+          modules with a <em>Planned</em> badge are registered for future pages — they grant no nav or route today and can be excluded from packages.
+        </p>
+      )}
     </div>
   );
 }

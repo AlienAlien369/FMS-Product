@@ -14,6 +14,11 @@ public class ModulesController : ControllerBase
     private readonly ApplicationDbContext _db;
     public ModulesController(ApplicationDbContext db) => _db = db;
 
+    /// <summary>
+    /// Module catalog. A Module is the top-level grouping entity (dashboard,
+    /// fleet operations, …). Pages inside a module come from the canonical
+    /// PageRegistry, not from a "features" child table.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
@@ -25,33 +30,28 @@ public class ModulesController : ControllerBase
         query = query.OrderBy(m => m.DisplayOrder);
 
         var total = await query.CountAsync();
-        var items = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize)
-            .Select(m => new
+        var rows = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
+
+        var items = rows.Select(m =>
+        {
+            var pages = PageRegistry.PagesInModule(m.Code).ToList();
+            return (object)new
             {
-                m.Id, m.Code, m.Name, m.Description, m.Icon, m.Route,
-                m.IsCore, m.IsDeleted, m.ModuleVersion, m.Dependencies,
-                Status = (int)m.Status, m.DisplayOrder,
-                FeatureCount = m.Features.Count(f => !f.IsDeleted)
-            }).ToListAsync();
+                m.Id, m.Code, m.Name, m.Description, m.Icon,
+                m.IsCore, Status = (int)m.Status, m.DisplayOrder,
+                // A module contains pages, not features.
+                PageCount = pages.Count(p => !p.Planned),
+                PlannedPageCount = pages.Count(p => p.Planned),
+                Pages = pages.Select(p => new { p.Key, p.Label, p.Planned, p.Nav, p.Route }).ToList()
+            };
+        }).ToList();
 
         return Ok(ApiResponse<PagedResult<object>>.Ok(new PagedResult<object>
         {
-            Items = items.Cast<object>().ToList(),
+            Items = items,
             TotalCount = total,
             Page = filter.Page,
             PageSize = filter.PageSize
         }));
-    }
-
-    [HttpGet("{id:guid}/features")]
-    public async Task<ActionResult<ApiResponse<object>>> GetFeatures(Guid id)
-    {
-        var features = await _db.Features.AsNoTracking()
-            .Where(f => f.ModuleId == id && !f.IsDeleted)
-            .OrderBy(f => f.DisplayOrder)
-            .Select(f => new { f.Id, f.Code, f.Name, f.Description, f.IsEnabledByDefault, Status = (int)f.Status, f.DisplayOrder })
-            .ToListAsync();
-
-        return Ok(ApiResponse<object>.Ok(features));
     }
 }

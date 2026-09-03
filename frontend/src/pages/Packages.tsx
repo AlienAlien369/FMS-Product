@@ -25,6 +25,7 @@ interface PackageItem {
   enableEmailNotifications: boolean; enableWebhookIntegrations: boolean; enableApiAccess: boolean;
   enableBulkImport: boolean; enableExport: boolean; enableCustomFields: boolean;
   enableMultiCompany: boolean; enableAuditLog: boolean;
+  moduleIds: string[]; moduleCodes: string[];
   activeSubscriptions: number; createdAt: string;
 }
 
@@ -120,6 +121,11 @@ export default function Packages() {
                 <span>{p.trialDays > 0 ? `${p.trialDays}-day trial` : 'No trial'}</span>
                 <span>{p.activeSubscriptions} active subscriptions</span>
               </div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {(p.moduleCodes || []).slice(0, 4).map(c => <span key={c} className="inline-flex px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium">{c}</span>)}
+                {(p.moduleIds?.length || 0) > 4 && <span className="text-[10px] text-gray-400">+{(p.moduleIds?.length || 0) - 4} more</span>}
+                {(p.moduleCodes || []).length === 0 && <span className="text-[10px] text-gray-400 italic">No modules — assign modules in edit</span>}
+              </div>
             </div>
           ))
         )}
@@ -162,18 +168,7 @@ export default function Packages() {
 
 // ── Detail View Modal ───────────────────────────────────
 function PackageDetailModal({ pkg, onClose, onEdit }: { pkg: PackageItem; onClose: () => void; onEdit: () => void }) {
-  const [section, setSection] = useState<'overview' | 'limits' | 'pricing' | 'features'>('overview');
-  const featureFlags = [
-    { key: 'enableLiveTracking', label: 'Live Tracking' }, { key: 'enableGeofencing', label: 'Geofencing' },
-    { key: 'enableAlerts', label: 'Alerts' }, { key: 'enableReports', label: 'Reports' },
-    { key: 'enableFuelMonitoring', label: 'Fuel Monitoring' }, { key: 'enableMaintenance', label: 'Maintenance' },
-    { key: 'enableRouteOptimization', label: 'Route Optimization' }, { key: 'enableProofOfDelivery', label: 'Proof of Delivery' },
-    { key: 'enableCctv', label: 'CCTV / Video' }, { key: 'enableSmsNotifications', label: 'SMS Notifications' },
-    { key: 'enableEmailNotifications', label: 'Email Notifications' }, { key: 'enableWebhookIntegrations', label: 'Webhooks' },
-    { key: 'enableApiAccess', label: 'API Access' }, { key: 'enableBulkImport', label: 'Bulk Import' },
-    { key: 'enableExport', label: 'Export' }, { key: 'enableCustomFields', label: 'Custom Fields' },
-    { key: 'enableMultiCompany', label: 'Multi-Company' }, { key: 'enableAuditLog', label: 'Audit Log' },
-  ];
+  const [section, setSection] = useState<'overview' | 'limits' | 'pricing' | 'modules'>('overview');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -190,8 +185,8 @@ function PackageDetailModal({ pkg, onClose, onEdit }: { pkg: PackageItem; onClos
           </div>
         </div>
         <div className="flex gap-1 px-6 pt-3 border-b border-gray-200">
-          {(['overview', 'limits', 'pricing', 'features'] as const).map(s => (
-            <button key={s} onClick={() => setSection(s)} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${section === s ? 'bg-white border border-gray-200 border-b-white -mb-px text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>
+          {([{ key: 'overview', label: 'Overview' }, { key: 'limits', label: 'Limits' }, { key: 'pricing', label: 'Pricing' }, { key: 'modules', label: 'Modules' }] as const).map(s => (
+            <button key={s.key} onClick={() => setSection(s.key)} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${section === s.key ? 'bg-white border border-gray-200 border-b-white -mb-px text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{s.label}</button>
           ))}
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -237,17 +232,16 @@ function PackageDetailModal({ pkg, onClose, onEdit }: { pkg: PackageItem; onClos
               </div>
             </div>
           )}
-          {section === 'features' && (
+          {section === 'modules' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {featureFlags.map(f => (
-                  <div key={f.key} className={`flex items-center gap-2 p-2 rounded-lg ${(pkg as any)[f.key] ? 'bg-green-50' : 'bg-gray-50'}`}>
-                    <div className={`w-4 h-4 rounded flex items-center justify-center ${(pkg as any)[f.key] ? 'bg-green-500 text-white' : 'bg-gray-300'}`}>
-                      {(pkg as any)[f.key] && <Check className="w-3 h-3" />}
-                    </div>
-                    <span className={`text-xs font-medium ${(pkg as any)[f.key] ? 'text-green-700' : 'text-gray-500'}`}>{f.label}</span>
-                  </div>
+              <div className="text-sm text-gray-500">Modules included in this package — companies on this package can use exactly these modules and their pages. A company without this module in its package can never reach its pages, even with a permissive role.</div>
+              <div className="flex flex-wrap gap-2">
+                {(pkg.moduleCodes || []).map(c => (
+                  <span key={c} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                    <Check className="w-3 h-3" /> {c}
+                  </span>
                 ))}
+                {(pkg.moduleCodes || []).length === 0 && <span className="text-xs text-gray-400 italic">No modules assigned yet</span>}
               </div>
             </div>
           )}
@@ -260,7 +254,7 @@ function PackageDetailModal({ pkg, onClose, onEdit }: { pkg: PackageItem; onClos
 // ── Create/Edit Modal ───────────────────────────────────
 function PackageModal({ edit, onClose, onSaved }: { edit?: PackageItem; onClose: () => void; onSaved: () => void }) {
   const isEdit = !!edit?.id;
-  const [section, setSection] = useState<'basic' | 'pricing' | 'trial' | 'limits' | 'overage' | 'support' | 'features'>('basic');
+  const [section, setSection] = useState<'basic' | 'pricing' | 'trial' | 'limits' | 'overage' | 'support' | 'modules'>('basic');
   const [form, setForm] = useState({
     name: edit?.name || '', description: edit?.description || '', shortDescription: edit?.shortDescription || '',
     highlights: edit?.highlights || '', termsOfServiceUrl: edit?.termsOfServiceUrl || '', welcomeMessage: edit?.welcomeMessage || '',
@@ -291,6 +285,12 @@ function PackageModal({ edit, onClose, onSaved }: { edit?: PackageItem; onClose:
     enableExport: edit?.enableExport ?? true, enableCustomFields: edit?.enableCustomFields ?? false,
     enableMultiCompany: edit?.enableMultiCompany ?? false, enableAuditLog: edit?.enableAuditLog ?? true,
   });
+  // Modules this package grants — a package includes whole modules (not features).
+  const [moduleIds, setModuleIds] = useState<string[]>(edit?.moduleIds || []);
+  const [moduleOptions, setModuleOptions] = useState<{ id: string; code: string; name: string; pageCount?: number }[]>([]);
+  useEffect(() => {
+    api.get('/modules?pageSize=50').then(r => setModuleOptions(r.data.data?.items || [])).catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
@@ -302,20 +302,21 @@ function PackageModal({ edit, onClose, onSaved }: { edit?: PackageItem; onClose:
     if (!form.name.trim()) { setError('Package name required'); return; }
     setSaving(true); setError('');
     try {
-      if (isEdit) { await api.put(`/admin/packages/${edit!.id}`, form); }
-      else { await api.post('/admin/packages', form); }
+      const payload = { ...form, moduleIds };
+      if (isEdit) { await api.put(`/admin/packages/${edit!.id}`, payload); }
+      else { await api.post('/admin/packages', payload); }
       onSaved();
     } catch (e: any) { setError(e.response?.data?.message || 'Failed'); }
     setSaving(false);
   };
 
-  const featureFlags = ['enableLiveTracking', 'enableGeofencing', 'enableAlerts', 'enableReports', 'enableFuelMonitoring', 'enableMaintenance', 'enableRouteOptimization', 'enableProofOfDelivery', 'enableCctv', 'enableSmsNotifications', 'enableEmailNotifications', 'enableWebhookIntegrations', 'enableApiAccess', 'enableBulkImport', 'enableExport', 'enableCustomFields', 'enableMultiCompany', 'enableAuditLog'];
+  const toggleModule = (id: string) => setModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const sections = [
     { key: 'basic' as const, label: 'Basic', icon: Package }, { key: 'pricing' as const, label: 'Pricing', icon: DollarSign },
     { key: 'trial' as const, label: 'Trial', icon: Clock }, { key: 'limits' as const, label: 'Limits', icon: Users },
     { key: 'overage' as const, label: 'Overage', icon: DollarSign }, { key: 'support' as const, label: 'Support', icon: Headphones },
-    { key: 'features' as const, label: 'Features', icon: Zap },
+    { key: 'modules' as const, label: 'Modules', icon: Zap },
   ];
 
   return (
@@ -439,17 +440,27 @@ function PackageModal({ edit, onClose, onSaved }: { edit?: PackageItem; onClose:
             </div>
           )}
 
-          {section === 'features' && (
+          {section === 'modules' && (
             <div className="space-y-4">
-              <div className="text-sm text-gray-500">Toggle which features are included in this package</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {featureFlags.map(f => (
-                  <label key={f} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors">
-                    <input type="checkbox" checked={(form as any)[f]} onChange={e => set(f, e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
-                    <span className="text-xs font-medium text-gray-700">{f.replace('enable', '').replace(/([A-Z])/g, ' $1').trim()}</span>
-                  </label>
-                ))}
-              </div>
+              <div className="text-sm text-gray-500">Choose which modules this package grants. Companies on this package can use exactly these modules — changing a company's access means changing its package, not toggling per-company overrides.</div>
+              {moduleOptions.length === 0 ? (
+                <div className="text-sm text-gray-400 py-2">Loading modules...</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {moduleOptions.map(m => {
+                    const checked = moduleIds.includes(m.id);
+                    return (
+                      <label key={m.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${checked ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:border-blue-300'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleModule(m.id)} className="w-4 h-4 text-blue-600 rounded" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-gray-800">{m.name}</div>
+                          <div className="text-[11px] text-gray-400">{typeof m.pageCount === 'number' ? `${m.pageCount} pages` : m.code}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

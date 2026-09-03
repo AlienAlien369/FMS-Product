@@ -1,4 +1,6 @@
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
+using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +14,12 @@ namespace Freebuff.Platform.Api.Controllers;
 public class PermissionsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public PermissionsController(ApplicationDbContext db) => _db = db;
+    private readonly IPermissionService _permissionService;
+    public PermissionsController(ApplicationDbContext db, IPermissionService permissionService)
+    {
+        _db = db;
+        _permissionService = permissionService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
@@ -45,8 +52,23 @@ public class PermissionsController : ControllerBase
     [HttpGet("grouped")]
     public async Task<ActionResult<ApiResponse<object>>> GetGrouped()
     {
-        var permissions = await _db.Permissions.AsNoTracking()
-            .Where(p => !p.IsDeleted)
+        var tenantId = User.GetTenantId();
+
+        // Non-SuperAdmin users may only see permission groups for pages whose
+        // top-level module is in their company's package — they cannot even
+        // select (or request) a permission their company isn't entitled to.
+        var permissionQuery = _db.Permissions.AsNoTracking().Where(p => !p.IsDeleted);
+        if (!User.IsSuperAdmin())
+        {
+            var enabledModules = await _permissionService.GetEnabledModuleCodesAsync(tenantId);
+            var allowedPageKeys = PageRegistry.All
+                .Where(p => enabledModules.Contains(p.Module))
+                .Select(p => p.Key)
+                .ToHashSet();
+            permissionQuery = permissionQuery.Where(p => allowedPageKeys.Contains(p.Module));
+        }
+
+        var permissions = await permissionQuery
             .OrderBy(p => p.Module).ThenBy(p => p.DisplayOrder)
             .GroupBy(p => p.Module)
             .Select(g => new

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../../lib/api';
 import { X, Building2, MapPin, Globe } from 'lucide-react';
+import { useLocalizationOptions } from '../../hooks/useLocalizationOptions';
 
 const INPUT = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500";
 const LABEL = "block text-sm font-medium text-gray-700 mb-1";
@@ -21,14 +22,28 @@ export default function CompanyEditModal({ company, onClose, onSaved }: { compan
     dateFormat: company.dateFormat || 'yyyy-MM-dd', timeFormat: company.timeFormat || 'HH:mm',
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const { languages, currencies, loading: localeLoading } = useLocalizationOptions();
 
-  const handleSave = async () => { setSaving(true); await api.put(`/admin/companies/${company.id}/extended`, form); setSaving(false); onSaved(); };
+  const handleSave = async () => {
+    if (!form.name.trim()) { setError('Company name required'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.put(`/admin/companies/${company.id}/extended`, form);
+      setSaving(false);
+      onSaved();
+    } catch (e: any) {
+      setSaving(false);
+      setError(e.response?.data?.message || 'Failed to save company');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-semibold text-gray-900">Edit Company</h2><button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button></div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
           <div>
             <div className="flex items-center gap-2 text-gray-900 font-semibold mb-3"><Building2 className="w-4 h-4" /> Basic Information</div>
             <div className="grid grid-cols-2 gap-4">
@@ -51,9 +66,23 @@ export default function CompanyEditModal({ company, onClose, onSaved }: { compan
           <div>
             <div className="flex items-center gap-2 text-gray-900 font-semibold mb-3"><Globe className="w-4 h-4" /> Preferences</div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <div><label className={LABEL}>Language</label><select className={INPUT} value={form.defaultLanguage} onChange={e => setForm({ ...form, defaultLanguage: e.target.value })}><option value="en">English</option><option value="ar">Arabic</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option></select></div>
+              <div>
+                <label className={LABEL}>Language</label>
+                <select className={INPUT} value={form.defaultLanguage} onChange={e => setForm({ ...form, defaultLanguage: e.target.value })} disabled={localeLoading}>
+                  {languages.length === 0 && <option value={form.defaultLanguage}>{form.defaultLanguage}</option>}
+                  {languages.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-0.5">Only languages active on the platform's master list are allowed.</p>
+              </div>
               <div><label className={LABEL}>Timezone</label><select className={INPUT} value={form.defaultTimezone} onChange={e => setForm({ ...form, defaultTimezone: e.target.value })}><option value="UTC">UTC</option><option value="Asia/Kolkata">IST</option><option value="America/New_York">EST</option><option value="Europe/London">GMT</option><option value="Asia/Dubai">GST</option></select></div>
-              <div><label className={LABEL}>Currency</label><select className={INPUT} value={form.defaultCurrency} onChange={e => setForm({ ...form, defaultCurrency: e.target.value })}><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="INR">INR</option><option value="AED">AED</option></select></div>
+              <div>
+                <label className={LABEL}>Currency</label>
+                <select className={INPUT} value={form.defaultCurrency} onChange={e => setForm({ ...form, defaultCurrency: e.target.value })} disabled={localeLoading}>
+                  {currencies.length === 0 && <option value={form.defaultCurrency}>{form.defaultCurrency}</option>}
+                  {currencies.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-0.5">Only currencies active on the platform's master list are allowed.</p>
+              </div>
               <div><label className={LABEL}>Date Format</label><input className={INPUT} value={form.dateFormat} onChange={e => setForm({ ...form, dateFormat: e.target.value })} placeholder="yyyy-MM-dd" /></div>
               <div><label className={LABEL}>Time Format</label><input className={INPUT} value={form.timeFormat} onChange={e => setForm({ ...form, timeFormat: e.target.value })} placeholder="HH:mm" /></div>
             </div>

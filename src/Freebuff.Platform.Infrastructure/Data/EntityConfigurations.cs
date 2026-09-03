@@ -118,6 +118,17 @@ public class PackageFeatureConfiguration : IEntityTypeConfiguration<PackageFeatu
     }
 }
 
+public class PackageModuleConfiguration : IEntityTypeConfiguration<PackageModule>
+{
+    public void Configure(EntityTypeBuilder<PackageModule> b)
+    {
+        b.HasIndex(pm => new { pm.PackageId, pm.ModuleId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasOne(pm => pm.Package).WithMany(p => p.PackageModules).HasForeignKey(pm => pm.PackageId);
+        b.HasOne(pm => pm.Module).WithMany().HasForeignKey(pm => pm.ModuleId);
+        b.HasQueryFilter(pm => !pm.IsDeleted);
+    }
+}
+
 public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
 {
     public void Configure(EntityTypeBuilder<Subscription> b)

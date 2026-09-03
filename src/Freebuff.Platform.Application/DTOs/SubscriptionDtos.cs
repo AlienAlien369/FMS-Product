@@ -81,6 +81,10 @@ public class PackageDto
     public bool EnableMultiCompany { get; set; }
     public bool EnableAuditLog { get; set; }
 
+    // ── Included Modules (a package grants whole modules, not features) ──
+    public List<Guid> ModuleIds { get; set; } = new();
+    public List<string> ModuleCodes { get; set; } = new();
+
     // ── Stats ──────────────────────────────────────────
     public int ActiveSubscriptions { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -105,6 +109,9 @@ public class CreatePackageDto
     public decimal? MinCommitment { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsDefault { get; set; }
+
+    // ── Included Modules (module ids from the module catalog) ──
+    public List<Guid>? ModuleIds { get; set; }
 
     // ── Trial ──────────────────────────────────────────
     public int TrialDays { get; set; } = 0;
@@ -185,6 +192,9 @@ public class UpdatePackageDto
     public int? DisplayOrder { get; set; }
     public bool? IsDefault { get; set; }
     public int? Status { get; set; }
+
+    // ── Included Modules (module ids from the module catalog) ──
+    public List<Guid>? ModuleIds { get; set; }
 
     // ── Trial ──────────────────────────────────────────
     public int? TrialDays { get; set; }

@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Module> Modules => Set<Module>();
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<Package> Packages => Set<Package>();
+    public DbSet<PackageModule> PackageModules => Set<PackageModule>();
     public DbSet<PackageFeature> PackageFeatures => Set<PackageFeature>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<ModuleConfiguration> ModuleConfigurations => Set<ModuleConfiguration>();

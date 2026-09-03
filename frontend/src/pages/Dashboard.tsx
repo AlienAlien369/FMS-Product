@@ -36,10 +36,11 @@ export default function Dashboard() {
           api.get('/dashboard/vehicles/recent'),
         ]);
         setStats(s.data.data);
-        setVehicleStatus(vs.data.data || []);
-        setFuelTypes(ft.data.data || []);
-        setDriverStatus(ds.data.data || []);
-        setTopDrivers(td.data.data || []);
+        // API returns camelCase rows; normalize to the shape the render code consumes.
+        setVehicleStatus((vs.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
+        setFuelTypes((ft.data.data || []).map((x: any) => ({ FuelType: x.fuelType, Count: x.count })));
+        setDriverStatus((ds.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
+        setTopDrivers((td.data.data || []).map((x: any) => ({ Name: x.name, SafetyScore: x.safetyScore, BehaviourScore: x.behaviourScore })));
         setRecentVehicles(rv.data.data || []);
       } catch (err) { console.error(err); }
       setLoading(false);

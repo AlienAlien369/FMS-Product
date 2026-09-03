@@ -34,10 +34,25 @@ public class PackagesController : ControllerBase
         };
 
         var total = await query.CountAsync();
-        var items = await query
+        var rows = await query
             .Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize)
-            .Select(p => MapToDto(p, p.Subscriptions.Count(s => !s.IsDeleted && s.Status == SubscriptionStatus.Active)))
+            .Include(p => p.PackageModules).ThenInclude(pm => pm.Module)
             .ToListAsync();
+
+        var packageIds = rows.Select(p => p.Id).ToList();
+        var activeSubs = await _db.Subscriptions
+            .Where(s => packageIds.Contains(s.PackageId) && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
+            .GroupBy(s => s.PackageId)
+            .Select(g => new { PackageId = g.Key, Count = g.Count() })
+            .ToListAsync();
+        var subMap = activeSubs.ToDictionary(x => x.PackageId, x => x.Count);
+
+        var items = rows.Select(p =>
+        {
+            var dto = MapToDto(p, subMap.TryGetValue(p.Id, out var cnt) ? cnt : 0);
+            AttachModules(dto, p.PackageModules);
+            return dto;
+        }).ToList();
 
         return Ok(ApiResponse<PagedResult<PackageDto>>.Ok(new PagedResult<PackageDto>
         {
@@ -49,13 +64,15 @@ public class PackagesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> GetById(Guid id)
     {
-        var p = await _db.Packages.AsNoTracking()
-            .Where(p => p.Id == id && !p.IsDeleted)
-            .Select(p => MapToDto(p, p.Subscriptions.Count(s => !s.IsDeleted && s.Status == SubscriptionStatus.Active)))
-            .FirstOrDefaultAsync();
+        var entity = await _db.Packages.AsNoTracking()
+            .Include(p => p.PackageModules).ThenInclude(pm => pm.Module)
+            .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
 
-        if (p == null) return NotFound(ApiResponse<PackageDto>.Fail("NOT_FOUND", "Package not found"));
-        return Ok(ApiResponse<PackageDto>.Ok(p));
+        if (entity == null) return NotFound(ApiResponse<PackageDto>.Fail("NOT_FOUND", "Package not found"));
+        var subCount = await _db.Subscriptions.CountAsync(s => s.PackageId == id && !s.IsDeleted && s.Status == SubscriptionStatus.Active);
+        var dto = MapToDto(entity, subCount);
+        AttachModules(dto, entity.PackageModules);
+        return Ok(ApiResponse<PackageDto>.Ok(dto));
     }
 
     // ── Create package ───────────────────────────────────
@@ -100,7 +117,27 @@ public class PackagesController : ControllerBase
         _db.Packages.Add(package);
         await _db.SaveChangesAsync();
 
+        // Included modules: a package grants whole modules from the module catalog.
+        if (dto.ModuleIds?.Count > 0)
+        {
+            var validModuleIds = await _db.Modules
+                .Where(m => dto.ModuleIds.Contains(m.Id) && !m.IsDeleted)
+                .Select(m => m.Id)
+                .ToListAsync();
+            foreach (var mid in validModuleIds)
+            {
+                _db.PackageModules.Add(new PackageModule
+                {
+                    Id = Guid.NewGuid(), PackageId = package.Id, ModuleId = mid,
+                    TenantId = package.TenantId
+                });
+            }
+            await _db.SaveChangesAsync();
+        }
+
         var result = MapToDto(package, 0);
+        result.ModuleIds = (await GetPackageModulesAsync(package.Id)).Select(m => m.Id).ToList();
+        result.ModuleCodes = (await GetPackageModulesAsync(package.Id)).Select(m => m.Code).ToList();
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<PackageDto>.Ok(result));
     }
 
@@ -175,10 +212,34 @@ public class PackagesController : ControllerBase
         if (dto.EnableMultiCompany.HasValue) package.EnableMultiCompany = dto.EnableMultiCompany.Value;
         if (dto.EnableAuditLog.HasValue) package.EnableAuditLog = dto.EnableAuditLog.Value;
 
+        // Replace the module grants (module-level access, not features).
+        if (dto.ModuleIds != null)
+        {
+            var existing = await _db.PackageModules.Where(pm => pm.PackageId == id && !pm.IsDeleted).ToListAsync();
+            _db.PackageModules.RemoveRange(existing);
+            var validModuleIds = await _db.Modules
+                .Where(m => dto.ModuleIds.Contains(m.Id) && !m.IsDeleted)
+                .Select(m => m.Id)
+                .ToListAsync();
+            foreach (var mid in validModuleIds)
+            {
+                _db.PackageModules.Add(new PackageModule
+                {
+                    Id = Guid.NewGuid(), PackageId = id, ModuleId = mid,
+                    TenantId = package.TenantId
+                });
+            }
+        }
+
         await _db.SaveChangesAsync();
 
         var subCount = await _db.Subscriptions.CountAsync(s => s.PackageId == id && !s.IsDeleted && s.Status == SubscriptionStatus.Active);
-        return Ok(ApiResponse<PackageDto>.Ok(MapToDto(package, subCount)));
+        var dtoResult = MapToDto(package, subCount);
+        AttachModules(dtoResult, await _db.PackageModules
+            .Where(pm => pm.PackageId == id && !pm.IsDeleted)
+            .Include(pm => pm.Module)
+            .ToListAsync());
+        return Ok(ApiResponse<PackageDto>.Ok(dtoResult));
     }
 
     // ── Delete package ───────────────────────────────────
@@ -230,4 +291,21 @@ public class PackagesController : ControllerBase
         EnableMultiCompany = p.EnableMultiCompany, EnableAuditLog = p.EnableAuditLog,
         ActiveSubscriptions = activeSubscriptions, CreatedAt = p.CreatedAt
     };
+
+    private static void AttachModules(PackageDto dto, IEnumerable<PackageModule> packageModules)
+    {
+        var modules = packageModules.Where(pm => !pm.IsDeleted && pm.Module != null).ToList();
+        dto.ModuleIds = modules.Select(pm => pm.ModuleId).ToList();
+        dto.ModuleCodes = modules.Select(pm => pm.Module.Code).ToList();
+    }
+
+    private async Task<List<(Guid Id, string Code)>> GetPackageModulesAsync(Guid packageId)
+    {
+        var rows = await _db.PackageModules.AsNoTracking()
+            .Where(pm => pm.PackageId == packageId && !pm.IsDeleted)
+            .Include(pm => pm.Module)
+            .Select(pm => new { pm.ModuleId, Code = pm.Module.Code })
+            .ToListAsync();
+        return rows.Select(r => (r.ModuleId, r.Code)).ToList();
+    }
 }

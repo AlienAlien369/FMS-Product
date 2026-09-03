@@ -2,6 +2,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +16,12 @@ namespace Freebuff.Platform.Api.Controllers;
 public class SubscriptionController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public SubscriptionController(ApplicationDbContext db) => _db = db;
+    private readonly IPermissionService _permissionService;
+    public SubscriptionController(ApplicationDbContext db, IPermissionService permissionService)
+    {
+        _db = db;
+        _permissionService = permissionService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> Get(Guid cid)
@@ -65,10 +71,16 @@ public class SubscriptionController : ControllerBase
         {
             Id = Guid.NewGuid(), CompanyId = cid, PackageId = dto.PackageId,
             Status = SubscriptionStatus.Active, StartDate = dto.StartDate ?? DateTime.UtcNow,
-            EndDate = dto.EndDate, CurrentPrice = dto.CurrentPrice ?? 0,
-            Currency = dto.Currency, BillingCycle = dto.BillingCycle,
+            EndDate = dto.EndDate,
+            // Default commercial fields from the package when not supplied, so a
+            // minimal {companyId, packageId} payload can never violate NOT NULL.
+            CurrentPrice = dto.CurrentPrice ?? package.Price,
+            Currency = dto.Currency ?? package.Currency,
+            BillingCycle = dto.BillingCycle ?? package.BillingCycle,
             DiscountPercentage = dto.DiscountPercentage, TaxPercentage = dto.TaxPercentage,
-            MaxUsers = dto.MaxUsers, MaxVehicles = dto.MaxVehicles, MaxDrivers = dto.MaxDrivers,
+            MaxUsers = dto.MaxUsers ?? (package.MaxUsers == -1 ? null : package.MaxUsers),
+            MaxVehicles = dto.MaxVehicles ?? (package.MaxVehicles == -1 ? null : package.MaxVehicles),
+            MaxDrivers = dto.MaxDrivers ?? (package.MaxDrivers == -1 ? null : package.MaxDrivers),
             TenantId = cid
         };
         _db.Subscriptions.Add(subscription);
@@ -77,6 +89,10 @@ public class SubscriptionController : ControllerBase
         company.PackageId = dto.PackageId;
 
         await _db.SaveChangesAsync();
+
+        // Package change alters company-level module access → drop cached permissions
+        _permissionService.InvalidateAllCache();
+
         return Ok(ApiResponse.Ok(message: "Subscription assigned"));
     }
 
@@ -113,6 +129,10 @@ public class SubscriptionController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // Package removal alters company-level module access → drop cached permissions
+        _permissionService.InvalidateAllCache();
+
         return Ok(ApiResponse.Ok(message: "Subscription canceled"));
     }
 }

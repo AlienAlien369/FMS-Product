@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LogOut, ChevronLeft, Menu, Bell } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { NAVIGATION, type NavItem } from '../config/navigation';
+import { NAVIGATION, NAV_GROUPS } from '../config/navigation';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -15,14 +15,23 @@ export default function Layout() {
 
   const { hasPermission } = useAuth();
 
-  const filteredNavItems = useMemo(() => {
-    return NAVIGATION.filter(item => {
-      // Admin-only items: only SuperAdmin
-      if (item.adminOnly && !user?.roles?.includes('SuperAdmin')) return false;
-      // Permission-based items: check user's effective permissions
-      if (item.permission && !hasPermission(item.permission)) return false;
-      return true;
-    }).filter(i => !searchQuery.trim() || i.label.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Nav is grouped by top-level module. A group is shown only when at least one
+  // of its pages is visible (page-level View permission / SuperAdmin-only).
+  const visibleGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return NAV_GROUPS
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => {
+          // Admin-only items: only SuperAdmin
+          if (item.adminOnly && !user?.roles?.includes('SuperAdmin')) return false;
+          // Permission-based items: check user's effective permissions
+          if (item.permission && !hasPermission(item.permission)) return false;
+          if (q && !(item.label.toLowerCase().includes(q) || group.label.toLowerCase().includes(q))) return false;
+          return true;
+        }),
+      }))
+      .filter(group => group.items.length > 0);
   }, [user?.roles, searchQuery, hasPermission]);
 
   const handleLogout = () => {
@@ -50,17 +59,26 @@ export default function Layout() {
         </div>
       )}
       <nav className="flex-1 overflow-y-auto py-2">
-        {filteredNavItems.map(item => {
-          const Icon = item.icon;
-          const active = location.pathname === item.path;
-          return (
-            <Link key={item.path} to={item.path} onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${active ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+        {visibleGroups.map(group => (
+          <div key={group.code} className="mb-1">
+            {!collapsed && (
+              <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                {group.label}
+              </div>
+            )}
+            {group.items.map(item => {
+              const Icon = item.icon;
+              const active = location.pathname === item.path;
+              return (
+                <Link key={item.path} to={item.path} onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${active ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
       <div className="p-3 border-t border-gray-700">
         {!collapsed && (

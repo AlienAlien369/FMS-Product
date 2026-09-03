@@ -79,36 +79,93 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // ── Modules + Permissions — driven by the canonical PageRegistry ──────
-        // Single source of truth: every Module row and Permission row derives from
-        // PageRegistry.All. There is no second list to keep in sync.
-        var modules = new Dictionary<string, Module>();
-        var existingModuleCodes = (await db.Modules.Where(m => !m.IsDeleted).Select(m => m.Code).ToListAsync()).ToHashSet();
-        foreach (var m in await db.Modules.Where(m => !m.IsDeleted).ToListAsync())
-            modules[m.Code] = m;
+        // ── Modules — driven by the canonical PageRegistry ───────────────────
+        // A Module is the TOP-LEVEL GROUPING entity (dashboard / fleet operations /
+        // organization & access / platform administration). Pages belong to modules
+        // via the registry; packages grant whole modules to companies. This block
+        // is idempotent and also performs the legacy migration from the era when
+        // every page had its own Module row (vehicle, driver, …) and duplicates
+        // could exist: page-level rows are merged into their module and retired.
+        var liveModules = await db.Modules.Where(m => !m.IsDeleted).ToListAsync();
 
-        var newModules = new List<Module>();
-        foreach (var def in PageRegistry.All)
+        // 1) Retire duplicate rows that share a code (keep the first, move children).
+        foreach (var dupGroup in liveModules.GroupBy(m => m.Code).Where(g => g.Count() > 1))
         {
-            if (existingModuleCodes.Contains(def.Key)) continue;
-            var module = new Module
+            var keeper = dupGroup.OrderBy(m => m.CreatedAt).First();
+            foreach (var dup in dupGroup.Where(m => m.Id != keeper.Id))
             {
-                Id = Guid.NewGuid(),
-                Code = def.Key,
-                Name = def.Label,
-                Description = def.Description,
-                Icon = def.Icon,
-                Route = def.Route,
-                IsCore = def.IsCore,
-                DisplayOrder = def.Order,
-                Status = EntityStatus.Active
-            };
-            newModules.Add(module);
-            modules[def.Key] = module;
+                await MigrateModuleLinksAsync(db, dup.Id, keeper.Id);
+                dup.IsDeleted = true;
+                dup.DeletedAt = DateTime.UtcNow;
+                Console.WriteLine($"[Seed] Module dedupe: merged duplicate '{dup.Code}' (id {dup.Id}) into id {keeper.Id}");
+            }
         }
-        if (newModules.Count > 0)
+        await db.SaveChangesAsync();
+
+        // Build maps from the deduplicated rows only.
+        var moduleById = liveModules.Where(m => !m.IsDeleted).ToDictionary(m => m.Id);
+        var moduleByCode = liveModules.Where(m => !m.IsDeleted && m.Code != null).ToDictionary(m => m.Code, m => m.Id);
+
+        // 2) Upsert the canonical group modules.
+        foreach (var def in PageRegistry.Modules)
         {
-            db.Modules.AddRange(newModules);
+            if (moduleByCode.TryGetValue(def.Code, out var existingId) && moduleById.TryGetValue(existingId, out var existing))
+            {
+                existing.Name = def.Label;
+                existing.Description = def.Description;
+                existing.Icon = def.Icon;
+                existing.IsCore = def.IsCore;
+                existing.DisplayOrder = def.Order;
+                existing.Route = null;
+            }
+            else
+            {
+                var module = new Module
+                {
+                    Id = Guid.NewGuid(),
+                    Code = def.Code,
+                    Name = def.Label,
+                    Description = def.Description,
+                    Icon = def.Icon,
+                    IsCore = def.IsCore,
+                    DisplayOrder = def.Order,
+                    Status = EntityStatus.Active
+                };
+                db.Modules.Add(module);
+                moduleById[module.Id] = module;
+                moduleByCode[def.Code] = module.Id;
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // 3) Legacy migration: page-level module rows (and any other row that is not
+        //    a canonical group) collapse into their owning module. Per-company
+        //    ModuleConfiguration grants follow the merge so no access is lost.
+        var groupCodes = PageRegistry.Modules.Select(x => x.Code).ToHashSet();
+        var pageCodes = PageRegistry.All.Select(p => p.Key).ToHashSet();
+        var migratedOrRetired = 0;
+        foreach (var m in await db.Modules.Where(m => !m.IsDeleted).ToListAsync())
+        {
+            if (groupCodes.Contains(m.Code)) continue;
+            var target = pageCodes.Contains(m.Code) ? PageRegistry.ModuleOfPage(m.Code) : null;
+            if (target == null)
+            {
+                // Legacy/unknown rows (e.g. "vehicle-management") — retire them.
+                m.IsDeleted = true;
+                m.DeletedAt = DateTime.UtcNow;
+                migratedOrRetired++;
+                Console.WriteLine($"[Seed] Module drift: retired unregistered module '{m.Code}' ({m.Name})");
+                continue;
+            }
+            if (!moduleByCode.TryGetValue(target, out var targetId)) continue;
+            await MigrateModuleLinksAsync(db, m.Id, targetId);
+            m.IsDeleted = true;
+            m.DeletedAt = DateTime.UtcNow;
+            migratedOrRetired++;
+            Console.WriteLine($"[Seed] Module migration: page-row '{m.Code}' merged into module '{target}'");
+        }
+        if (migratedOrRetired > 0)
+        {
             await db.SaveChangesAsync();
         }
 
@@ -150,55 +207,7 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // ── Migration: copy 'settings' grants (formerly 'configuration') onto the
-        //    new per-page keys so no role loses access to Modules/Localization ──
-        var settingsPerms = await db.Permissions.AsNoTracking()
-            .Where(p => p.Module == "settings" && !p.IsDeleted).ToListAsync();
-        var modulePerms = await db.Permissions.AsNoTracking()
-            .Where(p => p.Module == "module" && !p.IsDeleted).ToListAsync();
-        var localizationPerms = await db.Permissions.AsNoTracking()
-            .Where(p => p.Module == "localization" && !p.IsDeleted).ToListAsync();
-        if (settingsPerms.Count > 0)
-        {
-            var rolesWithSettings = await db.RolePermissions.AsNoTracking()
-                .Where(rp => settingsPerms.Select(s => s.Id).Contains(rp.PermissionId) && !rp.IsDeleted)
-                .Select(rp => rp.RoleId)
-                .Distinct()
-                .ToListAsync();
-            foreach (var roleId in rolesWithSettings)
-            {
-                var role = await db.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted);
-                if (role == null) continue;
-
-                var grantedIds = (await db.RolePermissions
-                    .Where(rp => rp.RoleId == roleId && !rp.IsDeleted)
-                    .Select(rp => rp.PermissionId).ToListAsync()).ToHashSet();
-
-                // For each settings.action granted, ensure module.action + localization.action are also granted
-                foreach (var settingsPerm in settingsPerms)
-                {
-                    if (!grantedIds.Contains(settingsPerm.Id)) continue;
-                    var action = settingsPerm.Code.Split('.').Last();
-                    foreach (var target in new[] { modulePerms, localizationPerms }.SelectMany(x => x))
-                    {
-                        if (!target.Code.EndsWith($".{action}")) continue;
-                        if (grantedIds.Contains(target.Id)) continue;
-                        db.RolePermissions.Add(new RolePermission
-                        {
-                            Id = Guid.NewGuid(),
-                            RoleId = roleId,
-                            PermissionId = target.Id,
-                            TenantId = role.CompanyId
-                        });
-                    }
-                }
-            }
-            await db.SaveChangesAsync();
-        }
-
-        // ── Drift check: flag + soft-delete anything in the DB that is NOT in the
-        //    canonical PageRegistry (no silent orphans, no silent duplicates) ──
-        var registryKeys = PageRegistry.All.Select(p => p.Key).ToHashSet();
+        // ── Drift check: permissions that are not a registered page's 6 actions ──
         var registryCodes = PageRegistry.All.SelectMany(p => PageRegistry.CodesFor(p.Key)).ToHashSet();
 
         var unknownPerms = await db.Permissions.AsNoTracking()
@@ -223,20 +232,6 @@ public static class SeedData
             Console.WriteLine($"[Seed] Drift check: soft-deleted {orphans.Count} permission rows not in PageRegistry: {string.Join(", ", orphans.Select(o => o.Code))}");
         }
 
-        var unknownModules = await db.Modules.AsNoTracking()
-            .Where(m => !m.IsDeleted && !registryKeys.Contains(m.Code))
-            .ToListAsync();
-        if (unknownModules.Count > 0)
-        {
-            foreach (var m in unknownModules)
-            {
-                m.IsDeleted = true;
-                m.DeletedAt = DateTime.UtcNow;
-            }
-            await db.SaveChangesAsync();
-            Console.WriteLine($"[Seed] Drift check: soft-deleted {unknownModules.Count} module rows not in PageRegistry: {string.Join(", ", unknownModules.Select(m => m.Code))}");
-        }
-
         // Packages
         if (!await db.Packages.AnyAsync())
         {
@@ -259,7 +254,44 @@ public static class SeedData
                 MaxAlertRules = -1, MaxGeofences = -1, Status = EntityStatus.Active, DisplayOrder = 3
             };
             db.Packages.AddRange(basic, pro, enterprise);
+            await db.SaveChangesAsync();
         }
+
+        // ── Package → Modules: seed module grants for packages missing them ──
+        // A package grants whole modules; a company's accessible modules are exactly
+        // the modules of its package (see PermissionService). Seed defaults by tier;
+        // the Packages UI lets SuperAdmin pick modules explicitly afterwards.
+        var defaultModuleCodesByName = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["basic"] = new[] { "dashboard", "fleet" },
+            ["professional"] = new[] { "dashboard", "fleet", "organization" },
+            ["enterprise"] = new[] { "dashboard", "fleet", "organization", "platform" },
+            ["starter"] = new[] { "dashboard" }
+        };
+        foreach (var pkg in await db.Packages.Where(p => !p.IsDeleted).ToListAsync())
+        {
+            var hasGrants = await db.PackageModules.AnyAsync(pm => pm.PackageId == pkg.Id && !pm.IsDeleted);
+            if (hasGrants) continue;
+
+            var moduleCodes = defaultModuleCodesByName.TryGetValue(pkg.Name.Trim(), out var codes)
+                ? codes
+                : new[] { "dashboard" };
+            var moduleIds = await db.Modules
+                .Where(m => moduleCodes.Contains(m.Code) && !m.IsDeleted)
+                .Select(m => m.Id)
+                .ToListAsync();
+            foreach (var mid in moduleIds)
+            {
+                db.PackageModules.Add(new PackageModule
+                {
+                    Id = Guid.NewGuid(),
+                    PackageId = pkg.Id,
+                    ModuleId = mid,
+                    TenantId = pkg.TenantId
+                });
+            }
+        }
+        await db.SaveChangesAsync();
 
         // Super Admin user (in a platform company)
         if (!await db.Users.AnyAsync())
@@ -377,29 +409,12 @@ public static class SeedData
             }
         }
 
-        // Enable all modules for all companies (idempotent — runs every startup)
-        var allModules = await db.Modules.Where(m => !m.IsDeleted).ToListAsync();
-        var allCompanyIds = await db.Companies.Where(c => !c.IsDeleted).Select(c => c.Id).ToListAsync();
-        foreach (var companyId in allCompanyIds)
-        {
-            var existingMCModuleIds = await db.ModuleConfigurations
-                .Where(mc => mc.CompanyId == companyId && !mc.IsDeleted)
-                .Select(mc => mc.ModuleId)
-                .ToListAsync();
-            foreach (var mod in allModules)
-            {
-                if (existingMCModuleIds.Contains(mod.Id)) continue;
-                db.ModuleConfigurations.Add(new ModuleConfiguration
-                {
-                    Id = Guid.NewGuid(),
-                    CompanyId = companyId,
-                    ModuleId = mod.Id,
-                    Status = EntityStatus.Active,
-                    TenantId = companyId
-                });
-            }
-        }
-        await db.SaveChangesAsync();
+        // Company module access is NOT stored per company any more — it is a pure
+        // function of the company's package (company.PackageId → package modules).
+        // The legacy ModuleConfigurations rows below are left untouched only as a
+        // fallback for companies that predate the package model; no new rows are
+        // created here.
+        // (Remove this comment once every company has an assigned package.)
 
         // ── Idempotent: assign ALL permissions to Company Admin roles ──
         // This runs every startup to handle cases where permissions were wiped
@@ -839,55 +854,128 @@ public static class SeedData
             await db.SaveChangesAsync();
         }
 
-        // Subscriptions - assign demo subscription to demo company
-        if (!await db.Subscriptions.AnyAsync())
+        // ── Company → Package repair (idempotent) ───────────────────────────
+        // A company's accessible modules derive ONLY from its assigned package,
+        // so a company whose PackageId points at a package that no longer exists
+        // (legacy reseed, package deletion, DB restore) would silently lose every
+        // module — and its users would be locked out with 0 effective permissions.
+        // Re-home such companies: demo-fleet → Professional, platform → Enterprise,
+        // anything else dangling → the default package. Never touches companies
+        // that already resolve to a live package (their entitlement is explicit).
+        var livePackages = await db.Packages.AsNoTracking()
+            .Where(p => !p.IsDeleted && p.Status == EntityStatus.Active)
+            .Select(p => new { p.Id, p.Name, p.IsDefault })
+            .ToListAsync();
+        var liveIds = livePackages.Select(p => p.Id).ToHashSet();
+
+        var repairCompanies = await db.Companies
+            .Where(c => !c.IsDeleted && c.PackageId != null && !liveIds.Contains(c.PackageId.Value))
+            .ToListAsync();
+        foreach (var company in repairCompanies)
         {
-            var demoCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "demo-fleet");
-            var basicPackage = await db.Packages.FirstOrDefaultAsync(p => p.Name == "Basic" && !p.IsDeleted);
-            if (demoCompany != null && basicPackage != null)
+            var target = (company.Slug, company.Name) switch
             {
-                var sub = new Subscription
-                {
-                    Id = Guid.NewGuid(),
-                    CompanyId = demoCompany.Id,
-                    PackageId = basicPackage.Id,
-                    Status = SubscriptionStatus.Active,
-                    StartDate = DateTime.UtcNow.AddMonths(-6),
-                    EndDate = DateTime.UtcNow.AddMonths(6),
-                    CurrentPrice = basicPackage.Price,
-                    Currency = basicPackage.Currency,
-                    BillingCycle = basicPackage.BillingCycle,
-                    TenantId = demoCompany.Id
-                };
-                db.Subscriptions.Add(sub);
-                demoCompany.SubscriptionId = sub.Id;
-                demoCompany.PackageId = basicPackage.Id;
+                ("demo-fleet", _) => livePackages.FirstOrDefault(p => p.Name == "Professional"),
+                ("platform", _) => livePackages.FirstOrDefault(p => p.Name == "Enterprise"),
+                _ => livePackages.FirstOrDefault(p => p.IsDefault) ?? livePackages.FirstOrDefault()
+            };
+            if (target == null) continue;
+
+            // Retire the stale active subscription (kept as history) and open a new one
+            var staleSubs = await db.Subscriptions
+                .Where(s => s.CompanyId == company.Id && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
+                .ToListAsync();
+            foreach (var s in staleSubs)
+            {
+                s.Status = SubscriptionStatus.Canceled;
+                s.CanceledAt = DateTime.UtcNow;
             }
 
-            // Also give platform company a subscription
-            var platformCompany = await db.Companies.FirstOrDefaultAsync(c => c.Slug == "platform");
-            var enterprisePackage = await db.Packages.FirstOrDefaultAsync(p => p.Name == "Enterprise" && !p.IsDeleted);
-            if (platformCompany != null && enterprisePackage != null)
+            var pkgEntity = await db.Packages.FirstOrDefaultAsync(p => p.Id == target.Id);
+            var sub = new Subscription
             {
-                var sub = new Subscription
+                Id = Guid.NewGuid(),
+                CompanyId = company.Id,
+                PackageId = target.Id,
+                Status = SubscriptionStatus.Active,
+                StartDate = DateTime.UtcNow.AddMonths(-6),
+                EndDate = DateTime.UtcNow.AddMonths(6),
+                CurrentPrice = pkgEntity?.Price ?? 0,
+                Currency = pkgEntity?.Currency ?? "USD",
+                BillingCycle = pkgEntity?.BillingCycle ?? "monthly",
+                TenantId = company.Id
+            };
+            db.Subscriptions.Add(sub);
+            company.SubscriptionId = sub.Id;
+            company.PackageId = target.Id;
+
+            Console.WriteLine($"[Seed] Repaired company '{company.Name}': re-homed dangling package → '{target.Name}'");
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Moves per-company module links (ModuleConfigurations) and package-module
+    /// links from one module row to another during dedupe/merge, so no company or
+    /// package loses module access. Duplicate targets are retired rather than kept.
+    /// </summary>
+    private static async Task MigrateModuleLinksAsync(ApplicationDbContext db, Guid fromModuleId, Guid toModuleId)
+    {
+        // ModuleConfiguration (company ↔ module)
+        var configs = await db.ModuleConfigurations
+            .Where(mc => mc.ModuleId == fromModuleId && !mc.IsDeleted)
+            .ToListAsync();
+        if (configs.Count > 0)
+        {
+            var occupied = await db.ModuleConfigurations
+                .Where(mc => mc.ModuleId == toModuleId && !mc.IsDeleted)
+                .Select(mc => mc.CompanyId)
+                .ToListAsync();
+            var occupiedSet = occupied.ToHashSet();
+            foreach (var mc in configs)
+            {
+                if (occupiedSet.Contains(mc.CompanyId))
                 {
-                    Id = Guid.NewGuid(),
-                    CompanyId = platformCompany.Id,
-                    PackageId = enterprisePackage.Id,
-                    Status = SubscriptionStatus.Active,
-                    StartDate = DateTime.UtcNow.AddMonths(-12),
-                    EndDate = DateTime.UtcNow.AddMonths(12),
-                    CurrentPrice = enterprisePackage.Price,
-                    Currency = enterprisePackage.Currency,
-                    BillingCycle = enterprisePackage.BillingCycle,
-                    TenantId = platformCompany.Id
-                };
-                db.Subscriptions.Add(sub);
-                platformCompany.SubscriptionId = sub.Id;
-                platformCompany.PackageId = enterprisePackage.Id;
+                    mc.IsDeleted = true;
+                    mc.DeletedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    mc.ModuleId = toModuleId;
+                    occupiedSet.Add(mc.CompanyId);
+                }
             }
         }
 
+        // PackageModule (package ↔ module)
+        var packageModules = await db.PackageModules
+            .Where(pm => pm.ModuleId == fromModuleId && !pm.IsDeleted)
+            .ToListAsync();
+        if (packageModules.Count > 0)
+        {
+            var occupiedPkgs = await db.PackageModules
+                .Where(pm => pm.ModuleId == toModuleId && !pm.IsDeleted)
+                .Select(pm => pm.PackageId)
+                .ToListAsync();
+            var occupiedPkgSet = occupiedPkgs.ToHashSet();
+            foreach (var pm in packageModules)
+            {
+                if (occupiedPkgSet.Contains(pm.PackageId))
+                {
+                    pm.IsDeleted = true;
+                    pm.DeletedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    pm.ModuleId = toModuleId;
+                    occupiedPkgSet.Add(pm.PackageId);
+                }
+            }
+        }
+
+        // Persist the moves before the next link batch checks occupancy, so later
+        // merges onto the same target module are not treated as duplicates.
         await db.SaveChangesAsync();
     }
 }

@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Settings as SettingsIcon, Building2, Clock, Globe, DollarSign, MapPin, CreditCard } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import { useLocalizationOptions } from '../hooks/useLocalizationOptions';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 
 interface CompanySettings {
@@ -27,6 +28,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const { languages, currencies, loading: localeLoading } = useLocalizationOptions();
 
   useEffect(() => {
     if (!user?.companyId) { setLoading(false); return; }
@@ -44,7 +46,8 @@ export default function Settings() {
     setSaving(true);
     setMessage('');
     try {
-      await api.put(`/admin/companies/${company.id}/extended`, {
+      // Company-scoped endpoint: saves the CURRENT user's company only.
+      await api.put('/tenant/company-settings', {
         name: company.name,
         contactEmail: company.contactEmail,
         contactPhone: company.contactPhone,
@@ -60,9 +63,9 @@ export default function Settings() {
         dateFormat: company.dateFormat,
         timeFormat: company.timeFormat,
       });
-      setMessage('Settings saved successfully');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (e) { setMessage('Failed to save settings'); }
+      setMessage('Settings saved — they apply to all users of your company on their next page load.');
+      setTimeout(() => setMessage(''), 5000);
+    } catch (e: any) { setMessage(e.response?.data?.message || 'Failed to save settings'); }
     setSaving(false);
   };
 
@@ -169,13 +172,11 @@ export default function Settings() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className={label}><Globe className="w-3.5 h-3.5 inline mr-1" /> Default Language</label>
-            <select className={input} value={company.defaultLanguage} onChange={e => setCompany({ ...company, defaultLanguage: e.target.value })}>
-              <option value="en">English</option>
-              <option value="ar">Arabic</option>
-              <option value="hi">Hindi</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
+            <select className={input} value={company.defaultLanguage} onChange={e => setCompany({ ...company, defaultLanguage: e.target.value })} disabled={localeLoading}>
+              {languages.length === 0 && <option value={company.defaultLanguage}>{company.defaultLanguage}</option>}
+              {languages.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
             </select>
+            <p className="text-[11px] text-gray-400 mt-1">Active languages from the platform's master list.</p>
           </div>
           <div>
             <label className={label}><Clock className="w-3.5 h-3.5 inline mr-1" /> Timezone</label>
@@ -189,13 +190,11 @@ export default function Settings() {
           </div>
           <div>
             <label className={label}><DollarSign className="w-3.5 h-3.5 inline mr-1" /> Currency</label>
-            <select className={input} value={company.defaultCurrency} onChange={e => setCompany({ ...company, defaultCurrency: e.target.value })}>
-              <option value="USD">USD &ndash; US Dollar</option>
-              <option value="EUR">EUR &ndash; Euro</option>
-              <option value="GBP">GBP &ndash; British Pound</option>
-              <option value="INR">INR &ndash; Indian Rupee</option>
-              <option value="AED">AED &ndash; UAE Dirham</option>
+            <select className={input} value={company.defaultCurrency} onChange={e => setCompany({ ...company, defaultCurrency: e.target.value })} disabled={localeLoading}>
+              {currencies.length === 0 && <option value={company.defaultCurrency}>{company.defaultCurrency}</option>}
+              {currencies.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
+            <p className="text-[11px] text-gray-400 mt-1">Active currencies from the platform's master list.</p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, Component, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, ToggleLeft, ToggleRight, MapPin, Building2, CreditCard, Languages, Settings } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, MapPin, Building2, CreditCard, Languages, Settings } from 'lucide-react';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 import CompanyEditModal from '../components/company/CompanyEditModal';
 import SubscriptionModal from '../components/company/SubscriptionModal';
@@ -73,8 +73,6 @@ function CompanyDetailInner() {
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [languages, setLanguages] = useState<any[]>([]);
   const [currencies, setCurrencies] = useState<any[]>([]);
-  const [allModules, setAllModules] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
 
   const [editCompany, setEditCompany] = useState(false);
   const [userModal, setUserModal] = useState<{ open: boolean; edit?: any }>({ open: false });
@@ -90,15 +88,10 @@ function CompanyDetailInner() {
     try {
       if (tab === 'users') { const r = await api.get(`/admin/companies/${id}/users?pageSize=50`); setUsers(r.data.data?.items || []); }
       else if (tab === 'roles') { const r = await api.get(`/admin/companies/${id}/roles`); setRoles(r.data.data || []); }
-      else if (tab === 'modules') { const r = await api.get(`/admin/companies/${id}/modules`); setModules(r.data.data); }
+      else if (tab === 'modules' || tab === 'settings') { const r = await api.get(`/admin/companies/${id}/modules`); setModules(r.data.data); }
       else if (tab === 'documents') { const r = await api.get(`/admin/companies/${id}/documents?pageSize=50`); setDocuments(r.data.data?.items || []); }
       else if (tab === 'subscription') { const r = await api.get(`/admin/companies/${id}/subscription`); setSubscription(r.data.data); }
       else if (tab === 'packages') { const r = await api.get(`/admin/companies/${id}/subscription`); setSubscription(r.data.data); }
-      else if (tab === 'localization') { setSettings(company); }
-      else if (tab === 'settings') {
-        const r = await api.get(`/admin/companies/${id}/features`); 
-        setSettings(r.data.data);
-      }
     } catch (err) { void err; }
     setTabLoading(false);
   }, [id, tab]);
@@ -111,7 +104,6 @@ function CompanyDetailInner() {
       api.get('/admin/packages?pageSize=100').then(r => setPackages((r.data.data?.items || []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, billingCycle: p.billingCycle, maxUsers: p.maxUsers, maxVehicles: p.maxVehicles, maxDrivers: p.maxDrivers })))).catch(() => {});
       api.get('/languages').then(r => setLanguages(r.data.data || [])).catch(() => {});
       api.get('/currencies').then(r => setCurrencies(r.data.data || [])).catch(() => {});
-      api.get('/admin/modules').then(r => setAllModules(r.data.data || [])).catch(() => {});
     }
     api.get('/permissions/grouped').then(r => setAllPerms(r.data.data || []) as any).catch(() => {});
   }, [id]);
@@ -405,35 +397,46 @@ function CompanyDetailInner() {
               </div>
             )}
 
-            {/* Modules */}
+            {/* Modules — derived from the assigned package (no per-company toggles) */}
             {tab === 'modules' && modules && (
-              <div className="divide-y divide-gray-100">
-                {modules.allModules?.map((m: any) => {
-                  const enabled = modules.enabledModuleIds?.includes(m.id);
-                  return (
-                    <div key={m.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2.5 h-2.5 rounded-full ${enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">{m.name}</span>
-                            {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
-                          </div>
-                          <p className="text-xs text-gray-500">{m.description || m.code} &bull; v{m.moduleVersion}</p>
+              <div className="p-6 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-gray-900 font-semibold"><Package className="w-4 h-4" /> Modules Included in Package</div>
+                  <button onClick={() => setTab('subscription')} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors">
+                    <CreditCard className="w-4 h-4" /> Change Package
+                  </button>
+                </div>
+                <div className={`p-3 rounded-lg text-sm ${modules.packageName ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
+                  {modules.packageName
+                    ? <>This company's modules come from its <strong>{modules.packageName}</strong> package. To grant or remove modules, change the company's package.</>
+                    : <>No package assigned yet — this company has no module access until a package is assigned.</>}
+                </div>
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl">
+                  {modules.modules?.map((m: any) => (
+                    <div key={m.id} className="px-5 py-4 flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900">{m.name}</span>
+                          {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${m.included ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {m.included ? 'Included' : 'Not included'}
+                          </span>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-xs text-gray-400">{m.featureCount} features</span>
-                        <button onClick={async () => {
-                          if (enabled) { await api.delete(`/admin/companies/${id}/modules/${m.id}`); } else { await api.post(`/admin/companies/${id}/modules/${m.id}/enable`); }
-                          fetchTab();
-                        }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${enabled ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                          {enabled ? (<><ToggleRight className="w-4 h-4" /> Enabled</>) : (<><ToggleLeft className="w-4 h-4" /> Enable</>)}
-                        </button>
+                        <p className="text-xs text-gray-500 mt-1">{m.description || m.code}</p>
+                        {m.pages?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {m.pages.map((p: any) => (
+                              <span key={p.key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${m.included ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-gray-50 text-gray-400 border border-gray-100'}`}>
+                                {p.label}
+                                {p.planned && <span className="px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">Planned</span>}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             )}
 
@@ -513,32 +516,29 @@ function CompanyDetailInner() {
               </div>
             )}
 
-            {/* Settings */}
+            {/* Settings — access is package-driven; page-level control is RBAC */}
             {tab === 'settings' && (
               <div className="p-6 space-y-6">
-                <div className="flex items-center gap-2 text-gray-900 font-semibold"><Settings className="w-4 h-4" /> Company Settings</div>
-                {allModules.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="text-sm text-gray-500">Configure which modules and features are enabled for this company.</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {allModules.map((m: any) => (
-                        <div key={m.id} className="border border-gray-200 rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-gray-900">{m.name}</span>
-                            {m.isCore && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Core</span>}
-                          </div>
-                          <p className="text-xs text-gray-500 mb-3">{m.description || m.code}</p>
-                          <div className="text-xs text-gray-400">v{m.moduleVersion} &bull; {m.featureCount} features</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Settings className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No modules configured</p>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-gray-900 font-semibold"><Settings className="w-4 h-4" /> Company Access</div>
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 space-y-2">
+                  <p><strong className="text-gray-800">Package:</strong> {modules?.packageName || 'No package assigned'}</p>
+                  <p><strong className="text-gray-800">Modules:</strong>{' '}
+                    {(modules?.includedModuleCodes || []).length > 0
+                      ? (modules.includedModuleCodes as string[]).join(', ')
+                      : 'None — assign a package to grant module access.'}
+                  </p>
+                  <p className="text-xs text-gray-500">Module access is derived from the company's package. Within an accessible module, what a specific user can do (view/create/update/delete/export/import per page) is controlled by their role — see the Roles tab.</p>
+                </div>
+                <div className="flex items-center gap-2 text-gray-900 font-semibold pt-2"><Globe className="w-4 h-4" /> Defaults</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div><div className="text-xs text-gray-500">Language</div><div className="text-sm font-medium text-gray-900 uppercase">{company.defaultLanguage}</div></div>
+                  <div><div className="text-xs text-gray-500">Timezone</div><div className="text-sm font-medium text-gray-900">{company.defaultTimezone}</div></div>
+                  <div><div className="text-xs text-gray-500">Currency</div><div className="text-sm font-medium text-gray-900">{company.defaultCurrency}</div></div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setEditCompany(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"><Pencil className="w-4 h-4" /> Edit Defaults</button>
+                  <button onClick={() => setTab('modules')} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"><Package className="w-4 h-4" /> View Modules</button>
+                </div>
               </div>
             )}
 

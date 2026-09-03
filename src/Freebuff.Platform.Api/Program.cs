@@ -141,14 +141,10 @@ app.MapHealthChecks("/health");
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    if (app.Environment.IsDevelopment())
-    {
-        await db.Database.EnsureCreatedAsync();
-    }
-    else
-    {
-        await db.Database.EnsureCreatedAsync();
-    }
+    await db.Database.EnsureCreatedAsync();
+    // EnsureCreated is a no-op on existing DBs, so tables added after the initial
+    // release are created here (idempotent) before the seed migration runs.
+    await Freebuff.Platform.Infrastructure.Data.SchemaBootstrap.EnsureSchemaAsync(db);
     await Freebuff.Platform.Infrastructure.Data.SeedData.SeedAsync(db);
 }
 

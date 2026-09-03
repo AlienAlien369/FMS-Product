@@ -19,7 +19,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> b)
     {
-        b.HasIndex(u => new { u.CompanyId, u.NormalizedEmail }).IsUnique();
+        b.HasIndex(u => new { u.CompanyId, u.NormalizedEmail }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.Property(u => u.Email).HasMaxLength(256).IsRequired();
         b.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
         b.Property(u => u.LastName).HasMaxLength(100).IsRequired();
@@ -33,7 +33,7 @@ public class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> b)
     {
-        b.HasIndex(r => new { r.CompanyId, r.Name }).IsUnique();
+        b.HasIndex(r => new { r.CompanyId, r.Name }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.Property(r => r.Name).HasMaxLength(100).IsRequired();
         b.HasOne(r => r.Company).WithMany(c => c.Roles).HasForeignKey(r => r.CompanyId);
         b.HasQueryFilter(r => !r.IsDeleted);
@@ -135,7 +135,7 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 {
     public void Configure(EntityTypeBuilder<Vehicle> b)
     {
-        b.HasIndex(v => new { v.CompanyId, v.RegistrationNumber }).IsUnique();
+        b.HasIndex(v => new { v.CompanyId, v.RegistrationNumber }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.Property(v => v.RegistrationNumber).HasMaxLength(50).IsRequired();
         b.HasOne(v => v.Company).WithMany(c => c.Vehicles).HasForeignKey(v => v.CompanyId);
         b.HasOne(v => v.Client).WithMany(c => c.Vehicles).HasForeignKey(v => v.ClientId);
@@ -148,7 +148,7 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 {
     public void Configure(EntityTypeBuilder<Driver> b)
     {
-        b.HasIndex(d => new { d.CompanyId, d.EmployeeId }).IsUnique();
+        b.HasIndex(d => new { d.CompanyId, d.EmployeeId }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.Property(d => d.EmployeeId).HasMaxLength(50).IsRequired();
         b.Property(d => d.FirstName).HasMaxLength(100).IsRequired();
         b.Property(d => d.LastName).HasMaxLength(100).IsRequired();
@@ -195,7 +195,7 @@ public class ConfigurationConfiguration : IEntityTypeConfiguration<Configuration
 {
     public void Configure(EntityTypeBuilder<Configuration> b)
     {
-        b.HasIndex(c => new { c.CompanyId, c.Key, c.Scope }).IsUnique();
+        b.HasIndex(c => new { c.CompanyId, c.Key, c.Scope }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.Property(c => c.Key).HasMaxLength(200).IsRequired();
         b.HasQueryFilter(c => !c.IsDeleted);
     }

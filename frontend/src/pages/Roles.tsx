@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Shield, Users, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
 import RoleModal from '../components/RoleModal';
 
@@ -12,6 +13,8 @@ interface Perm { id: string; permissionId: string; code: string; name: string; m
 interface GroupedPerm { module: string; permissions: { id: string; code: string; name: string; action: string; }[]; }
 
 export default function Roles() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -103,7 +106,7 @@ export default function Roles() {
                     <div className="text-xs text-gray-400">{r.permissionCount} permissions</div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {!r.isSystemRole && (
+                    {(isSuperAdmin || !r.isSystemRole) && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); setEditRole({ id: r.id, name: r.name, description: r.description }); setModalOpen(true); }}
                           className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">

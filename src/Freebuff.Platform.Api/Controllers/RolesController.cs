@@ -2,6 +2,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +17,12 @@ namespace Freebuff.Platform.Api.Controllers;
 public class RolesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public RolesController(ApplicationDbContext db) => _db = db;
+    private readonly IPermissionService _permissionService;
+    public RolesController(ApplicationDbContext db, IPermissionService permissionService)
+    {
+        _db = db;
+        _permissionService = permissionService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
@@ -128,22 +134,25 @@ public class RolesController : ControllerBase
 
         if (dto.PermissionIds?.Count > 0)
         {
-            // Hierarchical enforcement: non-SuperAdmin can only assign permissions they have
-            List<Guid> allowedPermIds = dto.PermissionIds;
+            // Company Admin can only assign permissions the company is entitled to
+            var allowedPermCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(tenantId);
+
+            // For non-SuperAdmin, also intersect with user's own permissions
             if (!User.IsSuperAdmin())
             {
                 var myUserId = User.GetUserId();
-                var myPermIds = await _db.UserRoles
-                    .Where(ur => ur.UserId == myUserId && !ur.IsDeleted)
-                    .SelectMany(ur => ur.Role.RolePermissions)
-                    .Where(rp => !rp.IsDeleted)
-                    .Select(rp => rp.PermissionId)
-                    .Distinct()
-                    .ToListAsync();
-                allowedPermIds = dto.PermissionIds.Where(p => myPermIds.Contains(p)).ToList();
+                var myPerms = await _permissionService.GetEffectivePermissionsAsync(myUserId, tenantId);
+                allowedPermCodes = allowedPermCodes.Intersect(myPerms).ToHashSet();
             }
 
-            foreach (var permId in allowedPermIds)
+            // Resolve permission IDs from allowed codes
+            var allowedPermIds = await _db.Permissions
+                .Where(p => allowedPermCodes.Contains(p.Code) && !p.IsDeleted)
+                .Select(p => p.Id)
+                .ToListAsync();
+            var finalIds = dto.PermissionIds.Where(p => allowedPermIds.Contains(p)).ToList();
+
+            foreach (var permId in finalIds)
             {
                 _db.RolePermissions.Add(new RolePermission
                 {
@@ -156,6 +165,22 @@ public class RolesController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // Audit log: role created
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            UserId = User.GetUserId(),
+            UserName = User.GetEmail(),
+            Action = AuditAction.Create,
+            EntityType = EntityType.Role,
+            EntityId = role.Id,
+            EntityName = role.Name,
+            NewValues = System.Text.Json.JsonSerializer.Serialize(new { role.Name, role.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 })
+        });
+        await _db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = role.Id },
             ApiResponse<object>.Ok(new { role.Id, role.Name, role.Description }));
     }
@@ -179,22 +204,24 @@ public class RolesController : ControllerBase
                 .Where(rp => rp.RoleId == id && !rp.IsDeleted).ToListAsync();
             _db.RolePermissions.RemoveRange(existing);
 
-            // Hierarchical enforcement: non-SuperAdmin can only assign permissions they have
-            List<Guid> allowedPermIds = dto.PermissionIds;
+            // Company Admin can only assign permissions the company is entitled to
+            var allowedPermCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(tenantId);
+
+            // For non-SuperAdmin, also intersect with user's own permissions
             if (!User.IsSuperAdmin())
             {
                 var userId = User.GetUserId();
-                var myPermIds = await _db.UserRoles
-                    .Where(ur => ur.UserId == userId && !ur.IsDeleted)
-                    .SelectMany(ur => ur.Role.RolePermissions)
-                    .Where(rp => !rp.IsDeleted)
-                    .Select(rp => rp.PermissionId)
-                    .Distinct()
-                    .ToListAsync();
-                allowedPermIds = dto.PermissionIds.Where(p => myPermIds.Contains(p)).ToList();
+                var myPerms = await _permissionService.GetEffectivePermissionsAsync(userId, tenantId);
+                allowedPermCodes = allowedPermCodes.Intersect(myPerms).ToHashSet();
             }
 
-            foreach (var permId in allowedPermIds)
+            var allowedPermIds = await _db.Permissions
+                .Where(p => allowedPermCodes.Contains(p.Code) && !p.IsDeleted)
+                .Select(p => p.Id)
+                .ToListAsync();
+            var finalIds = dto.PermissionIds.Where(p => allowedPermIds.Contains(p)).ToList();
+
+            foreach (var permId in finalIds)
             {
                 _db.RolePermissions.Add(new RolePermission
                 {
@@ -207,6 +234,22 @@ public class RolesController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // Audit log: role updated
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            UserId = User.GetUserId(),
+            UserName = User.GetEmail(),
+            Action = AuditAction.Update,
+            EntityType = EntityType.Role,
+            EntityId = id,
+            EntityName = role.Name,
+            NewValues = System.Text.Json.JsonSerializer.Serialize(new { role.Name, role.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 })
+        });
+        await _db.SaveChangesAsync();
+
         return Ok(ApiResponse.Ok(message: "Role updated"));
     }
 
@@ -220,9 +263,25 @@ public class RolesController : ControllerBase
         if (role == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Role not found"));
         if (role.IsSystemRole) return BadRequest(ApiResponse.Fail("FORBIDDEN", "System roles cannot be deleted"));
 
+        var roleName = role.Name;
         role.IsDeleted = true;
         role.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        // Audit log: role deleted
+        _db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            UserId = User.GetUserId(),
+            UserName = User.GetEmail(),
+            Action = AuditAction.Delete,
+            EntityType = EntityType.Role,
+            EntityId = id,
+            EntityName = roleName
+        });
+        await _db.SaveChangesAsync();
+
         return Ok(ApiResponse.Ok(message: "Role deleted"));
     }
 }

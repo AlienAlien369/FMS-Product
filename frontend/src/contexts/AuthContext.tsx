@@ -9,6 +9,8 @@ interface AuthContextType extends AuthState {
   logout: () => void;
   isLoading: boolean;
   hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
+  hasAllPermissions: (permissions: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -63,13 +65,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
   };
 
+  const isSuperAdmin = state.user?.roles?.includes('SuperAdmin') ?? false;
+
   const hasPermission = (permission: string) => {
-    if (state.user?.roles?.includes('SuperAdmin')) return true;
+    if (isSuperAdmin) return true;
     return permissions.includes(permission);
   };
 
+  const hasAnyPermission = (perms: string[]) => {
+    if (isSuperAdmin) return true;
+    return perms.some(p => permissions.includes(p));
+  };
+
+  const hasAllPermissions = (perms: string[]) => {
+    if (isSuperAdmin) return true;
+    return perms.every(p => permissions.includes(p));
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, permissions, login, logout, isLoading, hasPermission }}>
+    <AuthContext.Provider value={{ ...state, permissions, login, logout, isLoading, hasPermission, hasAnyPermission, hasAllPermissions }}>
       {children}
     </AuthContext.Provider>
   );

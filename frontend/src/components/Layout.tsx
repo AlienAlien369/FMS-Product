@@ -1,33 +1,9 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  LayoutDashboard, Truck, Users, Map, Route, Bell,
-  Fuel, Wrench, FileText, Settings, LogOut, ChevronLeft,
-  Building2, Shield, Package, Globe, Menu, UserCog, Crown, CreditCard, Navigation
-} from 'lucide-react';
+import { LogOut, ChevronLeft, Menu } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/admin/companies', label: 'Platform Admin', icon: Crown, adminOnly: true },
-  { path: '/companies', label: 'Companies', icon: Building2, adminOnly: true },
-  { path: '/vehicles', label: 'Vehicles', icon: Truck },
-  { path: '/drivers', label: 'Drivers', icon: Users },
-  { path: '/trips', label: 'Trips', icon: Route },
-  { path: '/geofences', label: 'Geofences', icon: Map },
-  { path: '/routes', label: 'Routes', icon: Navigation },
-  { path: '/fuel', label: 'Fuel', icon: Fuel },
-  { path: '/maintenance', label: 'Maintenance', icon: Wrench },
-  { path: '/alerts', label: 'Alerts', icon: Bell },
-  { path: '/documents', label: 'Documents', icon: FileText },
-  { path: '/users', label: 'Users', icon: UserCog },
-  { path: '/roles', label: 'Roles & Permissions', icon: Shield },
-  { path: '/packages', label: 'Packages', icon: CreditCard, adminOnly: true },
-  { path: '/modules', label: 'Modules', icon: Package },
-  { path: '/localization', label: 'Localization', icon: Globe },
-  { path: '/settings', label: 'Settings', icon: Settings },
-];
+import { NAVIGATION, type NavItem } from '../config/navigation';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -37,14 +13,17 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const { hasPermission } = useAuth();
+
   const filteredNavItems = useMemo(() => {
-    const items = navItems.filter(i => {
-      if (i.adminOnly && !user?.roles?.includes('SuperAdmin')) return false;
+    return NAVIGATION.filter(item => {
+      // Admin-only items: only SuperAdmin
+      if (item.adminOnly && !user?.roles?.includes('SuperAdmin')) return false;
+      // Permission-based items: check user's effective permissions
+      if (item.permission && !hasPermission(item.permission)) return false;
       return true;
-    });
-    if (!searchQuery.trim()) return items;
-    return items.filter(i => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [user?.roles, searchQuery]);
+    }).filter(i => !searchQuery.trim() || i.label.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [user?.roles, searchQuery, hasPermission]);
 
   const handleLogout = () => {
     logout();
@@ -105,7 +84,7 @@ export default function Layout() {
             <button onClick={() => setMobileOpen(true)} className="lg:hidden p-1 hover:bg-gray-100 rounded">
               <Menu className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">{navItems.find(i => i.path === location.pathname)?.label || 'Freebuff'}</h1>
+            <h1 className="text-lg font-semibold text-gray-800">{NAVIGATION.find(i => i.path === location.pathname)?.label || 'Freebuff'}</h1>
           </div>
           <div className="flex items-center gap-3">
             <Bell className="w-5 h-5 text-gray-500 hover:text-gray-700 cursor-pointer" />

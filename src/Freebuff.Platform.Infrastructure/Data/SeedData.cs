@@ -71,16 +71,23 @@ public static class SeedData
             }
         }
 
-        // Permissions
+        // Permissions — comprehensive set covering every module × action
         if (!await db.Permissions.AnyAsync())
         {
-            var actions = new[] { "view", "create", "edit", "delete", "export", "assign", "track", "immobilize" };
-            var modulesList = new[] { "vehicle", "driver", "trip", "geofence", "alert", "fuel", "maintenance", "client", "document", "report", "user", "role", "company", "configuration", "subscription" };
+            var modulesList = new[] {
+                "vehicle", "driver", "trip", "geofence", "route",
+                "alert", "fuel", "maintenance", "client", "document",
+                "report", "user", "role", "company", "configuration",
+                "subscription", "package", "dashboard", "notification"
+            };
+            var actions = new[] { "view", "create", "edit", "delete", "import", "export", "assign", "track", "immobilize", "approve" };
 
+            var order = 0;
             foreach (var mod in modulesList)
             {
                 foreach (var action in actions)
                 {
+                    order++;
                     db.Permissions.Add(new Permission
                     {
                         Id = Guid.NewGuid(),
@@ -93,13 +100,16 @@ public static class SeedData
                             "create" => PermissionAction.Create,
                             "edit" => PermissionAction.Update,
                             "delete" => PermissionAction.Delete,
+                            "import" => PermissionAction.Import,
                             "export" => PermissionAction.Export,
                             "assign" => PermissionAction.Assign,
                             "track" => PermissionAction.Execute,
                             "immobilize" => PermissionAction.Manage,
+                            "approve" => PermissionAction.Approve,
                             _ => PermissionAction.Read
                         },
-                        Status = EntityStatus.Active
+                        Status = EntityStatus.Active,
+                        DisplayOrder = order
                     });
                 }
             }

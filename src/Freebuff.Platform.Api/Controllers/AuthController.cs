@@ -1,6 +1,7 @@
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Application.Interfaces;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -15,11 +16,13 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ApplicationDbContext _db;
+    private readonly IPermissionService _permissionService;
 
-    public AuthController(IAuthService authService, ApplicationDbContext db)
+    public AuthController(IAuthService authService, ApplicationDbContext db, IPermissionService permissionService)
     {
         _authService = authService;
         _db = db;
+        _permissionService = permissionService;
     }
 
     [HttpPost("login")]
@@ -48,16 +51,20 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> GetMyPermissions()
     {
-        var userId = User.GetUserId();
-        var permissions = await _db.UserRoles
-            .AsNoTracking()
-            .Where(ur => ur.UserId == userId && !ur.IsDeleted)
-            .SelectMany(ur => ur.Role.RolePermissions
-                .Where(rp => !rp.IsDeleted)
-                .Select(rp => rp.Permission.Code))
-            .Distinct()
-            .ToListAsync();
+        if (User.IsSuperAdmin())
+        {
+            // SuperAdmin gets all permissions
+            var allPerms = await _db.Permissions.AsNoTracking()
+                .Where(p => !p.IsDeleted)
+                .Select(p => p.Code)
+                .ToListAsync();
+            return Ok(ApiResponse<object>.Ok(new { permissions = allPerms }));
+        }
 
-        return Ok(ApiResponse<object>.Ok(new { permissions }));
+        var userId = User.GetUserId();
+        var tenantId = User.GetTenantId();
+        var effectivePerms = await _permissionService.GetEffectivePermissionsAsync(userId, tenantId);
+
+        return Ok(ApiResponse<object>.Ok(new { permissions = effectivePerms.ToList() }));
     }
 }

@@ -58,6 +58,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<DriverService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // ── Controllers + Swagger ────────────────────────────────
 builder.Services.AddControllers();

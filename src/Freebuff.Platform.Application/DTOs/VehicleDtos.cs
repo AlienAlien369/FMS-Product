@@ -25,6 +25,8 @@ public class VehicleDto
     public string? DeviceImei { get; set; }
     public string? DeviceType { get; set; }
     public string? DeviceSerialNumber { get; set; }
+    /// <summary>Number of ACTIVE device assignments (new multi-device model).</summary>
+    public int DeviceCount { get; set; }
     public double? LastLatitude { get; set; }
     public double? LastLongitude { get; set; }
     public double? LastSpeed { get; set; }

@@ -38,9 +38,10 @@ const slugify = (s: string) =>
 
 // Canonical registry page keys (frontend mirror) — registry keys are locked.
 const PageKeys = new Set([
-  'dashboard', 'vehicle', 'driver', 'geofence', 'route', 'trip', 'alert', 'fuel',
+  'dashboard', 'vehicle', 'device', 'driver', 'geofence', 'route', 'trip', 'alert', 'fuel',
   'maintenance', 'report', 'company', 'user', 'role', 'localization', 'settings',
   'document', 'subscription', 'client', 'notification', 'platform', 'package', 'module',
+  'devicevendor',
 ]);
 
 // ── Main page ─────────────────────────────────────────────────────────────

@@ -55,6 +55,15 @@ public class ApplicationDbContext : DbContext
     public DbSet<Language> Languages => Set<Language>();
     public DbSet<Currency> Currencies => Set<Currency>();
 
+    // Device abstraction layer
+    public DbSet<DeviceVendor> DeviceVendors => Set<DeviceVendor>();
+    public DbSet<Device> Devices => Set<Device>();
+    public DbSet<DeviceSim> DeviceSims => Set<DeviceSim>();
+    public DbSet<VehicleDevice> VehicleDevices => Set<VehicleDevice>();
+    public DbSet<TelemetryEvent> TelemetryEvents => Set<TelemetryEvent>();
+    public DbSet<TelemetryState> TelemetryStates => Set<TelemetryState>();
+    public DbSet<RawPayload> RawPayloads => Set<RawPayload>();
+
     // Audit
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 

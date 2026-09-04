@@ -106,6 +106,7 @@ export interface Vehicle {
   deviceImei?: string;
   deviceType?: string;
   deviceSerialNumber?: string;
+  deviceCount?: number;
   lastLatitude?: number;
   lastLongitude?: number;
   lastSpeed?: number;
@@ -132,6 +133,89 @@ export interface Driver {
   safetyScore?: number;
   behaviourScore?: number;
 }
+
+export interface DeviceSim {
+  id: string;
+  deviceId: string;
+  iccid?: string;
+  phoneNumber?: string;
+  carrier?: string;
+  status: number;
+  isPrimary: boolean;
+  activatedAt?: string;
+}
+
+export interface DeviceVendor {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  adapterVersion?: string;
+  protocolType: number;
+  payloadFormat?: string;
+  listenerConfig?: string;
+  capabilities?: string;
+  status: number;
+  deviceCount?: number;
+}
+
+export interface Device {
+  id: string;
+  companyId: string;
+  vendorId?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  deviceType: number;
+  deviceTypeOverride?: string;
+  identityType: number;
+  identityValue: string;
+  model?: string;
+  firmwareVersion?: string;
+  status: number;
+  installDate?: string;
+  activatedAt?: string;
+  lastSeenAt?: string;
+  createdAt: string;
+  sims: DeviceSim[];
+  currentVehicleId?: string;
+  currentVehicleRegistration?: string;
+}
+
+export interface VehicleDeviceAssignment {
+  id: string;
+  vehicleId: string;
+  deviceId: string;
+  role: number;
+  roleName: string;
+  assignedFrom: string;
+  assignedTo?: string;
+  unassignReason?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  deviceType: number;
+  deviceTypeOverride?: string;
+  identityType: number;
+  identityValue: string;
+  model?: string;
+  deviceStatus: number;
+  sims: DeviceSim[];
+}
+
+export const DEVICE_TYPE_LABELS: Record<number, string> = {
+  0: 'GPS Tracker', 1: 'Dashcam', 2: 'ADAS', 3: 'Fuel Sensor', 4: 'Temperature Sensor', 5: 'Dual Camera', 99: 'Other',
+};
+
+export const DEVICE_IDENTITY_LABELS: Record<number, string> = {
+  0: 'IMEI', 1: 'Serial', 2: 'MAC', 3: 'Phone Number',
+};
+
+export const DEVICE_STATUS_LABELS: Record<number, string> = {
+  0: 'Active', 1: 'Inactive', 2: 'Retired', 3: 'Lost', 4: 'Awaiting Vendor',
+};
+
+export const DEVICE_ROLE_LABELS: Record<number, string> = {
+  0: 'Primary Tracker', 1: 'Secondary Tracker', 2: 'Dashcam', 3: 'ADAS', 4: 'Fuel Sensor', 5: 'Temperature Sensor', 6: 'Spare',
+};
 
 export interface AuthState {
   isAuthenticated: boolean;

@@ -60,6 +60,14 @@ builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<DriverService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 
+// ── Device abstraction layer ─────────────────────────────
+builder.Services.AddSingleton<Freebuff.Platform.Ingestion.Registry.VendorAdapterRegistry>(
+    Freebuff.Platform.Ingestion.Registry.VendorAdapterRegistry.CreateBuiltIn());
+builder.Services.AddSingleton<Freebuff.Platform.Ingestion.Contracts.IVendorAdapterRegistry>(
+    sp => sp.GetRequiredService<Freebuff.Platform.Ingestion.Registry.VendorAdapterRegistry>());
+builder.Services.AddScoped<DeviceService>();
+builder.Services.AddScoped<DeviceIngestionService>();
+
 // ── Controllers + Swagger ────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -146,6 +154,11 @@ using (var scope = app.Services.CreateScope())
     // release are created here (idempotent) before the seed migration runs.
     await Freebuff.Platform.Infrastructure.Data.SchemaBootstrap.EnsureSchemaAsync(db);
     await Freebuff.Platform.Infrastructure.Data.SeedData.SeedAsync(db);
+    // Device Abstraction Layer: seed vendor catalog + backfill legacy
+    // Vehicle.Device* columns into Device/VehicleDevice/TelemetryState.
+    var migrationLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DeviceDataMigration");
+    await Freebuff.Platform.Infrastructure.Data.DeviceDataMigration.EnsureAsync(db, migrationLogger);
 }
 
 app.Run();

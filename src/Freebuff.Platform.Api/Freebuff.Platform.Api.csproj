@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Freebuff.Platform.Application\Freebuff.Platform.Application.csproj" />
     <ProjectReference Include="..\Freebuff.Platform.Domain\Freebuff.Platform.Domain.csproj" />
+    <ProjectReference Include="..\Freebuff.Platform.Ingestion\Freebuff.Platform.Ingestion.csproj" />
     <ProjectReference Include="..\Freebuff.Platform.Infrastructure\Freebuff.Platform.Infrastructure.csproj" />
     <ProjectReference Include="..\Freebuff.Platform.Shared\Freebuff.Platform.Shared.csproj" />
   </ItemGroup>

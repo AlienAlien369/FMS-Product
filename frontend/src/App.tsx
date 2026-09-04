@@ -7,6 +7,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
 import Vehicles from './pages/Vehicles';
+import Devices from './pages/Devices';
+import DeviceVendors from './pages/DeviceVendors';
 import Drivers from './pages/Drivers';
 import Localization from './pages/Localization';
 import Settings from './pages/Settings';
@@ -37,10 +39,11 @@ function AppRoutes() {
         <Route path="/" element={<PermissionRoute permission={pagePermission('dashboard')}><Dashboard /></PermissionRoute>} />
         <Route path="/companies" element={<PermissionRoute permission={pagePermission('company')}><Companies /></PermissionRoute>} />
         <Route path="/vehicles" element={<PermissionRoute permission={pagePermission('vehicle')}><Vehicles /></PermissionRoute>} />
+        <Route path="/devices" element={<PermissionRoute permission={pagePermission('device')}><Devices /></PermissionRoute>} />
         <Route path="/drivers" element={<PermissionRoute permission={pagePermission('driver')}><Drivers /></PermissionRoute>} />
         <Route path="/geofences" element={<PermissionRoute permission={pagePermission('geofence')}><GeofencesPage /></PermissionRoute>} />
         <Route path="/admin/companies" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><AdminCompanies /></PermissionRoute>} />
-        <Route path="/admin/companies/:id" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><CompanyDetail /></PermissionRoute>} />
+        <Route path="/admin/device-vendors" element={<PermissionRoute permission={pagePermission('devicevendor')} adminOnly><DeviceVendors /></PermissionRoute>} />
         <Route path="/users" element={<PermissionRoute permission={pagePermission('user')}><Users /></PermissionRoute>} />
         <Route path="/roles" element={<PermissionRoute permission={pagePermission('role')}><Roles /></PermissionRoute>} />
         <Route path="/packages" element={<PermissionRoute permission={pagePermission('package')} adminOnly><Packages /></PermissionRoute>} />

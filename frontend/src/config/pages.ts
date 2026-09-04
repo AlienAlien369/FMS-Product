@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Truck, Users, Globe, Navigation,
   Settings, Shield, Package, Crown, UserCog, FileText, CreditCard,
-  Bell, Fuel, Wrench,
+  Bell, Fuel, Wrench, Radio, Cpu,
 } from 'lucide-react';
 
 /**
@@ -67,14 +67,15 @@ export const PAGES: PageDef[] = [
 
   // ── Fleet Operations module ──────────────────────────────────────────────
   { key: 'vehicle',      label: 'Vehicles',            route: '/vehicles',        icon: Truck,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 2 },
-  { key: 'driver',       label: 'Drivers',             route: '/drivers',         icon: Users,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 3 },
-  { key: 'geofence',     label: 'Geofences',           route: '/geofences',       icon: Globe,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 4 },
-  { key: 'route',        label: 'Routes',              route: '/routes',          icon: Navigation,      nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 5 },
-  { key: 'trip',         label: 'Trips',               icon: Navigation,          nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 6 },
-  { key: 'alert',        label: 'Alerts',              icon: Bell,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 7 },
-  { key: 'fuel',         label: 'Fuel',                icon: Fuel,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 8 },
-  { key: 'maintenance',  label: 'Maintenance',         icon: Wrench,              nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 9 },
-  { key: 'report',       label: 'Reports',             icon: FileText,            nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 10 },
+  { key: 'device',       label: 'Devices',             route: '/devices',         icon: Radio,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 3 },
+  { key: 'driver',       label: 'Drivers',             route: '/drivers',         icon: Users,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 4 },
+  { key: 'geofence',     label: 'Geofences',           route: '/geofences',       icon: Globe,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 5 },
+  { key: 'route',        label: 'Routes',              route: '/routes',          icon: Navigation,      nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 6 },
+  { key: 'trip',         label: 'Trips',               icon: Navigation,          nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 7 },
+  { key: 'alert',        label: 'Alerts',              icon: Bell,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 8 },
+  { key: 'fuel',         label: 'Fuel',                icon: Fuel,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 9 },
+  { key: 'maintenance',  label: 'Maintenance',         icon: Wrench,              nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 10 },
+  { key: 'report',       label: 'Reports',             icon: FileText,            nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 11 },
 
   // ── Organization & Access module ─────────────────────────────────────────
   { key: 'company',      label: 'Companies',           route: '/companies',       icon: Building2,       nav: true,  adminOnly: false, planned: false, module: 'organization', order: 11 },
@@ -91,6 +92,7 @@ export const PAGES: PageDef[] = [
   { key: 'platform',     label: 'Platform Admin',      route: '/admin/companies', icon: Crown,           nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 20 },
   { key: 'package',      label: 'Packages',            route: '/packages',        icon: Package,         nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 21 },
   { key: 'module',       label: 'Modules',             route: '/modules',         icon: Package,         nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 22 },
+  { key: 'devicevendor', label: 'Device Vendors',      route: '/admin/device-vendors', icon: Cpu,     nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 23 },
 ];
 
 /** Permission code for a page + action, e.g. pagePermission('vehicle', 'create') → 'vehicle.create'. */

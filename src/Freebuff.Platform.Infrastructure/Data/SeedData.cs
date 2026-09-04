@@ -529,7 +529,7 @@ public static class SeedData
         var fleetManagerRoles = await db.Roles
             .Where(r => r.Name == "Fleet Manager" && !r.IsDeleted && r.Status == EntityStatus.Active)
             .ToListAsync();
-        var fleetModules = new[] { "vehicle", "driver", "trip", "geofence", "alert", "fuel", "maintenance", "report", "client" };
+        var fleetModules = new[] { "vehicle", "device", "driver", "trip", "geofence", "alert", "fuel", "maintenance", "report", "client" };
         foreach (var role in fleetManagerRoles)
         {
             var existingFmPermIds = await db.RolePermissions

@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import api from '../lib/api';
+import api, { type VehicleDeviceAssignment } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-  Eye, X, Truck, MapPin, Wrench, User, Settings, Activity, Shield, Sliders,
+  Eye, X, Truck, MapPin, Wrench, User, Settings, Activity, Shield, Sliders, Radio, CreditCard, Link2,
 } from 'lucide-react';
 import { VEHICLE_STATUS, FUEL_TYPE } from '../lib/constants';
 
@@ -14,7 +14,7 @@ interface VehicleDetail {
   year?: number; color?: string; fuelType: number; fuelTankCapacity?: number; fuelCapacityUnit?: string;
   engineNumber?: string; chassisNumber?: string; vinNumber?: string;
   companyId: string; driverId?: string; driverName?: string; clientId?: string; clientName?: string;
-  status: number; deviceImei?: string; deviceType?: string; deviceSerialNumber?: string;
+  status: number; deviceImei?: string; deviceType?: string; deviceSerialNumber?: string; deviceCount?: number;
   lastLatitude?: number; lastLongitude?: number; lastSpeed?: number; lastHeading?: number;
   lastLocationUpdate?: string; ignitionStatus?: boolean;
   odometerReading?: number; engineHours?: number; customAttributes?: string; createdAt: string;
@@ -212,11 +212,11 @@ export default function Vehicles() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{v.driverName || <span className="text-gray-300">Unassigned</span>}</td>
                     <td className="px-4 py-3">
-                      {v.deviceImei ? (
-                        <div className="text-xs text-gray-500">
-                          <div>{v.deviceType || 'GPS'}</div>
-                          <div className="text-gray-400 font-mono">{v.deviceImei.slice(-6)}</div>
-                        </div>
+                      {(v.deviceCount ?? (v.deviceImei ? 1 : 0)) > 0 ? (
+                        <button onClick={() => setModal({ open: false, view: v })}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700" title="View devices">
+                          <Link2 className="w-3.5 h-3.5" /> {v.deviceCount ?? (v.deviceImei ? 1 : 0)} device{(v.deviceCount ?? 1) > 1 ? 's' : ''}
+                        </button>
                       ) : <span className="text-xs text-gray-300">No device</span>}
                     </td>
                     <td className="px-4 py-3">
@@ -291,10 +291,14 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
   type Tab = 'overview' | 'tracking' | 'assignment' | 'device' | 'audit';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [deviceAssignments, setDeviceAssignments] = useState<VehicleDeviceAssignment[]>([]);
 
   useEffect(() => {
     if (activeTab === 'audit') {
       api.get(`/vehicles/${vehicle.id}/audit`).then(r => setAuditLog(r.data.data || [])).catch(() => {});
+    }
+    if (activeTab === 'device') {
+      api.get(`/vehicles/${vehicle.id}/devices`).then(r => setDeviceAssignments(r.data.data || [])).catch(() => {});
     }
   }, [activeTab, vehicle.id]);
 
@@ -428,16 +432,26 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
 
           {activeTab === 'device' && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-gray-900 font-semibold"><Wrench className="w-4 h-4" /> Tracking Device</div>
-              {vehicle.deviceImei ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <Field label="IMEI" value={vehicle.deviceImei} />
-                  <Field label="Device Type" value={vehicle.deviceType} />
-                  <Field label="Serial Number" value={vehicle.deviceSerialNumber} />
+              <div className="flex items-center gap-2 text-gray-900 font-semibold"><Radio className="w-4 h-4" /> Devices ({deviceAssignments.length})</div>
+              {deviceAssignments.length === 0 ? (
+                <div className="text-sm text-gray-400 py-2">No devices assigned to this vehicle.</div>
+              ) : deviceAssignments.map(a => (
+                <div key={a.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-blue-500" /> {a.identityValue}
+                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">{a.roleName}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][a.deviceType] || 'Other'}
+                      {a.sims.length > 0 && <> · <CreditCard className="inline w-3 h-3" /> {a.sims.length} SIM{a.sims.length > 1 ? 's' : ''}</>}
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${a.deviceStatus === 0 ? 'bg-green-100 text-green-700' : a.deviceStatus === 4 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {a.deviceStatus === 0 ? 'Active' : a.deviceStatus === 4 ? 'Awaiting Vendor' : 'Inactive'}
+                  </span>
                 </div>
-              ) : (
-                <div className="text-sm text-gray-400 py-2">No tracking device installed</div>
-              )}
+              ))}
             </div>
           )}
 
@@ -481,11 +495,50 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
     fuelCapacityUnit: vehicle?.fuelCapacityUnit || 'liters',
     engineNumber: vehicle?.engineNumber || '', chassisNumber: vehicle?.chassisNumber || '', vinNumber: vehicle?.vinNumber || '',
     driverId: vehicle?.driverId || '', clientId: vehicle?.clientId || '',
-    deviceImei: vehicle?.deviceImei || '', deviceType: vehicle?.deviceType || '', deviceSerialNumber: vehicle?.deviceSerialNumber || '',
     status: vehicle?.status ?? 0, odometerReading: vehicle?.odometerReading?.toString() || '', engineHours: vehicle?.engineHours?.toString() || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // ── Devices (multi-device model; legacy single-device fields are no longer edited here) ──
+  const [assignments, setAssignments] = useState<VehicleDeviceAssignment[]>([]);
+  const [availableDevices, setAvailableDevices] = useState<any[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [selectedRole, setSelectedRole] = useState(0);
+  const [devicesError, setDevicesError] = useState('');
+
+  const fetchAssignments = useCallback(async () => {
+    if (!isEdit) return;
+    try {
+      const [assigned, all] = await Promise.all([
+        api.get(`/vehicles/${vehicle!.id}/devices`),
+        api.get('/devices?pageSize=100'),
+      ]);
+      const assignmentsData: VehicleDeviceAssignment[] = assigned.data.data || [];
+      setAssignments(assignmentsData);
+      const assignedIds = new Set(assignmentsData.map(a => a.deviceId));
+      setAvailableDevices((all.data.data?.items || []).filter((d: any) => !assignedIds.has(d.id) && d.status === 0));
+    } catch { /* ignore */ }
+  }, [isEdit, vehicle]);
+
+  useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
+
+  const assignDevice = async () => {
+    setDevicesError('');
+    if (!selectedDeviceId) { setDevicesError('Select a device to assign'); return; }
+    try {
+      await api.post(`/vehicles/${vehicle!.id}/devices`, { deviceId: selectedDeviceId, role: selectedRole });
+      setSelectedDeviceId('');
+      fetchAssignments();
+    } catch (e: any) { setDevicesError(e.response?.data?.message || 'Failed to assign device'); }
+  };
+
+  const unassignDevice = async (assignmentId: string) => {
+    try {
+      await api.delete(`/vehicles/${vehicle!.id}/devices/${assignmentId}`);
+      fetchAssignments();
+    } catch (e: any) { setDevicesError(e.response?.data?.message || 'Failed to unassign device'); }
+  };
 
   const handleSubmit = async () => {
     if (!form.registrationNumber.trim()) { setError('Registration number required'); return; }
@@ -498,7 +551,6 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
       fuelCapacityUnit: form.fuelCapacityUnit || null,
       engineNumber: form.engineNumber || null, chassisNumber: form.chassisNumber || null, vinNumber: form.vinNumber || null,
       driverId: form.driverId || null, clientId: form.clientId || null,
-      deviceImei: form.deviceImei || null, deviceType: form.deviceType || null, deviceSerialNumber: form.deviceSerialNumber || null,
       status: form.status,
       odometerReading: form.odometerReading ? parseInt(form.odometerReading) : null,
       engineHours: form.engineHours ? parseInt(form.engineHours) : null,
@@ -573,12 +625,55 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
             </div>
           </Section>
 
-          <Section icon={Wrench} title="Tracking Device">
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className={LABEL}>IMEI</label><input className={INPUT} value={form.deviceImei} onChange={e => setForm({ ...form, deviceImei: e.target.value })} placeholder="Device IMEI" /></div>
-              <div><label className={LABEL}>Device Type</label><input className={INPUT} value={form.deviceType} onChange={e => setForm({ ...form, deviceType: e.target.value })} placeholder="e.g. GPS" /></div>
-              <div><label className={LABEL}>Serial Number</label><input className={INPUT} value={form.deviceSerialNumber} onChange={e => setForm({ ...form, deviceSerialNumber: e.target.value })} /></div>
-            </div>
+          <Section icon={Radio} title="Devices">
+            {!isEdit ? (
+              <div className="text-sm text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                Save the vehicle first — you can then attach tracking devices (GPS tracker, dashcam, fuel sensor…) with per-role assignments.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {devicesError && <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{devicesError}</div>}
+                {assignments.length === 0 ? (
+                  <div className="text-sm text-gray-400">No devices assigned yet.</div>
+                ) : assignments.map(a => (
+                  <div key={a.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Radio className="w-4 h-4 text-blue-500 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-800 truncate">{a.identityValue}
+                          <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">{a.roleName}</span>
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][a.deviceType] || 'Other'}{a.sims.length > 0 ? ` · ${a.sims.length} SIM${a.sims.length > 1 ? 's' : ''}` : ''}</div>
+                      </div>
+                    </div>
+                    <button onClick={() => unassignDevice(a.id)} className="text-xs text-red-500 hover:text-red-600 font-medium shrink-0 ml-2">Remove</button>
+                  </div>
+                ))}
+                {availableDevices.length > 0 && (
+                  <div className="flex items-end gap-2 border-t border-gray-100 pt-3">
+                    <div className="flex-1">
+                      <label className={LABEL}>Add Device</label>
+                      <select className={INPUT} value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)}>
+                        <option value="">Select unassigned device...</option>
+                        {availableDevices.map((d: any) => (
+                          <option key={d.id} value={d.id}>{d.identityValue} — {d.vendorName || 'No vendor'}{d.model ? ` (${d.model})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={LABEL}>Role</label>
+                      <select className={INPUT} value={selectedRole} onChange={e => setSelectedRole(Number(e.target.value))}>
+                        {['Primary Tracker', 'Secondary Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Spare'].map((r, i) => <option key={i} value={i}>{r}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={assignDevice} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Assign</button>
+                  </div>
+                )}
+                {availableDevices.length === 0 && assignments.length > 0 && (
+                  <div className="text-xs text-gray-400">All active devices are already assigned to a vehicle.</div>
+                )}
+              </div>
+            )}
           </Section>
 
           <div>

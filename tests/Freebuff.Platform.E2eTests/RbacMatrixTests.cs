@@ -12,7 +12,7 @@ namespace Freebuff.Platform.E2eTests;
 /// asserted twice:
 ///   1. at the permission-calculation layer — the /auth/permissions effective
 ///      set must equal the DB-derived oracle (role grants ∩ package modules)
-///      for ALL 22 pages × 6 actions × 7 roles;
+///      for ALL registered pages × 6 actions × 7 roles;
 ///   2. at the HTTP layer — real endpoints must return 200/201 for a role with
 ///      the permission and exactly 403 for a role without it, for every role
 ///      × CRUD action on every page with a real endpoint.
@@ -110,7 +110,7 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
                         mismatches.Add($"{code}:got={actual.Contains(code)},want={expected.Contains(code)}");
                 }
 
-            // No orphan/extra codes outside the registered 132.
+            // No orphan/extra codes outside the registered registry codes.
             var extras = actual.Except(allCodes).ToList();
             if (extras.Count > 0) mismatches.Add($"extras={string.Join(',', extras)}");
 
@@ -469,10 +469,11 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
 
         var (_, perms) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/auth/permissions", token: sa);
         var set = PermSet(perms);
-        _checker.Check("SuperAdmin effective set = all 132 registered codes",
-            set.Count == 132 && set.Contains("platform.view") && set.Contains("package.delete")
+        var registeredCodeCount = PageRegistry.All.Count * PageRegistry.Actions.Length;
+        _checker.Check($"SuperAdmin effective set = all {registeredCodeCount} registered codes",
+            set.Count == registeredCodeCount && set.Contains("platform.view") && set.Contains("package.delete")
             && set.Contains("module.export") && set.Contains("user.import"),
-            $"count={set.Count}");
+            $"count={set.Count}, expected={registeredCodeCount}");
 
         // SuperAdmin can mutate across tenants: create a vehicle in Company B's company as its admin, then read it as SA.
         var basicAdmin = await TokenAsync(RbacFixtures.BasicAdminEmail);

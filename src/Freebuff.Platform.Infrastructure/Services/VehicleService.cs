@@ -31,7 +31,10 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
             query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
 
         var entity = await query.FirstOrDefaultAsync();
-        return entity == null ? null : MapToDto(entity);
+        if (entity == null) return null;
+        var dto = MapToDto(entity);
+        dto.DeviceCount = await _db.VehicleDevices.CountAsync(vd => vd.VehicleId == id && vd.AssignedTo == null && !vd.IsDeleted);
+        return dto;
     }
 
     public Task<PagedResult<VehicleDto>> GetListAsync(PagedRequest filter)
@@ -103,6 +106,7 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
                 DeviceImei = v.DeviceImei,
                 DeviceType = v.DeviceType,
                 DeviceSerialNumber = v.DeviceSerialNumber,
+                DeviceCount = _db.VehicleDevices.Count(vd => vd.VehicleId == v.Id && vd.AssignedTo == null && !vd.IsDeleted),
                 LastLatitude = v.LastLatitude,
                 LastLongitude = v.LastLongitude,
                 LastSpeed = v.LastSpeed,

@@ -81,14 +81,15 @@ public static class PageRegistry
 
         // ── Fleet Operations module ───────────────────────────────────────
         new PageDefinition("vehicle",      "Vehicles",             "/vehicles",             "truck",            true,  false, false, true,  2,  "fleet", "Vehicle CRUD and tracking"),
-        new PageDefinition("driver",       "Drivers",              "/drivers",              "users",            true,  false, false, true,  3,  "fleet", "Driver profiles and management"),
-        new PageDefinition("geofence",     "Geofences",            "/geofences",            "globe",            true,  false, false, false, 4,  "fleet", "Geofence creation and monitoring"),
-        new PageDefinition("route",        "Routes",               "/routes",               "navigation",       true,  false, false, false, 5,  "fleet", "Route planning and optimization"),
-        new PageDefinition("trip",         "Trips",                null,                    "navigation",       false, false, true,  false, 6,  "fleet", "Planned: trip entity exists, page not built yet"),
-        new PageDefinition("alert",        "Alerts",               null,                    "bell",             false, false, true,  false, 7,  "fleet", "Planned: alert entity exists, page not built yet"),
-        new PageDefinition("fuel",         "Fuel",                 null,                    "fuel",             false, false, true,  false, 8,  "fleet", "Planned: fuel entity exists, page not built yet"),
-        new PageDefinition("maintenance",  "Maintenance",          null,                    "wrench",           false, false, true,  false, 9,  "fleet", "Planned: maintenance entity exists, page not built yet"),
-        new PageDefinition("report",       "Reports",              null,                    "file-text",        false, false, true,  false, 10, "fleet", "Planned: no page yet"),
+        new PageDefinition("device",       "Devices",              "/devices",              "radio",            true,  false, false, false, 3,  "fleet", "Tracking devices, SIMs and vehicle assignments"),
+        new PageDefinition("driver",       "Drivers",              "/drivers",              "users",            true,  false, false, true,  4,  "fleet", "Driver profiles and management"),
+        new PageDefinition("geofence",     "Geofences",            "/geofences",            "globe",            true,  false, false, false, 5,  "fleet", "Geofence creation and monitoring"),
+        new PageDefinition("route",        "Routes",               "/routes",               "navigation",       true,  false, false, false, 6,  "fleet", "Route planning and optimization"),
+        new PageDefinition("trip",         "Trips",                null,                    "navigation",       false, false, true,  false, 7,  "fleet", "Planned: trip entity exists, page not built yet"),
+        new PageDefinition("alert",        "Alerts",               null,                    "bell",             false, false, true,  false, 8,  "fleet", "Planned: alert entity exists, page not built yet"),
+        new PageDefinition("fuel",         "Fuel",                 null,                    "fuel",             false, false, true,  false, 9,  "fleet", "Planned: fuel entity exists, page not built yet"),
+        new PageDefinition("maintenance",  "Maintenance",          null,                    "wrench",           false, false, true,  false, 10, "fleet", "Planned: maintenance entity exists, page not built yet"),
+        new PageDefinition("report",       "Reports",              null,                    "file-text",        false, false, true,  false, 11, "fleet", "Planned: no page yet"),
 
         // ── Organization & Access module ──────────────────────────────────
         new PageDefinition("company",      "Companies",            "/companies",            "building",         true,  false, false, true,  11, "organization", "Company administration"),
@@ -105,6 +106,7 @@ public static class PageRegistry
         new PageDefinition("platform",     "Platform Admin",       "/admin/companies",      "crown",            true,  true,  false, true,  20, "platform", "Platform-level company management"),
         new PageDefinition("package",      "Packages",             "/packages",             "package",          true,  true,  false, false, 21, "platform", "Subscription packages and plans"),
         new PageDefinition("module",       "Modules",              "/modules",              "package",          true,  true,  false, false, 22, "platform", "Module catalog management"),
+        new PageDefinition("devicevendor", "Device Vendors",       "/admin/device-vendors", "cpu",              true,  true,  false, false, 23, "platform", "Device vendor and adapter registry (Super Admin)"),
     };
 
     public static PageDefinition? ByKey(string key)

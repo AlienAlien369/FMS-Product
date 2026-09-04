@@ -61,6 +61,7 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("vehicle.view")]
     public async Task<ActionResult<ApiResponse<VehicleDto>>> GetById(Guid id)
     {
         var result = await _vehicleService.GetByIdAsync(id);

@@ -62,6 +62,7 @@ public class DriversController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission("driver.view")]
     public async Task<ActionResult<ApiResponse<DriverDto>>> GetById(Guid id)
     {
         var result = await _driverService.GetByIdAsync(id);

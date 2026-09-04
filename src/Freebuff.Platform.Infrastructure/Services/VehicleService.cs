@@ -154,7 +154,10 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<VehicleDto?> UpdateAsync(Guid id, UpdateVehicleDto dto, string userId)
     {
-        var vehicle = await _db.Vehicles.Include(v => v.Client).FirstOrDefaultAsync(v => v.Id == id && !v.IsDeleted);
+        var query = _db.Vehicles.Include(v => v.Client).Where(v => v.Id == id && !v.IsDeleted);
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+        var vehicle = await query.FirstOrDefaultAsync();
         if (vehicle == null) return null;
 
         if (dto.Name != null) vehicle.Name = dto.Name;
@@ -184,8 +187,11 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<bool> SoftDeleteAsync(Guid id, string userId, string? reason = null)
     {
-        var vehicle = await _db.Vehicles.FindAsync(id);
-        if (vehicle == null || vehicle.IsDeleted) return false;
+        var query = _db.Vehicles.Where(v => v.Id == id && !v.IsDeleted);
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+        var vehicle = await query.FirstOrDefaultAsync();
+        if (vehicle == null) return false;
 
         vehicle.IsDeleted = true;
         vehicle.DeletedAt = DateTime.UtcNow;
@@ -197,8 +203,10 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<bool> RestoreAsync(Guid id, string userId)
     {
-        var vehicle = await _db.Vehicles.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(v => v.Id == id && v.IsDeleted);
+        var query = _db.Vehicles.IgnoreQueryFilters().Where(v => v.Id == id && v.IsDeleted);
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+        var vehicle = await query.FirstOrDefaultAsync();
         if (vehicle == null) return false;
 
         vehicle.IsDeleted = false;
@@ -210,9 +218,10 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<List<AuditEntryDto>> GetAuditHistoryAsync(Guid entityId)
     {
-        return await _db.AuditLogs
-            .AsNoTracking()
-            .Where(a => a.EntityType == EntityType.Vehicle && a.EntityId == entityId)
+        var query = _db.AuditLogs.AsNoTracking().Where(a => a.EntityType == EntityType.Vehicle && a.EntityId == entityId);
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(a => a.TenantId == _tenant.TenantId.Value);
+        return await query
             .OrderByDescending(a => a.CreatedAt)
             .Select(a => new AuditEntryDto
             {

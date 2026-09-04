@@ -75,8 +75,11 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
 
     public async Task<DriverDto?> UpdateAsync(Guid id, UpdateDriverDto dto, string userId)
     {
-        var driver = await _db.Drivers.FindAsync(id);
-        if (driver == null || driver.IsDeleted) return null;
+        var query = _db.Drivers.Where(d => d.Id == id && !d.IsDeleted);
+        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin)
+            query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+        var driver = await query.FirstOrDefaultAsync();
+        if (driver == null) return null;
         if (dto.FirstName != null) driver.FirstName = dto.FirstName;
         if (dto.LastName != null) driver.LastName = dto.LastName;
         if (dto.PhoneNumber != null) driver.PhoneNumber = dto.PhoneNumber;
@@ -95,8 +98,11 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
 
     public async Task<bool> SoftDeleteAsync(Guid id, string userId, string? reason = null)
     {
-        var driver = await _db.Drivers.FindAsync(id);
-        if (driver == null || driver.IsDeleted) return false;
+        var query = _db.Drivers.Where(d => d.Id == id && !d.IsDeleted);
+        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin)
+            query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+        var driver = await query.FirstOrDefaultAsync();
+        if (driver == null) return false;
         driver.IsDeleted = true; driver.DeletedAt = DateTime.UtcNow; driver.DeletedBy = userId;
         await _db.SaveChangesAsync();
         return true;
@@ -104,7 +110,10 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
 
     public async Task<bool> RestoreAsync(Guid id, string userId)
     {
-        var driver = await _db.Drivers.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == id && d.IsDeleted);
+        var query = _db.Drivers.IgnoreQueryFilters().Where(d => d.Id == id && d.IsDeleted);
+        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin)
+            query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+        var driver = await query.FirstOrDefaultAsync();
         if (driver == null) return false;
         driver.IsDeleted = false; driver.DeletedAt = null; driver.DeletedBy = null;
         await _db.SaveChangesAsync();
@@ -113,8 +122,10 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
 
     public async Task<List<AuditEntryDto>> GetAuditHistoryAsync(Guid entityId)
     {
-        return await _db.AuditLogs.AsNoTracking()
-            .Where(a => a.EntityType == EntityType.Driver && a.EntityId == entityId)
+        var query = _db.AuditLogs.AsNoTracking().Where(a => a.EntityType == EntityType.Driver && a.EntityId == entityId);
+        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin)
+            query = query.Where(a => a.TenantId == _tenant.TenantId.Value);
+        return await query
             .OrderByDescending(a => a.CreatedAt)
             .Select(a => new AuditEntryDto { Id = a.Id, Action = (int)a.Action, EntityType = (int)a.EntityType, EntityId = a.EntityId, CreatedAt = a.CreatedAt })
             .ToListAsync();

@@ -38,7 +38,7 @@ interface SimDraft { iccid: string; phoneNumber: string; carrier: string; isPrim
 export default function Devices() {
   const { can } = usePermissions();
   const { user } = useAuth();
-  const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+  const isSuperAdmin = !!user?.roles?.includes('SuperAdmin');
   const canCreate = can('device.create');
   const canEdit = can('device.update');
   const canDelete = can('device.delete');

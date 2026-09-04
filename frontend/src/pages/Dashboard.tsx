@@ -194,13 +194,25 @@ export default function Dashboard() {
             <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No vehicle activity</div>
           ) : (
             <div className="space-y-2 max-h-[280px] overflow-y-auto">
-              {recentVehicles.map((v: any) => (
+              {recentVehicles.map((v: any) => {
+                const name = (v.name || '').trim();
+                const makeModel = [v.make, v.model].filter(Boolean).join(' ').trim();
+                // Avoid duplicating the vehicle name (name often already contains make + model)
+                let title = name || makeModel || '—';
+                let sub = '';
+                if (makeModel && name) {
+                  if (makeModel.startsWith(name) || name.startsWith(makeModel)) sub = '';
+                  else sub = makeModel;
+                } else if (makeModel && !name) {
+                  sub = '';
+                }
+                return (
                 <div key={v.id} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg">
                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${v.status === 'Active' ? 'bg-green-500' : v.status === 'InMaintenance' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">{v.registrationNumber} — {v.name}</div>
+                    <div className="text-sm font-medium text-gray-900 truncate">{v.registrationNumber} — {title}</div>
                     <div className="text-xs text-gray-500">
-                      {v.make} {v.model} {v.driverName ? `• Driver: ${v.driverName}` : ''}
+                      {sub} {v.driverName ? `• Driver: ${v.driverName}` : ''}
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -213,7 +225,8 @@ export default function Dashboard() {
                     {!v.ignition && <span className="text-xs text-gray-400">Stopped</span>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

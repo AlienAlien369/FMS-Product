@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api, { type VehicleDeviceAssignment } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import type { PagedResult } from '../lib/api';
@@ -55,7 +56,12 @@ export default function Vehicles() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Status chip is reflected in the URL (?status=…) so filters survive refresh/deep links
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const s = searchParams.get('status');
+    return s && STATUS_FILTERS.some(f => f.key === s) ? s : 'all';
+  });
   const [sort, setSort] = useState<SortState>({ field: 'registrationNumber', desc: false });
   const [modal, setModal] = useState<{ open: boolean; edit?: VehicleDetail; view?: VehicleDetail }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<VehicleDetail | null>(null);
@@ -135,7 +141,13 @@ export default function Vehicles() {
         {STATUS_FILTERS.map(f => {
           const count = f.statKey && stats ? (stats as any)[f.statKey] ?? 0 : 0;
           return (
-            <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
+            <button key={f.key} onClick={() => {
+              setStatusFilter(f.key);
+              setPage(1);
+              const next = new URLSearchParams(searchParams);
+              if (f.key === 'all') next.delete('status'); else next.set('status', f.key);
+              setSearchParams(next, { replace: true });
+            }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === f.key ? f.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f.label} <span className="ml-1 opacity-70">{count}</span>
             </button>

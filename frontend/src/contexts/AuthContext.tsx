@@ -30,20 +30,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    try {
-      const token = localStorage.getItem('token');
-      const user = localStorage.getItem('user');
-      if (token && user) {
-        setState({ isAuthenticated: true, token, user: JSON.parse(user) });
-        fetchPermissions();
+    const boot = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        if (token && user) {
+          setState({ isAuthenticated: true, token, user: JSON.parse(user) });
+          // Permissions load asynchronously; keep isLoading true until they
+          // resolve so route guards never default-deny a direct URL load.
+          await fetchPermissions();
+        }
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-    } finally {
-      setIsLoading(false);
-    }
+    };
+    boot();
   }, []);
 
   const login = async (email: string, password: string) => {

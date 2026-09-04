@@ -43,6 +43,7 @@ function AppRoutes() {
         <Route path="/drivers" element={<PermissionRoute permission={pagePermission('driver')}><Drivers /></PermissionRoute>} />
         <Route path="/geofences" element={<PermissionRoute permission={pagePermission('geofence')}><GeofencesPage /></PermissionRoute>} />
         <Route path="/admin/companies" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><AdminCompanies /></PermissionRoute>} />
+        <Route path="/admin/companies/:id" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><CompanyDetail /></PermissionRoute>} />
         <Route path="/admin/device-vendors" element={<PermissionRoute permission={pagePermission('devicevendor')} adminOnly><DeviceVendors /></PermissionRoute>} />
         <Route path="/users" element={<PermissionRoute permission={pagePermission('user')}><Users /></PermissionRoute>} />
         <Route path="/roles" element={<PermissionRoute permission={pagePermission('role')}><Roles /></PermissionRoute>} />

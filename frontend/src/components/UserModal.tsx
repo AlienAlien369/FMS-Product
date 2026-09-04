@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { X, UserPlus, Check } from 'lucide-react';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from './TargetCompanyField';
 
-interface RoleOption { id: string; name: string; description?: string; }
+interface RoleOption { id: string; name: string; description?: string; companyId?: string; }
 
 interface UserData {
   id?: string; firstName?: string; lastName?: string; email?: string;
@@ -17,6 +19,8 @@ interface Props {
 
 export default function UserModal({ user, onClose, onSaved }: Props) {
   const isEdit = !!user?.id;
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -27,6 +31,12 @@ export default function UserModal({ user, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // For SuperAdmin, only offer roles of the selected target company so a user
+  // never gets roles from mixed companies.
+  const visibleRoles = isCrossTenant
+    ? roles.filter(r => !r.companyId || r.companyId === targetCompanyId)
+    : roles;
 
   useEffect(() => {
     const p1 = api.get('/roles?pageSize=50').then(r => {
@@ -52,6 +62,7 @@ export default function UserModal({ user, onClose, onSaved }: Props) {
     if (!email.trim()) { setError('Email is required'); return; }
     if (!isEdit && !password.trim()) { setError('Password is required for new users'); return; }
     if (!isEdit && password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (!isEdit && isCrossTenant && needsPick) { setError('Select the company this user belongs to'); return; }
 
     setSaving(true);
     setError('');
@@ -63,12 +74,14 @@ export default function UserModal({ user, onClose, onSaved }: Props) {
           roleIds: Array.from(selectedRoles)
         });
       } else {
-        await api.post('/users', {
+        const payload: any = {
           email: email.trim(), password,
           firstName: firstName.trim(), lastName: lastName.trim(),
           phoneNumber: phone.trim() || null,
           roleIds: Array.from(selectedRoles)
-        });
+        };
+        if (isCrossTenant) payload.companyId = targetCompanyId;
+        await api.post('/users', payload);
       }
       onSaved();
     } catch (e: any) {
@@ -98,6 +111,8 @@ export default function UserModal({ user, onClose, onSaved }: Props) {
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
           )}
+
+          {!isEdit && <TargetCompanyField hook={tgt} error={error} />}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -140,11 +155,11 @@ export default function UserModal({ user, onClose, onSaved }: Props) {
             </div>
             {loading ? (
               <div className="text-sm text-gray-400 py-2">Loading roles...</div>
-            ) : roles.length === 0 ? (
-              <div className="text-sm text-gray-400 py-2">No roles available. Create roles first.</div>
+            ) : visibleRoles.length === 0 ? (
+              <div className="text-sm text-gray-400 py-2">No roles available{isCrossTenant ? ' for the selected company' : ''}. Create roles first.</div>
             ) : (
               <div className="space-y-1.5">
-                {roles.map(r => (
+                {visibleRoles.map(r => (
                   <button key={r.id} onClick={() => toggleRole(r.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${selectedRoles.has(r.id) ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${selectedRoles.has(r.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>

@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from '../components/TargetCompanyField';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -485,6 +487,8 @@ function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: (
 // ── Create/Edit Modal ────────────────────────────────────
 function DriverFormModal({ driver, onClose, onSaved }: { driver?: DriverDetail; onClose: () => void; onSaved: () => void }) {
   const isEdit = !!driver?.id;
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
   const [form, setForm] = useState({
     employeeId: driver?.employeeId || '', firstName: driver?.firstName || '', lastName: driver?.lastName || '',
     phoneNumber: driver?.phoneNumber || '', email: driver?.email || '',
@@ -499,6 +503,7 @@ function DriverFormModal({ driver, onClose, onSaved }: { driver?: DriverDetail; 
   const handleSubmit = async () => {
     if (!form.firstName.trim() || !form.lastName.trim()) { setError('First and last name are required'); return; }
     if (!form.employeeId.trim()) { setError('Employee ID is required'); return; }
+    if (!isEdit && isCrossTenant && needsPick) { setError('Select the company this driver belongs to'); return; }
     setSaving(true); setError('');
     const payload: any = {
       employeeId: form.employeeId, firstName: form.firstName, lastName: form.lastName,
@@ -508,6 +513,7 @@ function DriverFormModal({ driver, onClose, onSaved }: { driver?: DriverDetail; 
       licenseCategory: form.licenseCategory || null,
       address: form.address || null, city: form.city || null, country: form.country || null,
     };
+    if (!isEdit && isCrossTenant) payload.companyId = targetCompanyId;
     try {
       if (isEdit) { payload.status = form.status; await api.put(`/drivers/${driver!.id}`, payload); }
       else { await api.post('/drivers', payload); }
@@ -533,6 +539,8 @@ function DriverFormModal({ driver, onClose, onSaved }: { driver?: DriverDetail; 
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
+          {!isEdit && <TargetCompanyField hook={tgt} error={error} />}
 
           <Section icon={Users} title="Personal Information">
             <div className="grid grid-cols-2 gap-4">

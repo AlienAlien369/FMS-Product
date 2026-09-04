@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { X, Shield, Check } from 'lucide-react';
 import { PAGES, pageByKey } from '../config/pages';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from './TargetCompanyField';
 
 interface GroupedPerm { module: string; permissions: { id: string; code: string; name: string; action: string; }[]; }
 
@@ -18,6 +20,8 @@ interface Props {
 
 export default function RoleModal({ role, onClose, onSaved }: Props) {
   const isEdit = !!role?.id;
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
   const [name, setName] = useState(role?.name || '');
   const [description, setDescription] = useState(role?.description || '');
   const [allPerms, setAllPerms] = useState<GroupedPerm[]>([]);
@@ -62,13 +66,15 @@ export default function RoleModal({ role, onClose, onSaved }: Props) {
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError('Role name is required'); return; }
+    if (!isEdit && isCrossTenant && needsPick) { setError('Select the company this role belongs to'); return; }
     setSaving(true);
     setError('');
     try {
-      const payload = { name: name.trim(), description: description.trim(), permissionIds: Array.from(selected) };
+      const payload: any = { name: name.trim(), description: description.trim(), permissionIds: Array.from(selected) };
       if (isEdit) {
         await api.put(`/roles/${role!.id}`, payload);
       } else {
+        if (isCrossTenant) payload.companyId = targetCompanyId;
         await api.post('/roles', payload);
       }
       onSaved();
@@ -108,6 +114,8 @@ export default function RoleModal({ role, onClose, onSaved }: Props) {
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
           )}
+
+          {!isEdit && <TargetCompanyField hook={tgt} error={error} />}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

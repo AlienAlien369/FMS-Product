@@ -49,13 +49,44 @@ public class Route : BaseEntity
     public int? DayOfWeek { get; set; } // 0=Sunday, 6=Saturday
     public TimeSpan? PreferredStartTime { get; set; }
 
+    // Path source: Directions (road-snapped polyline) or Manual (hand-drawn override)
+    public RoutePathSource PathSource { get; set; } = RoutePathSource.Directions;
+
+    // Corridor deviation config (per-route, separately toggleable). Evaluated by
+    // the trip/position engine when a live telemetry stream exists; stored here
+    // so enabling it is pure configuration, not a deploy.
+    public bool CorridorEnabled { get; set; }
+    public double? CorridorBufferMeters { get; set; }
+    public int? DeviationThresholdMinutes { get; set; }
+
     // Company
     public Guid CompanyId { get; set; }
     public Company Company { get; set; } = null!;
 
     // Navigation
     public ICollection<RouteVehicle> RouteVehicles { get; set; } = new List<RouteVehicle>();
+    public ICollection<RouteGeofence> RouteGeofences { get; set; } = new List<RouteGeofence>();
     public ICollection<Trip> Trips { get; set; } = new List<Trip>();
+}
+
+/// <summary>
+/// Junction: Route ↔ Geofence with a semantic role on that route.
+/// Checkpoint — vehicle is expected to pass through; verified per trip.
+/// RestrictedZone — vehicle must not enter while on this route.
+/// StartZone / EndZone — optional explicit marking when a route terminus is
+/// itself a known geofence. SequenceOrder is only meaningful for Checkpoint
+/// (validated in the expected order); one geofence may not be linked twice.
+/// </summary>
+public class RouteGeofence : BaseEntity
+{
+    public Guid RouteId { get; set; }
+    public Route Route { get; set; } = null!;
+
+    public Guid GeofenceId { get; set; }
+    public Geofence Geofence { get; set; } = null!;
+
+    public RouteGeofenceRole Role { get; set; } = RouteGeofenceRole.Checkpoint;
+    public int? SequenceOrder { get; set; }
 }
 
 /// <summary>

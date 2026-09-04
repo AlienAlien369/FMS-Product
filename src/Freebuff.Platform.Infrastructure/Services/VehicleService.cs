@@ -13,11 +13,13 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
+    private readonly TargetCompanyResolver _targetCompany;
 
-    public VehicleService(ApplicationDbContext db, ITenantContext tenant)
+    public VehicleService(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany)
     {
         _db = db;
         _tenant = tenant;
+        _targetCompany = targetCompany;
     }
 
     public async Task<VehicleDto?> GetByIdAsync(Guid id)
@@ -132,7 +134,9 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
     public async Task<VehicleDto> CreateAsync(CreateVehicleDto dto, string userId)
     {
-        var tenantId = _tenant.TenantId ?? throw new UnauthorizedAccessException("No tenant context");
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
 
         var vehicle = new Vehicle
         {
@@ -155,11 +159,15 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
             DeviceImei = dto.DeviceImei,
             DeviceType = dto.DeviceType,
             DeviceSerialNumber = dto.DeviceSerialNumber,
-            CompanyId = tenantId,
+            CompanyId = companyId,
             Status = VehicleStatus.Active
         };
 
         _db.Vehicles.Add(vehicle);
+        await _db.SaveChangesAsync();
+
+        _targetCompany.Audit(AuditAction.Create, EntityType.Vehicle, vehicle.Id, vehicle.RegistrationNumber,
+            System.Text.Json.JsonSerializer.Serialize(new { vehicle.Name, vehicle.Make, vehicle.Model }), companyId);
         await _db.SaveChangesAsync();
 
         return MapToDto(vehicle);

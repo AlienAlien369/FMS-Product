@@ -81,6 +81,76 @@ public static class SchemaBootstrap
         """
         ALTER TABLE "Geofences" ADD COLUMN IF NOT EXISTS "ViolationCount" integer NOT NULL DEFAULT 0;
         ALTER TABLE "Geofences" ADD COLUMN IF NOT EXISTS "LastViolationAt" timestamp with time zone NULL;
+        ALTER TABLE "Geofences" ADD COLUMN IF NOT EXISTS "Geometry" text NULL;
+        -- Canonical geometry: backfill legacy radius-based (circle) geofences as
+        -- GeoJSON circles so every consumer branches on the single Geometry field.
+        UPDATE "Geofences" SET "Geometry" =
+            jsonb_build_object('type', 'circle',
+                'center', jsonb_build_array("CenterLongitude", "CenterLatitude"),
+                'radiusMeters', "Radius")::text
+            WHERE "Geometry" IS NULL
+              AND "CenterLatitude" IS NOT NULL AND "CenterLongitude" IS NOT NULL AND "Radius" IS NOT NULL;
+
+        -- Legacy rectangle/polygon rows store their ring in Coordinates as an
+        -- array of lat/lng objects (seed format predating GeoJSON). Convert
+        -- them to canonical polygons — a rectangle is just a 4-point polygon,
+        -- so type 1 rows become type 2 with the same corners, no data loss.
+        UPDATE "Geofences" SET
+            "Type" = 2,
+            "Geometry" = jsonb_build_object('type', 'polygon', 'coordinates',
+                (SELECT jsonb_agg(jsonb_build_array((e->>'lng')::float8, (e->>'lat')::float8) ORDER BY ord)
+                 FROM jsonb_array_elements(NULLIF("Coordinates", '')::jsonb) WITH ORDINALITY AS t(e, ord)))::text,
+            "Coordinates" = (SELECT jsonb_agg(jsonb_build_array((e->>'lng')::float8, (e->>'lat')::float8) ORDER BY ord)::text
+                 FROM jsonb_array_elements(NULLIF("Coordinates", '')::jsonb) WITH ORDINALITY AS t(e, ord))
+            WHERE "Geometry" IS NULL AND "Type" IN (1, 2)
+              AND "Coordinates" IS NOT NULL AND "Coordinates" NOT IN ('', '[]')
+              AND NULLIF("Coordinates", '')::jsonb IS NOT NULL
+              AND (SELECT count(*) FROM jsonb_array_elements(NULLIF("Coordinates", '')::jsonb)) >= 3;
+
+        -- Repair: a first-pass run of the conversion above emitted coordinate
+        -- elements as strings (e->>'lng' is text). Canonical polygons require
+        -- numeric [lng, lat] pairs — fix any row whose geometry holds string
+        -- positions so parsers accept it.
+        UPDATE "Geofences" SET
+            "Geometry" = jsonb_build_object('type', 'polygon', 'coordinates',
+                (SELECT jsonb_agg(jsonb_build_array((e->>0)::float8, (e->>1)::float8) ORDER BY ord)
+                 FROM jsonb_array_elements("Coordinates"::jsonb) WITH ORDINALITY AS t(e, ord)))::text,
+            "Coordinates" = (SELECT jsonb_agg(jsonb_build_array((e->>0)::float8, (e->>1)::float8) ORDER BY ord)::text
+                 FROM jsonb_array_elements("Coordinates"::jsonb) WITH ORDINALITY AS t(e, ord))
+            WHERE "Geometry" IS NOT NULL AND "Geometry" <> ''
+              AND jsonb_typeof("Geometry"::jsonb -> 'coordinates' -> 0 -> 0) = 'string';
+        """,
+
+        // ── Route ↔ Geofence linking (route checkpoints / restricted zones) ──
+        // Mirrors the shape EF creates on a fresh database. RouteGeofence rows
+        // carry the semantic role of a geofence on a route; the partial unique
+        // index forbids linking one geofence to one route twice.
+        """
+        CREATE TABLE IF NOT EXISTS "RouteGeofences" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NULL,
+            "RouteId" uuid NOT NULL,
+            "GeofenceId" uuid NOT NULL,
+            "Role" integer NOT NULL,
+            "SequenceOrder" integer NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_RouteGeofences" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_RouteGeofences_RouteId" ON "RouteGeofences" ("RouteId");
+        CREATE INDEX IF NOT EXISTS "IX_RouteGeofences_GeofenceId" ON "RouteGeofences" ("GeofenceId");
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_RouteGeofences_Route_Geofence" ON "RouteGeofences" ("RouteId", "GeofenceId") WHERE "IsDeleted" = false;
+        ALTER TABLE "Routes" ADD COLUMN IF NOT EXISTS "PathSource" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "Routes" ADD COLUMN IF NOT EXISTS "CorridorEnabled" boolean NOT NULL DEFAULT false;
+        ALTER TABLE "Routes" ADD COLUMN IF NOT EXISTS "CorridorBufferMeters" double precision NULL;
+        ALTER TABLE "Routes" ADD COLUMN IF NOT EXISTS "DeviationThresholdMinutes" integer NULL;
         """,
 
         // ── Device Abstraction Layer ──────────────────────────────────────────

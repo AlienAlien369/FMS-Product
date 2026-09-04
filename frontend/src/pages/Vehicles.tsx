@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import api, { type VehicleDeviceAssignment } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from '../components/TargetCompanyField';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -507,6 +509,8 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
 // ── Create/Edit Modal ────────────────────────────────────
 function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { vehicle?: VehicleDetail; drivers: DriverOpt[]; clients: ClientOpt[]; onClose: () => void; onSaved: () => void }) {
   const isEdit = !!vehicle?.id;
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
   const [form, setForm] = useState({
     registrationNumber: vehicle?.registrationNumber || '', name: vehicle?.name || '', vehicleType: vehicle?.vehicleType || '',
     make: vehicle?.make || '', model: vehicle?.model || '', year: vehicle?.year?.toString() || '',
@@ -561,6 +565,7 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
 
   const handleSubmit = async () => {
     if (!form.registrationNumber.trim()) { setError('Registration number required'); return; }
+    if (!isEdit && isCrossTenant && needsPick) { setError('Select the company this vehicle belongs to'); return; }
     setSaving(true); setError('');
     const payload: any = {
       registrationNumber: form.registrationNumber, name: form.name || null, vehicleType: form.vehicleType || null,
@@ -574,6 +579,7 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
       odometerReading: form.odometerReading ? parseInt(form.odometerReading) : null,
       engineHours: form.engineHours ? parseInt(form.engineHours) : null,
     };
+    if (!isEdit && isCrossTenant) payload.companyId = targetCompanyId;
     try {
       if (isEdit) { await api.put(`/vehicles/${vehicle!.id}`, payload); }
       else { await api.post('/vehicles', payload); }
@@ -599,6 +605,8 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
+          {!isEdit && <TargetCompanyField hook={tgt} error={error} />}
 
           <Section icon={Truck} title="Vehicle Information">
             <div className="grid grid-cols-2 gap-4">

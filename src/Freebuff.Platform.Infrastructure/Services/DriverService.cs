@@ -13,11 +13,13 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
+    private readonly TargetCompanyResolver _targetCompany;
 
-    public DriverService(ApplicationDbContext db, ITenantContext tenant)
+    public DriverService(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany)
     {
         _db = db;
         _tenant = tenant;
+        _targetCompany = targetCompany;
     }
 
     public async Task<DriverDto?> GetByIdAsync(Guid id)
@@ -65,7 +67,9 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
         };
     }    public async Task<DriverDto> CreateAsync(CreateDriverDto dto, string userId)
     {
-        var tenantId = _tenant.TenantId ?? throw new UnauthorizedAccessException("No tenant context");
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
         var driver = new Driver
         {
             Id = Guid.NewGuid(), EmployeeId = dto.EmployeeId,
@@ -75,9 +79,13 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
             LicenseCategory = dto.LicenseCategory,
             Address = dto.Address, City = dto.City, Country = dto.Country,
             ProfileImageUrl = dto.ProfileImageUrl,
-            CompanyId = tenantId, Status = DriverStatus.Active
+            CompanyId = companyId, Status = DriverStatus.Active
         };
         _db.Drivers.Add(driver);
+        await _db.SaveChangesAsync();
+
+        _targetCompany.Audit(AuditAction.Create, EntityType.Driver, driver.Id, $"{driver.FirstName} {driver.LastName}",
+            System.Text.Json.JsonSerializer.Serialize(new { driver.EmployeeId, driver.Email }), companyId);
         await _db.SaveChangesAsync();
         return await MapToDtoAsync(driver);
     }

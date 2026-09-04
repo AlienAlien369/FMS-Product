@@ -21,11 +21,13 @@ public class RolesController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
     private readonly ITenantContext _tenant;
-    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant)
+    private readonly TargetCompanyResolver _targetCompany;
+    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, TargetCompanyResolver targetCompany)
     {
         _db = db;
         _permissionService = permissionService;
         _tenant = tenant;
+        _targetCompany = targetCompany;
     }
 
     [HttpGet]
@@ -130,14 +132,16 @@ public class RolesController : ControllerBase
     [RequirePermission("role.create")]
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] CreateRoleDto dto)
     {
-        var tenantId = User.GetTenantId();
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
 
         var role = new Role
         {
             Id = Guid.NewGuid(),
             Name = dto.Name,
             Description = dto.Description,
-            CompanyId = tenantId,
+            CompanyId = companyId,
             Status = EntityStatus.Active,
             IsSystemRole = false
         };
@@ -145,11 +149,11 @@ public class RolesController : ControllerBase
 
         if (dto.PermissionIds?.Count > 0)
         {
-            var allowedPermCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(tenantId);
+            var allowedPermCodes = await _permissionService.GetCompanyAllowedPermissionsAsync(companyId);
             if (!User.IsSuperAdmin())
             {
                 var myUserId = User.GetUserId();
-                var myPerms = await _permissionService.GetEffectivePermissionsAsync(myUserId, tenantId);
+                var myPerms = await _permissionService.GetEffectivePermissionsAsync(myUserId, companyId);
                 allowedPermCodes = allowedPermCodes.Intersect(myPerms).ToHashSet();
             }
             var allowedPermIds = await _db.Permissions
@@ -164,7 +168,7 @@ public class RolesController : ControllerBase
                     Id = Guid.NewGuid(),
                     RoleId = role.Id,
                     PermissionId = permId,
-                    TenantId = tenantId
+                    TenantId = companyId
                 });
             }
         }
@@ -174,7 +178,7 @@ public class RolesController : ControllerBase
         _db.AuditLogs.Add(new AuditLog
         {
             Id = Guid.NewGuid(),
-            TenantId = tenantId,
+            TenantId = companyId,
             UserId = User.GetUserId(),
             UserName = User.GetEmail(),
             Action = AuditAction.Create,

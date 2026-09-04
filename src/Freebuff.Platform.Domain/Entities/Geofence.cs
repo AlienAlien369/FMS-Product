@@ -14,10 +14,20 @@ public class Geofence : BaseEntity
     public EntityStatus Status { get; set; } = EntityStatus.Active;
 
     // Shape data
-    public string Coordinates { get; set; } = string.Empty; // JSON
+    public string Coordinates { get; set; } = string.Empty; // JSON (legacy ring/rect data)
     public double? CenterLatitude { get; set; }
     public double? CenterLongitude { get; set; }
     public double? Radius { get; set; } // For circle type
+
+    /// <summary>
+    /// Canonical geometry, GeoJSON:
+    ///   {"type":"circle",  "center":[lng,lat], "radiusMeters":number}
+    ///   {"type":"polygon", "coordinates":[[lng,lat], ...]}
+    /// Null only for legacy rows predating the geometry column (circles stored
+    /// in the flat CenterLatitude/CenterLongitude/Radius fields). New code
+    /// paths branch on this one field — never on which flat columns are set.
+    /// </summary>
+    public string? Geometry { get; set; }
 
     // Style
     public string? FillColor { get; set; }

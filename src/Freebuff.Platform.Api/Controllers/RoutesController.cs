@@ -20,7 +20,8 @@ public class FleetRoutesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
-    public FleetRoutesController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
+    private readonly TargetCompanyResolver _targetCompany;
+    public FleetRoutesController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany) { _db = db; _tenant = tenant; _targetCompany = targetCompany; }
 
     private Guid GetTenantId() => Guid.Parse(User.FindFirstValue("tenant_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsSuperAdmin() => User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
@@ -76,6 +77,13 @@ public class FleetRoutesController : ControllerBase
                 RecurrenceRule = r.RecurrenceRule, DayOfWeek = r.DayOfWeek, PreferredStartTime = r.PreferredStartTime,
                 AssignedVehicleCount = r.RouteVehicles.Count,
                 CompletedTripCount = r.Trips.Count(t => t.Status == TripStatus.Completed),
+                GeofenceCount = r.RouteGeofences.Count(),
+                CheckpointCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.Checkpoint),
+                RestrictedZoneCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.RestrictedZone),
+                BoundaryZoneCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.StartZone || x.Role == RouteGeofenceRole.EndZone),
+                PathSource = (int)r.PathSource, PathSourceName = r.PathSource.ToString(),
+                CorridorEnabled = r.CorridorEnabled, CorridorBufferMeters = r.CorridorBufferMeters,
+                DeviationThresholdMinutes = r.DeviationThresholdMinutes,
                 CreatedAt = r.CreatedAt
             }).ToListAsync();
 
@@ -121,6 +129,7 @@ public class FleetRoutesController : ControllerBase
             .Include(r => r.Company).Include(r => r.RouteVehicles).ThenInclude(rv => rv.Vehicle)
             .Include(r => r.RouteVehicles).ThenInclude(rv => rv.Driver)
             .Include(r => r.Trips)
+            .Include(r => r.RouteGeofences).ThenInclude(rg => rg.Geofence)
             .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
 
         if (r == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Route not found." });
@@ -146,6 +155,21 @@ public class FleetRoutesController : ControllerBase
                 RecurrenceRule = r.RecurrenceRule, DayOfWeek = r.DayOfWeek, PreferredStartTime = r.PreferredStartTime,
                 AssignedVehicleCount = r.RouteVehicles.Count,
                 CompletedTripCount = r.Trips.Count(t => t.Status == TripStatus.Completed),
+                GeofenceCount = r.RouteGeofences.Count,
+                CheckpointCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.Checkpoint),
+                RestrictedZoneCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.RestrictedZone),
+                BoundaryZoneCount = r.RouteGeofences.Count(x => x.Role == RouteGeofenceRole.StartZone || x.Role == RouteGeofenceRole.EndZone),
+                PathSource = (int)r.PathSource, PathSourceName = r.PathSource.ToString(),
+                CorridorEnabled = r.CorridorEnabled, CorridorBufferMeters = r.CorridorBufferMeters,
+                DeviationThresholdMinutes = r.DeviationThresholdMinutes,
+                RouteGeofences = r.RouteGeofences.Select(rg => new RouteGeofenceDto
+                {
+                    Id = rg.Id, RouteId = rg.RouteId, GeofenceId = rg.GeofenceId,
+                    GeofenceName = rg.Geofence.Name,
+                    GeofenceType = (int)rg.Geofence.Type, GeofenceTypeName = rg.Geofence.Type.ToString(),
+                    Role = (int)rg.Role, RoleName = rg.Role.ToString(),
+                    SequenceOrder = rg.SequenceOrder
+                }).ToList(),
                 CreatedAt = r.CreatedAt
             }
         });
@@ -156,7 +180,9 @@ public class FleetRoutesController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateRouteDto dto)
     {
 
-        var tenantId = GetTenantId();
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
         var r = new FleetRoute
         {
             Id = Guid.NewGuid(), Name = dto.Name, Description = dto.Description,
@@ -170,12 +196,22 @@ public class FleetRoutesController : ControllerBase
             Currency = dto.Currency, TrafficLevel = dto.TrafficLevel,
             ValidFrom = dto.ValidFrom, ValidUntil = dto.ValidUntil, MaxVehicles = dto.MaxVehicles, Priority = dto.Priority,
             RecurrenceRule = dto.RecurrenceRule, DayOfWeek = dto.DayOfWeek, PreferredStartTime = dto.PreferredStartTime,
-            CompanyId = tenantId, TenantId = tenantId
+            PathSource = (RoutePathSource)(dto.PathSource ?? 0),
+            CorridorEnabled = dto.CorridorEnabled ?? false,
+            CorridorBufferMeters = dto.CorridorEnabled == true ? dto.CorridorBufferMeters : null,
+            DeviationThresholdMinutes = dto.CorridorEnabled == true ? dto.DeviationThresholdMinutes : null,
+            CompanyId = companyId, TenantId = companyId
         };
         _db.Routes.Add(r);
         await _db.SaveChangesAsync();
+        _targetCompany.Audit(AuditAction.Create, EntityType.Route, r.Id, r.Name, null, companyId);
+        await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(Get), new { id = r.Id }, new ApiResponse<RouteDto> { Success = true, Message = "Route created." });
+        return CreatedAtAction(nameof(Get), new { id = r.Id }, new ApiResponse<RouteDto>
+        {
+            Success = true, Message = "Route created.",
+            Data = new RouteDto { Id = r.Id, Name = r.Name }
+        });
     }
 
     [HttpPut("{id:guid}")]
@@ -214,9 +250,104 @@ public class FleetRoutesController : ControllerBase
         if (dto.RecurrenceRule != null) r.RecurrenceRule = dto.RecurrenceRule;
         if (dto.DayOfWeek.HasValue) r.DayOfWeek = dto.DayOfWeek.Value;
         if (dto.PreferredStartTime.HasValue) r.PreferredStartTime = dto.PreferredStartTime.Value;
+        if (dto.PathSource.HasValue) r.PathSource = (RoutePathSource)dto.PathSource.Value;
+        if (dto.CorridorEnabled.HasValue) r.CorridorEnabled = dto.CorridorEnabled.Value;
+        if (dto.CorridorBufferMeters.HasValue) r.CorridorBufferMeters = dto.CorridorBufferMeters.Value;
+        if (dto.DeviationThresholdMinutes.HasValue) r.DeviationThresholdMinutes = dto.DeviationThresholdMinutes.Value;
 
         await _db.SaveChangesAsync();
         return Ok(new ApiResponse<object> { Success = true, Message = "Route updated." });
+    }
+
+    // ── Geofence linkage (route checkpoints / restricted zones) ─────────────
+
+    [HttpGet("{id:guid}/geofences")]
+    [RequirePermission("route.view")]
+    public async Task<IActionResult> GetRouteGeofences(Guid id)
+    {
+        var tenantId = GetTenantId();
+        var isSuperAdmin = IsSuperAdmin();
+        var exists = await _db.Routes.AsNoTracking()
+            .AnyAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
+        if (!exists) return NotFound(new ApiResponse<object> { Success = false, Message = "Route not found." });
+
+        var rows = await _db.RouteGeofences.AsNoTracking()
+            .Where(rg => rg.RouteId == id && !rg.IsDeleted && (isSuperAdmin || rg.Route.CompanyId == tenantId))
+            .OrderBy(rg => rg.Role == RouteGeofenceRole.Checkpoint ? 0 : 1)
+            .ThenBy(rg => rg.SequenceOrder)
+            .Select(rg => new RouteGeofenceDto
+            {
+                Id = rg.Id, RouteId = rg.RouteId, GeofenceId = rg.GeofenceId,
+                GeofenceName = rg.Geofence.Name,
+                GeofenceType = (int)rg.Geofence.Type, GeofenceTypeName = rg.Geofence.Type.ToString(),
+                Role = (int)rg.Role, RoleName = rg.Role.ToString(),
+                SequenceOrder = rg.SequenceOrder
+            }).ToListAsync();
+
+        return Ok(new ApiResponse<List<RouteGeofenceDto>> { Success = true, Data = rows });
+    }
+
+    /// <summary>
+    /// Replace-all semantics: the body is the full set of links for the route.
+    /// Validated: route must have an origin and destination before linking;
+    /// every geofence must belong to the route's company; a geofence may only
+    /// appear once (checkpoint + restricted-zone for the same fence is
+    /// contradictory); checkpoint sequence numbers must not collide.
+    /// </summary>
+    [HttpPut("{id:guid}/geofences")]
+    [RequirePermission("route.update")]
+    public async Task<IActionResult> ReplaceRouteGeofences(Guid id, [FromBody] List<RouteGeofenceLinkDto> links)
+    {
+        var tenantId = GetTenantId();
+        var isSuperAdmin = IsSuperAdmin();
+        var r = await _db.Routes.FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
+        if (r == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Route not found." });
+
+        // §6: no meaningful checkpoint ordering without a defined start→end path.
+        if (links.Count > 0 && (string.IsNullOrWhiteSpace(r.OriginName) || string.IsNullOrWhiteSpace(r.DestinationName)))
+            return BadRequest(new ApiResponse<object> { Success = false, Message = "Add the route origin and destination before linking geofences." });
+
+        var unique = new HashSet<Guid>();
+        var seqs = new HashSet<int>();
+        foreach (var l in links)
+        {
+            if (!Enum.IsDefined(typeof(RouteGeofenceRole), l.Role))
+                return BadRequest(new ApiResponse<object> { Success = false, Message = $"Invalid role value {l.Role}." });
+            if (!unique.Add(l.GeofenceId))
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "A geofence can only be linked once per route — pick a single role for it." });
+            if (l.Role == (int)RouteGeofenceRole.Checkpoint && l.SequenceOrder.HasValue && !seqs.Add(l.SequenceOrder.Value))
+                return BadRequest(new ApiResponse<object> { Success = false, Message = $"Duplicate checkpoint sequence number {l.SequenceOrder.Value}." });
+        }
+
+        var geofenceIds = links.Select(l => l.GeofenceId).ToList();
+        var valid = await _db.Geofences.AsNoTracking()
+            .Where(g => geofenceIds.Contains(g.Id) && !g.IsDeleted)
+            .Select(g => new { g.Id, g.CompanyId })
+            .ToListAsync();
+        var byId = valid.ToDictionary(v => v.Id);
+        foreach (var id2 in geofenceIds)
+        {
+            if (!byId.TryGetValue(id2, out var gf) || gf.CompanyId != r.CompanyId)
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Every linked geofence must belong to the route's company." });
+        }
+
+        var old = await _db.RouteGeofences.Where(rg => rg.RouteId == id && !rg.IsDeleted).ToListAsync();
+        _db.RouteGeofences.RemoveRange(old);
+        foreach (var l in links)
+        {
+            _db.RouteGeofences.Add(new RouteGeofence
+            {
+                Id = Guid.NewGuid(), RouteId = id, GeofenceId = l.GeofenceId,
+                Role = (RouteGeofenceRole)l.Role, SequenceOrder = l.SequenceOrder,
+                TenantId = r.CompanyId
+            });
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = $"Route geofence links updated ({links.Count} linked)."
+        });
     }
 
     [HttpDelete("{id:guid}")]

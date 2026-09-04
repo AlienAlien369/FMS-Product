@@ -42,6 +42,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<VehicleGeofence> VehicleGeofences => Set<VehicleGeofence>();
     public DbSet<Route> Routes => Set<Route>();
     public DbSet<RouteVehicle> RouteVehicles => Set<RouteVehicle>();
+    public DbSet<RouteGeofence> RouteGeofences => Set<RouteGeofence>();
 
     // Monitoring
     public DbSet<AlertConfiguration> AlertConfigurations => Set<AlertConfiguration>();

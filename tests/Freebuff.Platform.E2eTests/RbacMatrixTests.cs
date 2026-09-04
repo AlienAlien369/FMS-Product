@@ -161,10 +161,16 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
             var crudPages = new[] { "vehicle", "driver", "geofence", "route", "user", "role" };
             foreach (var page in crudPages)
             {
-                // Create leg — POST as the role itself.
+                // Create leg — POST as the role itself. SuperAdmin writes require
+                // an explicit target company (TargetCompanyResolver), so the SA
+                // leg names its own company; everyone else is forced server-side.
                 var expectedCreate = isSuper || effective.Contains($"{page}.create");
+                var rawPayload = CreatePayload(page, $"{role}-{Guid.NewGuid():N}");
+                object payload = isSuper
+                    ? MergeCompanyId(rawPayload, cid)
+                    : rawPayload;
                 var (cst, cdata) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, $"/api/v1/{page}s",
-                    CreatePayload(page, $"{role}-{Guid.NewGuid():N}"), token: token);
+                    payload, token: token);
                 var createOk = cst is 200 or 201;
                 _checker.Check($"{role} POST {page} = {(expectedCreate ? "2xx" : "403")}", createOk == expectedCreate,
                     $"status={cst}");
@@ -258,13 +264,22 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
         }
     }
 
+    /// <summary>Anonymous create payload → dictionary with an explicit companyId (SuperAdmin writes).</summary>
+    private static object MergeCompanyId(object payload, Guid companyId)
+    {
+        var dict = payload.GetType().GetProperties()
+            .ToDictionary(p => p.Name[..1].ToLowerInvariant() + p.Name[1..], p => p.GetValue(payload)!);
+        dict["companyId"] = companyId;
+        return dict;
+    }
+
     private static string UniqueToken() => Guid.NewGuid().ToString("N")[..10];
 
     private static object CreatePayload(string page, string suffix) => page switch
     {
         "vehicle" => new { registrationNumber = $"E2E-{UniqueToken()}", name = $"E2E Vehicle {suffix}", vehicleType = "Truck", make = "Tata", model = "Prima", year = 2023, fuelType = 1 },
         "driver" => new { employeeId = $"E2E-{UniqueToken()}", firstName = "E2E", lastName = $"Driver {suffix}", email = $"e2e.drv.{suffix}.{UniqueToken()}@test.dev" },
-        "geofence" => new { name = $"E2E Geo {suffix} {UniqueToken()}", type = 0, coordinates = "[[0,0],[1,1]]" },
+        "geofence" => new { name = $"E2E Geo {suffix} {UniqueToken()}", type = 0, centerLatitude = 28.5, centerLongitude = 77.2, radius = 500 },
         "route" => new { name = $"E2E Route {suffix} {UniqueToken()}", originName = "Origin", originLatitude = 1.0, originLongitude = 2.0 },
         "user" => new { email = $"e2e.usr.{suffix}.{UniqueToken()}@test.dev", password = "Pass@123", firstName = "E2E", lastName = "User" },
         "role" => new { name = $"E2E Role {suffix} {UniqueToken()}", description = "matrix" },

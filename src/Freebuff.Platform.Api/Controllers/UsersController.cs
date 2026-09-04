@@ -19,7 +19,8 @@ public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
-    public UsersController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
+    private readonly TargetCompanyResolver _targetCompany;
+    public UsersController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany) { _db = db; _tenant = tenant; _targetCompany = targetCompany; }
 
     [HttpGet]
     [RequirePermission("user.view")]
@@ -82,11 +83,13 @@ public class UsersController : ControllerBase
     [RequirePermission("user.create")]
     public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] CreateUserDto dto)
     {
-        var tenantId = User.GetTenantId();
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
 
-        // Check for duplicate email
-        if (await _db.Users.AnyAsync(u => u.NormalizedEmail == dto.Email.ToUpperInvariant() && !u.IsDeleted))
-            return BadRequest(ApiResponse.Fail("DUPLICATE_EMAIL", "A user with this email already exists"));
+        // Check for duplicate email within the target company
+        if (await _db.Users.AnyAsync(u => u.NormalizedEmail == dto.Email.ToUpperInvariant() && !u.IsDeleted && u.CompanyId == companyId))
+            return BadRequest(ApiResponse.Fail("DUPLICATE_EMAIL", "A user with this email already exists in this company"));
 
         var user = new User
         {
@@ -97,7 +100,7 @@ public class UsersController : ControllerBase
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             PhoneNumber = dto.PhoneNumber,
-            CompanyId = tenantId,
+            CompanyId = companyId,
             SecurityStamp = Guid.NewGuid().ToString(),
             Status = EntityStatus.Active,
             EmailConfirmed = true
@@ -106,18 +109,25 @@ public class UsersController : ControllerBase
 
         if (dto.RoleIds?.Any() == true)
         {
-            foreach (var roleId in dto.RoleIds)
+            // Only assign roles that belong to the target company
+            var validRoleIds = await _db.Roles
+                .Where(r => dto.RoleIds.Contains(r.Id) && !r.IsDeleted && r.CompanyId == companyId)
+                .Select(r => r.Id)
+                .ToListAsync();
+            foreach (var roleId in validRoleIds)
             {
                 _db.UserRoles.Add(new UserRole
                 {
                     Id = Guid.NewGuid(),
                     UserId = user.Id,
                     RoleId = roleId,
-                    TenantId = tenantId
+                    TenantId = companyId
                 });
             }
         }
 
+        await _db.SaveChangesAsync();
+        _targetCompany.Audit(AuditAction.Create, EntityType.User, user.Id, user.Email, null, companyId);
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = user.Id }, ApiResponse<object>.Ok(new

@@ -31,6 +31,8 @@ public enum EntityType
     Package = 17,
     Notification = 18,
     Report = 19,
+    Device = 20,
+    Route = 21,
     Other = 99
 }
 
@@ -156,6 +158,22 @@ public enum RouteType
     Express = 2,
     RoundTrip = 3,
     MultiStop = 4
+}
+
+/// <summary>How a route's path was produced — road-snapped Directions or a raw hand-drawn override.</summary>
+public enum RoutePathSource
+{
+    Directions = 0,
+    Manual = 1
+}
+
+/// <summary>Semantic role of a linked geofence on a route.</summary>
+public enum RouteGeofenceRole
+{
+    Checkpoint = 0,
+    RestrictedZone = 1,
+    StartZone = 2,
+    EndZone = 3
 }
 
 public enum PermissionAction

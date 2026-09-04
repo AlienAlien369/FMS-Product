@@ -17,26 +17,20 @@ public class DeviceService
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
+    private readonly TargetCompanyResolver _targetCompany;
 
-    public DeviceService(ApplicationDbContext db, ITenantContext tenant)
+    public DeviceService(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany)
     {
         _db = db;
         _tenant = tenant;
-    }
-
-    public Guid ResolveCompanyId(Guid? requested)
-    {
-        if (_tenant.IsSuperAdmin)
-        {
-            if (requested == null) throw new ArgumentException("CompanyId is required for SuperAdmin device registration");
-            return requested.Value;
-        }
-        return _tenant.TenantId ?? throw new UnauthorizedAccessException("No tenant context");
+        _targetCompany = targetCompany;
     }
 
     public async Task<DeviceDto> RegisterDeviceAsync(CreateDeviceDto dto, string? userId)
     {
-        var companyId = ResolveCompanyId(dto.CompanyId);
+        // SuperAdmin must name the target company; company users are always
+        // forced to their own tenant server-side.
+        var companyId = await _targetCompany.ResolveAsync(dto.CompanyId);
         if (string.IsNullOrWhiteSpace(dto.IdentityValue))
             throw new ArgumentException("Device identity (IMEI/serial) is required");
         if (dto.IdentityValue.Length > 100) throw new ArgumentException("Device identity is too long");
@@ -99,6 +93,10 @@ public class DeviceService
         }
 
         _db.Devices.Add(device);
+        await _db.SaveChangesAsync();
+
+        _targetCompany.Audit(AuditAction.Create, EntityType.Device, device.Id, device.IdentityValue,
+            System.Text.Json.JsonSerializer.Serialize(new { device.VendorId, device.DeviceType }), companyId);
         await _db.SaveChangesAsync();
 
         var vendorNames = await GetVendorMapAsync();

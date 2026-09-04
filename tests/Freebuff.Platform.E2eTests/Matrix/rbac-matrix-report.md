@@ -1,12 +1,12 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
+_Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 
 ## Coverage
-- Total (role × page × action) cells: **924**
-- Covered by the effective-permission matrix test: **924**
+- Total (role × page × action) cells: **1008**
+- Covered by the effective-permission matrix test: **1008**
 - Cells with an HTTP endpoint test: **217**
 - Uncovered cells: **0** (every (role × page × action) cell is asserted by `RbacMatrixTests.Matrix_EffectivePermissions_Exhaustive`)
 
@@ -25,6 +25,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Vehicles (`vehicle`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Devices (`device`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
@@ -45,6 +46,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Packages (`package`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Modules (`module`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
+| Device Vendors (`devicevendor`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 
 ## Company Admin  (`admin@demofleet.com`)
 
@@ -55,6 +57,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Vehicles (`vehicle`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Devices (`device`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
@@ -75,6 +78,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Fleet Manager  (`e2e.fleetmanager@demo.test`)
 
@@ -85,6 +89,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Vehicles (`vehicle`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Devices (`device`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
@@ -105,6 +110,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Read Only  (`e2e.readonly@demo.test`)
 
@@ -115,6 +121,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Vehicles (`vehicle`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
+| Devices (`device`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Drivers (`driver`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
@@ -135,6 +142,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Ops Manager  (`e2e.ops@demo.test`)
 
@@ -145,6 +153,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Vehicles (`vehicle`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Devices (`device`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
@@ -165,6 +174,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Basic Admin  (`e2e.admin@basic.test`)
 
@@ -175,6 +185,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Vehicles (`vehicle`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Devices (`device`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
@@ -195,6 +206,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Basic Viewer  (`e2e.viewer@basic.test`)
 
@@ -205,6 +217,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 |---|---|---|---|---|---|---|---|
 | Dashboard (`dashboard`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Vehicles (`vehicle`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
+| Devices (`device`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Drivers (`driver`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
@@ -225,6 +238,7 @@ _Generated 2026-09-04 00:36:21Z from the live seed + PageRegistry._
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
+| Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Notes
 - `export` / `import` have **no dedicated HTTP endpoints** in the current API — they are gated at the permission-calculation and selector layers (see `RbacEdgeCaseTests.Edge_ExportImport_GatedLikeOtherActions`).

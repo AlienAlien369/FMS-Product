@@ -50,11 +50,50 @@ public class RouteDto
     // Assignments
     public int AssignedVehicleCount { get; set; }
     public int CompletedTripCount { get; set; }
+
+    // Geofence linkage summary (counts on every row; full rows on detail)
+    public int GeofenceCount { get; set; }
+    public int CheckpointCount { get; set; }
+    public int RestrictedZoneCount { get; set; }
+    public int BoundaryZoneCount { get; set; }
+    public List<RouteGeofenceDto>? RouteGeofences { get; set; }
+
+    // Path + corridor configuration
+    public int PathSource { get; set; }
+    public string PathSourceName { get; set; } = string.Empty;
+    public bool CorridorEnabled { get; set; }
+    public double? CorridorBufferMeters { get; set; }
+    public int? DeviationThresholdMinutes { get; set; }
+
     public DateTime CreatedAt { get; set; }
+}
+
+public class RouteGeofenceDto
+{
+    public Guid Id { get; set; }
+    public Guid RouteId { get; set; }
+    public Guid GeofenceId { get; set; }
+    public string GeofenceName { get; set; } = string.Empty;
+    public int GeofenceType { get; set; }
+    public string GeofenceTypeName { get; set; } = string.Empty;
+    public int Role { get; set; }
+    public string RoleName { get; set; } = string.Empty;
+    public int? SequenceOrder { get; set; }
+}
+
+/// <summary>A single link entry for the replace-all route geofence endpoint.</summary>
+public class RouteGeofenceLinkDto
+{
+    public Guid GeofenceId { get; set; }
+    public int Role { get; set; }
+    public int? SequenceOrder { get; set; }
 }
 
 public class CreateRouteDto
 {
+    /// <summary>Only honored for SuperAdmin; company users are scoped to their own company.</summary>
+    public Guid? CompanyId { get; set; }
+
     [Required]
     [StringLength(200, MinimumLength = 1)]
     public string Name { get; set; } = string.Empty;
@@ -133,6 +172,18 @@ public class CreateRouteDto
     public int? DayOfWeek { get; set; }
 
     public TimeSpan? PreferredStartTime { get; set; }
+
+    // Path + corridor configuration
+    [Range(0, 1)]
+    public int? PathSource { get; set; }
+
+    public bool? CorridorEnabled { get; set; }
+
+    [Range(50, 10000)]
+    public double? CorridorBufferMeters { get; set; }
+
+    [Range(1, 60)]
+    public int? DeviationThresholdMinutes { get; set; }
 }
 
 public class UpdateRouteDto
@@ -211,6 +262,18 @@ public class UpdateRouteDto
     public int? DayOfWeek { get; set; }
 
     public TimeSpan? PreferredStartTime { get; set; }
+
+    // Path + corridor configuration
+    [Range(0, 1)]
+    public int? PathSource { get; set; }
+
+    public bool? CorridorEnabled { get; set; }
+
+    [Range(50, 10000)]
+    public double? CorridorBufferMeters { get; set; }
+
+    [Range(1, 60)]
+    public int? DeviationThresholdMinutes { get; set; }
 }
 
 public class GeofenceDto
@@ -223,7 +286,9 @@ public class GeofenceDto
     public int Status { get; set; }
     public string CompanyName { get; set; } = string.Empty;
 
-    // Shape data
+    // Shape data — canonical GeoJSON geometry ("circle" | "polygon").
+    public string? Geometry { get; set; }
+    // Legacy flat fields (kept in sync for circles for backward compatibility).
     public string Coordinates { get; set; } = string.Empty;
     public double? CenterLatitude { get; set; }
     public double? CenterLongitude { get; set; }
@@ -248,6 +313,9 @@ public class GeofenceDto
 
 public class CreateGeofenceDto
 {
+    /// <summary>Only honored for SuperAdmin; company users are scoped to their own company.</summary>
+    public Guid? CompanyId { get; set; }
+
     [Required]
     [StringLength(200, MinimumLength = 1)]
     public string Name { get; set; } = string.Empty;
@@ -259,10 +327,13 @@ public class CreateGeofenceDto
     [Range(0, 2)]
     public int Type { get; set; }
 
-    // Shape data
-    [Required]
-    [StringLength(50000, MinimumLength = 2)]
-    public string Coordinates { get; set; } = string.Empty;
+    // Shape data — canonical GeoJSON geometry; authoritative when provided.
+    [StringLength(50000)]
+    public string? Geometry { get; set; }
+
+    // Legacy ring/coordinate blob (optional — canonical geometry is preferred).
+    [StringLength(50000)]
+    public string? Coordinates { get; set; }
 
     [Range(-90, 90)]
     public double? CenterLatitude { get; set; }
@@ -309,7 +380,10 @@ public class UpdateGeofenceDto
     [Range(0, 2)]
     public int? Type { get; set; }
 
-    // Shape data
+    // Shape data — canonical GeoJSON geometry; replaces the shape when provided.
+    [StringLength(50000)]
+    public string? Geometry { get; set; }
+
     [StringLength(50000, MinimumLength = 2)]
     public string? Coordinates { get; set; }
 
@@ -339,4 +413,17 @@ public class UpdateGeofenceDto
 
     [Range(1, 1440)]
     public int? DwellTimeMinutes { get; set; }
+}
+
+/// <summary>Bulk geofence import: "csv" (name,latitude,longitude,radius) or "geojson" (FeatureCollection).</summary>
+public class ImportGeofencesDto
+{
+    /// <summary>Only honored for SuperAdmin; company users are scoped to their own company.</summary>
+    public Guid? CompanyId { get; set; }
+
+    [Required]
+    public string Format { get; set; } = "csv"; // "csv" | "geojson"
+
+    [Required]
+    public string Content { get; set; } = string.Empty;
 }

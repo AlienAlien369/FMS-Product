@@ -1,18 +1,27 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from '../components/TargetCompanyField';
+import GeofenceMapPane from '../components/GeofenceMapPane';
+import GeofenceImportTab from '../components/GeofenceImportTab';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   Eye, X, MapPin, Circle, Square, Hexagon, AlertTriangle, Shield, Target,
 } from 'lucide-react';
+import {
+  parseShape, serializeShape, validateShape, shapeSummary, circleFromLatLng, deriveLegacyPolygon,
+  type GeoShape, type CircleShape,
+} from '../lib/geofenceGeometry';
 
 // ── Types ────────────────────────────────────────────────
 interface GeofenceDetail {
   id: string; name: string; description?: string;
   type: number; typeName: string; status: number; companyName: string;
-  coordinates: string; centerLatitude?: number; centerLongitude?: number; radius?: number;
+  coordinates: string; geometry?: string;
+  centerLatitude?: number; centerLongitude?: number; radius?: number;
   fillColor?: string; borderColor?: string; borderWidth?: number;
   alertOnEntry: boolean; alertOnExit: boolean; alertOnDwell: boolean; dwellTimeMinutes?: number;
   assignedVehicleCount: number; violationCount: number; createdAt: string;
@@ -59,6 +68,7 @@ export default function GeofencesPage() {
   const canEdit = can('geofence.update');
   const canDelete = can('geofence.delete');
   const canExport = can('geofence.export');
+  const canImport = can('geofence.import');
 
   const [data, setData] = useState<PagedResult<GeofenceDetail> | null>(null);
   const [stats, setStats] = useState<GeofenceStats | null>(null);
@@ -293,47 +303,139 @@ export default function GeofencesPage() {
 
       {/* View / Create / Edit Modal */}
       {modal.open && <GeofenceModal geofence={modal.edit || modal.view} isView={!!modal.view && !modal.edit} onClose={() => setModal({ open: false })}
-        onSaved={() => { setModal({ open: false }); fetchData(); fetchStats(); }} canEdit={canEdit} />}
+        onSaved={() => { setModal({ open: false }); fetchData(); fetchStats(); }} canEdit={canEdit} canImport={canImport} />}
     </div>
   );
 }
 
 // ── Geofence Modal ───────────────────────────────────────
-function GeofenceModal({ geofence, isView, onClose, onSaved, canEdit }: {
-  geofence?: GeofenceDetail; isView: boolean; onClose: () => void; onSaved: () => void; canEdit: boolean;
+type ShapeTab = 'radius' | 'draw' | 'import';
+
+function GeofenceModal({ geofence, isView, onClose, onSaved, canEdit, canImport }: {
+  geofence?: GeofenceDetail; isView: boolean; onClose: () => void; onSaved: () => void; canEdit: boolean; canImport: boolean;
 }) {
-  const [form, setForm] = useState({
-    name: geofence?.name ?? '', description: geofence?.description ?? '',
-    type: geofence?.type ?? 0,
-    coordinates: geofence?.coordinates ?? '[]', centerLatitude: geofence?.centerLatitude ?? 0, centerLongitude: geofence?.centerLongitude ?? 0,
-    radius: geofence?.radius ?? 500, fillColor: geofence?.fillColor ?? '#4CAF5033', borderColor: geofence?.borderColor ?? '#4CAF50', borderWidth: geofence?.borderWidth ?? 2,
-    alertOnEntry: geofence?.alertOnEntry ?? true, alertOnExit: geofence?.alertOnExit ?? true, alertOnDwell: geofence?.alertOnDwell ?? false,
-    dwellTimeMinutes: geofence?.dwellTimeMinutes ?? 10,
-    status: geofence?.status ?? 0,
-  });
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
+
+  // One geometry state per geofence — the radius fields and the draw pane are two editors over it.
+  const initialShape = useMemo(() => {
+    const parsed = parseShape(geofence?.geometry);
+    if (parsed) return parsed;
+    // Legacy rectangle/polygon rows (no canonical Geometry yet) → derive from the Coordinates ring.
+    const legacy = deriveLegacyPolygon(geofence?.coordinates, geofence?.type);
+    if (legacy) return legacy;
+    // Pre-migration circle rows → derive from the flat fields.
+    if (geofence && geofence.type === 0 && geofence.centerLatitude != null && geofence.centerLongitude != null && geofence.radius != null)
+      return circleFromLatLng(geofence.centerLatitude, geofence.centerLongitude, geofence.radius);
+    return null;
+  }, [geofence]);
+
+  const [tab, setTab] = useState<ShapeTab>(() => (initialShape?.type === 'polygon' ? 'draw' : 'radius'));
+  const [shape, setShape] = useState<GeoShape | null>(initialShape);
+  const [name, setName] = useState(geofence?.name ?? '');
+  const [description, setDescription] = useState(geofence?.description ?? '');
+
+  // Radius/address-path fields as strings so entry is free-form while typing.
+  const [latStr, setLatStr] = useState(() =>
+    initialShape?.type === 'circle' ? String(initialShape.center[1]) : geofence?.centerLatitude != null ? String(geofence.centerLatitude) : '');
+  const [lngStr, setLngStr] = useState(() =>
+    initialShape?.type === 'circle' ? String(initialShape.center[0]) : geofence?.centerLongitude != null ? String(geofence.centerLongitude) : '');
+  const [radiusStr, setRadiusStr] = useState(() =>
+    initialShape?.type === 'circle' ? String(initialShape.radiusMeters) : geofence?.radius != null ? String(geofence.radius) : '');
+
+  const [fillColor, setFillColor] = useState(geofence?.fillColor ?? '#4CAF5033');
+  const [borderColor, setBorderColor] = useState(geofence?.borderColor ?? '#4CAF50');
+  const [borderWidth, setBorderWidth] = useState(geofence?.borderWidth ?? 2);
+  const [alertOnEntry, setAlertOnEntry] = useState(geofence?.alertOnEntry ?? true);
+  const [alertOnExit, setAlertOnExit] = useState(geofence?.alertOnExit ?? true);
+  const [alertOnDwell, setAlertOnDwell] = useState(geofence?.alertOnDwell ?? false);
+  const [dwellTimeMinutes, setDwellTimeMinutes] = useState(geofence?.dwellTimeMinutes ?? 10);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const buildCircleFields = (): CircleShape | null => {
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
+    const r = parseFloat(radiusStr);
+    if (!isFinite(lat) || !isFinite(lng) || !isFinite(r) || radiusStr.trim() === '') return null;
+    return circleFromLatLng(lat, lng, r);
+  };
+
+  /** Radius-tab edits update the shared circle shape (never a drawn polygon). */
+  const editRadiusField = (which: 'lat' | 'lng' | 'radius', value: string) => {
+    const next = { lat: latStr, lng: lngStr, radius: radiusStr, [which]: value };
+    setLatStr(next.lat); setLngStr(next.lng); setRadiusStr(next.radius);
+    const lat = parseFloat(next.lat);
+    const lng = parseFloat(next.lng);
+    const r = parseFloat(next.radius);
+    const complete = isFinite(lat) && isFinite(lng) && isFinite(r) && next.radius.trim() !== '';
+    setShape(cur => {
+      if (cur && cur.type === 'polygon') return cur; // radius tab never clobbers a polygon
+      return complete ? circleFromLatLng(lat, lng, r) : null;
+    });
+  };
+
+  /** Draw-pane output is authoritative; a drawn circle auto-fills the radius fields. */
+  const handleMapShape = (s: GeoShape | null) => {
+    setShape(s);
+    if (s?.type === 'circle') {
+      setLatStr(String(s.center[1])); setLngStr(String(s.center[0])); setRadiusStr(String(s.radiusMeters));
+    }
+  };
+
+  const fieldCircle = buildCircleFields();
+  const fieldErr = fieldCircle ? validateShape(fieldCircle) : null;
+  const fieldPartial = !!latStr || !!lngStr || !!radiusStr;
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) { setError('Name is required'); return; }
+    if (!name.trim()) { setError('Name is required'); return; }
+    if (!geofence && isCrossTenant && needsPick) { setError('Select the company this geofence belongs to'); return; }
+    const effective = shape ?? fieldCircle;
+    const verr = validateShape(effective);
+    if (verr) { setError(verr); return; }
     setSaving(true); setError('');
+    const payload: Record<string, unknown> = {
+      name: name.trim(), description: description.trim() || null,
+      fillColor, borderColor, borderWidth,
+      alertOnEntry, alertOnExit, alertOnDwell, dwellTimeMinutes,
+      geometry: serializeShape(effective!) ?? undefined,
+    };
+    if (effective!.type === 'polygon') payload.type = 2;
+    else {
+      const c = effective! as CircleShape;
+      payload.type = 0;
+      payload.centerLatitude = c.center[1];
+      payload.centerLongitude = c.center[0];
+      payload.radius = c.radiusMeters;
+    }
     try {
-      if (geofence) { await api.put(`/geofences/${geofence.id}`, form); }
-      else { await api.post('/geofences', form); }
+      if (geofence) await api.put(`/geofences/${geofence.id}`, payload);
+      else await api.post('/geofences', { ...payload, ...(isCrossTenant ? { companyId: targetCompanyId } : {}) });
       onSaved();
     } catch (err: any) { setError(err.response?.data?.message ?? 'Failed to save geofence'); }
     setSaving(false);
   };
 
   const readonly = isView || !canEdit;
+  const viewShape = useMemo(() => parseShape(geofence?.geometry), [geofence]);
+  const viewCenter = viewShape?.type === 'circle'
+    ? { lat: viewShape.center[1], lng: viewShape.center[0], radius: viewShape.radiusMeters }
+    : geofence?.centerLatitude != null && geofence?.centerLongitude != null
+      ? { lat: geofence.centerLatitude, lng: geofence.centerLongitude, radius: geofence.radius ?? 0 }
+      : null;
+
+  const tabBtn = (key: ShapeTab, label: string, available: boolean) => (
+    <button type="button" onClick={() => available && setTab(key)}
+      className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${tab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'} ${available ? '' : 'hidden'}`}>
+      {label}
+    </button>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">{isView ? 'Geofence Details' : geofence ? 'Edit Geofence' : 'Create Geofence'}</h2>
+          <h2 className="text-lg font-semibold">{isView ? 'Geofence Details' : geofence ? 'Edit Geofence' : 'New Geofence'}</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
         </div>
 
@@ -344,8 +446,16 @@ function GeofenceModal({ geofence, isView, onClose, onSaved, canEdit }: {
               <div><p className="text-xs text-gray-500">Company</p><p className="font-medium">{geofence.companyName}</p></div>
               <div><p className="text-xs text-gray-500">Type</p><span className={`px-2 py-1 rounded-full text-xs font-medium ${(TYPE_MAP[geofence.type] ?? TYPE_MAP[0]).color}`}>{(TYPE_MAP[geofence.type] ?? TYPE_MAP[0]).label}</span></div>
               <div><p className="text-xs text-gray-500">Status</p><span className={`px-2 py-1 rounded-full text-xs font-medium ${(STATUS_MAP[geofence.status] ?? STATUS_MAP[0]).color}`}>{(STATUS_MAP[geofence.status] ?? STATUS_MAP[0]).label}</span></div>
-              <div><p className="text-xs text-gray-500">Center</p><p className="font-medium">{geofence.centerLatitude?.toFixed(4)}, {geofence.centerLongitude?.toFixed(4)}</p></div>
-              {geofence.radius && <div><p className="text-xs text-gray-500">Radius</p><p className="font-medium">{geofence.radius}m</p></div>}
+              {viewShape?.type === 'polygon' ? (
+                <div className="col-span-2"><p className="text-xs text-gray-500">Shape</p><p className="font-medium">{shapeSummary(viewShape)}</p></div>
+              ) : viewCenter ? (
+                <>
+                  <div><p className="text-xs text-gray-500">Center</p><p className="font-medium">{viewCenter.lat.toFixed(4)}, {viewCenter.lng.toFixed(4)}</p></div>
+                  <div><p className="text-xs text-gray-500">Radius</p><p className="font-medium">{viewCenter.radius}m</p></div>
+                </>
+              ) : (
+                <div className="col-span-2"><p className="text-xs text-gray-500">Location</p><p className="font-medium">—</p></div>
+              )}
             </div>
             {geofence.description && <div><p className="text-xs text-gray-500">Description</p><p className="text-sm text-gray-700">{geofence.description}</p></div>}
 
@@ -368,35 +478,78 @@ function GeofenceModal({ geofence, isView, onClose, onSaved, canEdit }: {
           <div className="p-6 space-y-4">
             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className={LABEL}>Name *</label><input className={INPUT} value={form.name} onChange={e => set('name', e.target.value)} /></div>
-              <div><label className={LABEL}>Type</label>
-                <select className={INPUT} value={form.type} onChange={e => set('type', Number(e.target.value))}>
-                  <option value={0}>Circle</option><option value={1}>Rectangle</option><option value={2}>Polygon</option>
-                </select>
+            {!geofence && <TargetCompanyField hook={tgt} error={error} />}
+
+            <div><label className={LABEL}>Name *</label><input className={INPUT} value={name} onChange={e => setName(e.target.value)} /></div>
+            <div><label className={LABEL}>Description</label><textarea className={INPUT} rows={2} value={description} onChange={e => setDescription(e.target.value)} /></div>
+
+            {/* Shape tabs — two input modes over one geometry, plus bulk import on create. */}
+            <div>
+              <div className="flex items-center gap-1 border-b border-gray-200">
+                {tabBtn('radius', 'Search / Radius', true)}
+                {tabBtn('draw', 'Draw on Map', true)}
+                {tabBtn('import', 'Bulk Import', !geofence && canImport)}
+              </div>
+
+              <div className="pt-4">
+                {tab === 'radius' && (
+                  <div className="space-y-3">
+                    {shape?.type === 'polygon' ? (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                        This geofence is a polygon — {shapeSummary(shape)}. Draw-and-edit it on the <strong>Draw on Map</strong> tab;
+                        the radius search only applies to circle geofences.
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-500">
+                          Define a radius geofence by center coordinates. Radius limits: 10 m – 50 km.
+                          Drawing a circle on the map auto-fills these fields.
+                        </p>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div><label className={LABEL}>Center Latitude</label>
+                            <input inputMode="decimal" placeholder="e.g. 28.6139" className={INPUT} value={latStr} onChange={e => editRadiusField('lat', e.target.value)} /></div>
+                          <div><label className={LABEL}>Center Longitude</label>
+                            <input inputMode="decimal" placeholder="e.g. 77.2090" className={INPUT} value={lngStr} onChange={e => editRadiusField('lng', e.target.value)} /></div>
+                          <div><label className={LABEL}>Radius (m) *</label>
+                            <input inputMode="decimal" placeholder="e.g. 500" className={INPUT} value={radiusStr} onChange={e => editRadiusField('radius', e.target.value)} /></div>
+                        </div>
+                        {fieldErr ? (
+                          <p className="text-xs text-red-600">{fieldErr}</p>
+                        ) : fieldCircle ? (
+                          <p className="text-xs text-green-600">{shapeSummary(fieldCircle)} — ready to save.</p>
+                        ) : fieldPartial ? (
+                          <p className="text-xs text-amber-600">Enter latitude, longitude and a radius (at least 10 m) to define the circle.</p>
+                        ) : (
+                          <p className="text-xs text-gray-400">Leave blank and draw on the map instead.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {tab === 'draw' && (
+                  <GeofenceMapPane initialShape={shape ?? null} onChange={handleMapShape} readOnly={readonly} />
+                )}
+
+                {tab === 'import' && !geofence && (
+                  <GeofenceImportTab companyId={isCrossTenant ? targetCompanyId : undefined} isCrossTenant={isCrossTenant} onImported={onSaved} />
+                )}
               </div>
             </div>
-            <div><label className={LABEL}>Description</label><textarea className={INPUT} rows={2} value={form.description} onChange={e => set('description', e.target.value)} /></div>
 
             <div className="grid grid-cols-3 gap-4">
-              <div><label className={LABEL}>Center Latitude</label><input type="number" step="any" className={INPUT} value={form.centerLatitude} onChange={e => set('centerLatitude', Number(e.target.value))} /></div>
-              <div><label className={LABEL}>Center Longitude</label><input type="number" step="any" className={INPUT} value={form.centerLongitude} onChange={e => set('centerLongitude', Number(e.target.value))} /></div>
-              <div><label className={LABEL}>Radius (m)</label><input type="number" className={INPUT} value={form.radius} onChange={e => set('radius', Number(e.target.value))} /></div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className={LABEL}>Fill Color</label><input type="color" className={INPUT} value={form.fillColor?.slice(0, 7) ?? '#4CAF50'} onChange={e => set('fillColor', `${e.target.value}33`)} /></div>
-              <div><label className={LABEL}>Border Color</label><input type="color" className={INPUT} value={form.borderColor ?? '#4CAF50'} onChange={e => set('borderColor', e.target.value)} /></div>
-              <div><label className={LABEL}>Border Width</label><input type="number" min={1} max={10} className={INPUT} value={form.borderWidth} onChange={e => set('borderWidth', Number(e.target.value))} /></div>
+              <div><label className={LABEL}>Fill Color</label><input type="color" className={INPUT} value={fillColor.slice(0, 7)} onChange={e => setFillColor(`${e.target.value}33`)} /></div>
+              <div><label className={LABEL}>Border Color</label><input type="color" className={INPUT} value={borderColor} onChange={e => setBorderColor(e.target.value)} /></div>
+              <div><label className={LABEL}>Border Width</label><input type="number" min={1} max={10} className={INPUT} value={borderWidth} onChange={e => setBorderWidth(Number(e.target.value))} /></div>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <h4 className="text-sm font-medium">Alert Settings</h4>
               <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.alertOnEntry} onChange={e => set('alertOnEntry', e.target.checked)} className="rounded" />On Entry</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.alertOnExit} onChange={e => set('alertOnExit', e.target.checked)} className="rounded" />On Exit</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.alertOnDwell} onChange={e => set('alertOnDwell', e.target.checked)} className="rounded" />On Dwell</label>
-                {form.alertOnDwell && <input type="number" min={1} className="w-20 px-2 py-1 border rounded text-sm" value={form.dwellTimeMinutes} onChange={e => set('dwellTimeMinutes', Number(e.target.value))} placeholder="min" />}
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alertOnEntry} onChange={e => setAlertOnEntry(e.target.checked)} className="rounded" />On Entry</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alertOnExit} onChange={e => setAlertOnExit(e.target.checked)} className="rounded" />On Exit</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alertOnDwell} onChange={e => setAlertOnDwell(e.target.checked)} className="rounded" />On Dwell</label>
+                {alertOnDwell && <input type="number" min={1} className="w-20 px-2 py-1 border rounded text-sm" value={dwellTimeMinutes} onChange={e => setDwellTimeMinutes(Number(e.target.value))} placeholder="min" />}
               </div>
             </div>
           </div>

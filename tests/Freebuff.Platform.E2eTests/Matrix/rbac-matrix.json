@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-04T00:36:21.8164169Z",
+  "generatedAt": "2026-09-04T11:27:00.5096481Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -33,6 +33,18 @@
         "dashboard.import",
         "dashboard.update",
         "dashboard.view",
+        "device.create",
+        "device.delete",
+        "device.export",
+        "device.import",
+        "device.update",
+        "device.view",
+        "devicevendor.create",
+        "devicevendor.delete",
+        "devicevendor.export",
+        "devicevendor.import",
+        "devicevendor.update",
+        "devicevendor.view",
         "document.create",
         "document.delete",
         "document.export",
@@ -240,6 +252,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -1193,6 +1253,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -1204,7 +1312,7 @@
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "1efa1db6-9da3-4bf0-b3dd-9bcabefe8e3c",
+      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -1224,6 +1332,12 @@
         "dashboard.import",
         "dashboard.update",
         "dashboard.view",
+        "device.create",
+        "device.delete",
+        "device.export",
+        "device.import",
+        "device.update",
+        "device.view",
         "document.create",
         "document.delete",
         "document.export",
@@ -1383,6 +1497,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -2336,6 +2498,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -2347,7 +2557,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "1efa1db6-9da3-4bf0-b3dd-9bcabefe8e3c",
+      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -2355,6 +2565,12 @@
         "organization"
       ],
       "effective": [
+        "device.create",
+        "device.delete",
+        "device.export",
+        "device.import",
+        "device.update",
+        "device.view",
         "driver.create",
         "driver.delete",
         "driver.export",
@@ -2472,6 +2688,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -3425,6 +3689,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -3436,7 +3748,7 @@
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "1efa1db6-9da3-4bf0-b3dd-9bcabefe8e3c",
+      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -3553,6 +3865,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -4506,6 +4866,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -4517,7 +4925,7 @@
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "1efa1db6-9da3-4bf0-b3dd-9bcabefe8e3c",
+      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4649,6 +5057,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -5602,6 +6058,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -5613,7 +6117,7 @@
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "f73fa6c9-8893-42c6-bb75-891a3fec03a6",
+      "companyId": "a2a5281d-b88a-4e0e-8dfb-150ece03db5c",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -5626,6 +6130,12 @@
         "dashboard.import",
         "dashboard.update",
         "dashboard.view",
+        "device.create",
+        "device.delete",
+        "device.export",
+        "device.import",
+        "device.update",
+        "device.view",
         "driver.create",
         "driver.delete",
         "driver.export",
@@ -5749,6 +6259,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -6702,6 +7260,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -6713,7 +7319,7 @@
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "f73fa6c9-8893-42c6-bb75-891a3fec03a6",
+      "companyId": "a2a5281d-b88a-4e0e-8dfb-150ece03db5c",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -6824,6 +7430,54 @@
           "httpTested": false
         },
         {
+          "page": "device",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "device",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "driver",
           "action": "view",
           "expected": true,
@@ -7777,6 +8431,54 @@
         },
         {
           "page": "module",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "devicevendor",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -7813,8 +8515,8 @@
     }
   ],
   "coverage": {
-    "totalCells": 924,
-    "cellsCoveredByPermMatrix": 924,
+    "totalCells": 1008,
+    "cellsCoveredByPermMatrix": 1008,
     "cellsWithHttpEndpointTest": 217
   }
 }

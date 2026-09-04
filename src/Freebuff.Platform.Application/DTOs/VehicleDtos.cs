@@ -41,6 +41,8 @@ public class VehicleDto
 
 public class CreateVehicleDto
 {
+    /// <summary>Only honored for SuperAdmin; company users are scoped to their own company.</summary>
+    public Guid? CompanyId { get; set; }
     public string RegistrationNumber { get; set; } = string.Empty;
     public string? Name { get; set; }
     public string? VehicleType { get; set; }
@@ -114,6 +116,8 @@ public class DriverDto
 
 public class CreateDriverDto
 {
+    /// <summary>Only honored for SuperAdmin; company users are scoped to their own company.</summary>
+    public Guid? CompanyId { get; set; }
     public string EmployeeId { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;

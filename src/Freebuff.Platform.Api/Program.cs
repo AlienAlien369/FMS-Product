@@ -51,6 +51,7 @@ else
     builder.Services.AddDistributedMemoryCache();
 }
 builder.Services.AddScoped<Freebuff.Platform.Infrastructure.CompanyScope.ICompanyScopeResolver, Freebuff.Platform.Infrastructure.CompanyScope.CompanyScopeResolver>();
+builder.Services.AddScoped<Freebuff.Platform.Infrastructure.CompanyScope.TargetCompanyResolver>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import api, { type PagedResult, type Device, type DeviceVendor, type DeviceSim, type Company } from '../lib/api';
+import api, { type PagedResult, type Device, type DeviceVendor, type DeviceSim } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
-import { useAuth } from '../contexts/AuthContext';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { useTargetCompany } from '../hooks/useTargetCompany';
+import TargetCompanyField from '../components/TargetCompanyField';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   X, Radio, Cpu, CreditCard,
@@ -38,16 +39,13 @@ interface SimDraft { iccid: string; phoneNumber: string; carrier: string; isPrim
 
 export default function Devices() {
   const { can } = usePermissions();
-  const { user } = useAuth();
   const { version: scopeVersion, isMultiCompany, companyName } = useCompanyScope();
-  const isSuperAdmin = !!user?.roles?.includes('SuperAdmin');
   const canCreate = can('device.create');
   const canEdit = can('device.update');
   const canDelete = can('device.delete');
 
   const [data, setData] = useState<PagedResult<Device> | null>(null);
   const [vendors, setVendors] = useState<DeviceVendor[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -72,16 +70,8 @@ export default function Devices() {
     try { const res = await api.get('/devices/vendors'); setVendors(res.data.data || []); } catch { /* ignore */ }
   }, []);
 
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const res = await api.get('/admin/companies?pageSize=100');
-      setCompanies((res.data.data?.items || []).filter((c: Company) => c.status === 0));
-    } catch { /* ignore */ }
-  }, []);
-
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchVendors(); }, [fetchVendors]);
-  useEffect(() => { if (isSuperAdmin) fetchCompanies(); }, [isSuperAdmin, fetchCompanies]);
 
   const handleDelete = async (d: Device) => {
     try { await api.delete(`/devices/${d.id}`); setDeleteConfirm(null); fetchData(); }
@@ -200,7 +190,7 @@ export default function Devices() {
 
       {/* Create / Edit modal */}
       {modal.open && <DeviceModal
-        edit={modal.edit} vendors={vendors} companies={companies} isSuperAdmin={isSuperAdmin}
+        edit={modal.edit} vendors={vendors}
         onClose={() => setModal({ open: false })} onSaved={onSaved} />}
 
       {/* SIMs modal */}
@@ -226,9 +216,10 @@ export default function Devices() {
 }
 
 // ── Device create/edit modal ─────────────────────────────
-function DeviceModal({ edit, vendors, companies, isSuperAdmin, onClose, onSaved }:
-  { edit?: Device; vendors: DeviceVendor[]; companies: Company[]; isSuperAdmin: boolean; onClose: () => void; onSaved: () => void }) {
-  const [companyId, setCompanyId] = useState('');
+function DeviceModal({ edit, vendors, onClose, onSaved }:
+  { edit?: Device; vendors: DeviceVendor[]; onClose: () => void; onSaved: () => void }) {
+  const tgt = useTargetCompany();
+  const { isCrossTenant, needsPick, targetCompanyId } = tgt;
   const [vendorCode, setVendorCode] = useState(edit?.vendorCode || '');
   const [deviceType, setDeviceType] = useState(edit?.deviceType ?? 0);
   const [identityType, setIdentityType] = useState(edit?.identityType ?? 0);
@@ -244,14 +235,14 @@ function DeviceModal({ edit, vendors, companies, isSuperAdmin, onClose, onSaved 
     setError('');
     if (!identityValue.trim()) { setError('Device identity (IMEI/serial) is required'); return; }
     if (!edit && !vendorCode) { setError('Select a vendor'); return; }
-    if (!edit && isSuperAdmin && !companyId) { setError('Select the company this device belongs to'); return; }
+    if (!edit && isCrossTenant && needsPick) { setError('Select the company this device belongs to'); return; }
     setSaving(true);
     try {
       if (edit) {
         await api.put(`/devices/${edit.id}`, { deviceType, model, firmwareVersion: firmware, status });
       } else {
         const payload: any = { vendorCode, deviceType, identityType, identityValue: identityValue.trim(), model, firmwareVersion: firmware };
-        if (isSuperAdmin) payload.companyId = companyId;
+        if (isCrossTenant) payload.companyId = targetCompanyId;
         if (sims.length > 0) payload.sims = sims;
         await api.post('/devices', payload);
       }
@@ -270,16 +261,7 @@ function DeviceModal({ edit, vendors, companies, isSuperAdmin, onClose, onSaved 
         <div className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
-          {!edit && isSuperAdmin && (
-            <div>
-              <label className={LABEL}>Company *</label>
-              <select value={companyId} onChange={e => setCompanyId(e.target.value)} className={INPUT}>
-                <option value="">Select company...</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                {companies.length === 0 && <option value="" disabled>No companies available</option>}
-              </select>
-            </div>
-          )}
+          {!edit && <TargetCompanyField hook={tgt} error={error} />}
 
           {!edit && (
             <div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { Truck, Users, Route, Map, Zap, Wrench, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
@@ -16,6 +17,7 @@ interface Stats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { version: scopeVersion, scopeLabel, isMultiCompany } = useCompanyScope();
   const [stats, setStats] = useState<Stats | null>(null);
   const [vehicleStatus, setVehicleStatus] = useState<{ Status: string; Count: number }[]>([]);
   const [fuelTypes, setFuelTypes] = useState<{ FuelType: string; Count: number }[]>([]);
@@ -46,7 +48,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     fetchAll();
-  }, []);
+  }, [scopeVersion]);
 
   const statCards = stats ? [
     { label: 'Total Vehicles', value: stats.vehicles.total, sub: `${stats.vehicles.active} active`, icon: Truck, color: 'bg-blue-500' },
@@ -212,6 +214,7 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{v.registrationNumber} — {title}</div>
                     <div className="text-xs text-gray-500">
+                      {isMultiCompany && v.companyName ? <span className="font-medium text-gray-600">{v.companyName} · </span> : null}
                       {sub} {v.driverName ? `• Driver: ${v.driverName}` : ''}
                     </div>
                   </div>

@@ -37,6 +37,21 @@ builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // ── Authentication ───────────────────────────────────────
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "DevSecretKey_Change_In_Production_32chars!";
+// Distributed cache for the permitted-company set: Redis when configured (prod),
+// in-memory otherwise (local dev) — see Redis:Url config / REDIS_URL env.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Redis:Url"])
+    || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("REDIS_URL")))
+{
+    var redisUrl = builder.Configuration["Redis:Url"]
+        ?? Environment.GetEnvironmentVariable("REDIS_URL");
+    builder.Services.AddStackExchangeRedisCache(o => { o.Configuration = redisUrl; o.InstanceName = "freebuff:"; });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+builder.Services.AddScoped<Freebuff.Platform.Infrastructure.CompanyScope.ICompanyScopeResolver, Freebuff.Platform.Infrastructure.CompanyScope.CompanyScopeResolver>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -141,6 +156,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+// Resolves X-Company-Scope into an effective per-request company scope (stateless).
+app.UseMiddleware<CompanyScopeMiddleware>();
 
 app.MapControllers();
 app.MapHealthChecks("/health");

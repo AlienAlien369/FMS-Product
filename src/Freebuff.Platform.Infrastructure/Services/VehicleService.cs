@@ -2,6 +2,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Application.Interfaces;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -50,8 +51,8 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
             .Where(v => !v.IsDeleted)
             .AsQueryable();
 
-        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
-            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        query = query.InEffectiveCompanyScope(_tenant.Scope, v => v.CompanyId);
 
         if (status.HasValue)
             query = query.Where(v => (int)v.Status == status.Value);
@@ -98,6 +99,7 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
                 ChassisNumber = v.ChassisNumber,
                 VinNumber = v.VinNumber,
                 CompanyId = v.CompanyId,
+                CompanyName = v.Company != null ? v.Company.Name : null,
                 DriverId = v.DriverId,
                 DriverName = v.Driver != null ? v.Driver.FirstName + " " + v.Driver.LastName : null,
                 ClientId = v.ClientId,

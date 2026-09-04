@@ -17,6 +17,7 @@ public class VehicleDto
     public string? ChassisNumber { get; set; }
     public string? VinNumber { get; set; }
     public Guid CompanyId { get; set; }
+    public string? CompanyName { get; set; }
     public Guid? DriverId { get; set; }
     public string? DriverName { get; set; }
     public Guid? ClientId { get; set; }

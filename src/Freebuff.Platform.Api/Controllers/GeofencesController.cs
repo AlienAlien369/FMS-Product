@@ -4,6 +4,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Shared.Models;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +18,8 @@ namespace Freebuff.Platform.Api.Controllers;
 public class GeofencesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public GeofencesController(ApplicationDbContext db) => _db = db;
+    private readonly ITenantContext _tenant;
+    public GeofencesController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
 
     private Guid GetTenantId() => Guid.Parse(User.FindFirstValue("tenant_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsSuperAdmin() => User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
@@ -30,11 +32,10 @@ public class GeofencesController : ControllerBase
         [FromQuery] int? status = null, [FromQuery] int? type = null,
         [FromQuery] string? sortBy = null, [FromQuery] bool sortDesc = false)
     {
-        var tenantId = GetTenantId();
-        var isSuperAdmin = IsSuperAdmin();
-
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var query = _db.Geofences.AsNoTracking()
-            .Where(g => !g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId))
+            .Where(g => !g.IsDeleted && (scope == null || scope.Contains(g.CompanyId)))
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -81,9 +82,13 @@ public class GeofencesController : ControllerBase
     [RequirePermission("geofence.view")]
     public async Task<IActionResult> GetStats()
     {
-        var tenantId = GetTenantId();
-        var isSuperAdmin = IsSuperAdmin();
-        var query = _db.Geofences.AsNoTracking().Where(g => !g.IsDeleted && (isSuperAdmin || g.CompanyId == tenantId));
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set.
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var query = _db.Geofences.AsNoTracking().Where(g => !g.IsDeleted && (scope == null || scope.Contains(g.CompanyId)));
+
+        var assignmentsQuery = scope == null
+            ? _db.VehicleGeofences.AsNoTracking().Where(vg => !vg.IsDeleted)
+            : _db.VehicleGeofences.AsNoTracking().Where(vg => !vg.IsDeleted && scope.Contains(vg.Geofence.CompanyId));
 
         return Ok(new ApiResponse<object>
         {
@@ -96,8 +101,7 @@ public class GeofencesController : ControllerBase
                 Circles = await query.CountAsync(g => g.Type == GeofenceType.Circle),
                 Rectangles = await query.CountAsync(g => g.Type == GeofenceType.Rectangle),
                 Polygons = await query.CountAsync(g => g.Type == GeofenceType.Polygon),
-                TotalAssignments = await _db.VehicleGeofences.AsNoTracking()
-                    .Where(vg => !vg.IsDeleted && (isSuperAdmin || vg.Geofence.CompanyId == tenantId)).CountAsync(),
+                TotalAssignments = await assignmentsQuery.CountAsync(),
                 TotalViolations = await query.SumAsync(g => g.ViolationCount)
             }
         });

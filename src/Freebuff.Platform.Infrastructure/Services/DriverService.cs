@@ -2,6 +2,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Application.Interfaces;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,8 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
     public async Task<PagedResult<DriverDto>> GetListAsync(PagedRequest filter, int? status)
     {
         var query = _db.Drivers.AsNoTracking().Where(d => !d.IsDeleted).AsQueryable();
-        if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin) query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        query = query.InEffectiveCompanyScope(_tenant.Scope, d => d.CompanyId);
 
         if (status.HasValue)
             query = query.Where(d => (int)d.Status == status.Value);

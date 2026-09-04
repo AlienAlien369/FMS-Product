@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -51,6 +52,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 // ── Main Component ───────────────────────────────────────
 export default function Drivers() {
   const { can } = usePermissions();
+  const { version: scopeVersion, isMultiCompany } = useCompanyScope();
   const canCreate = can('driver.create');
   const canEdit = can('driver.update');
   const canDelete = can('driver.delete');
@@ -75,11 +77,11 @@ export default function Drivers() {
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, sort, statusFilter]);
+  }, [page, search, sort, statusFilter, scopeVersion]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/drivers/stats'); setStats(res.data.data); } catch { /* ignore */ }
-  }, []);
+  }, [scopeVersion]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -194,7 +196,12 @@ export default function Drivers() {
                           {d.firstName?.[0]}{d.lastName?.[0]}
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{d.fullName}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-gray-900">{d.fullName}</div>
+                            {isMultiCompany && d.companyName && (
+                              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title={d.companyName}>{d.companyName}</span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-400">{d.city || '\u2014'}{d.country ? `, ${d.country}` : ''}</div>
                         </div>
                       </div>

@@ -2,6 +2,7 @@ using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
@@ -17,17 +18,16 @@ namespace Freebuff.Platform.Api.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public UsersController(ApplicationDbContext db) => _db = db;
+    private readonly ITenantContext _tenant;
+    public UsersController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
 
     [HttpGet]
     [RequirePermission("user.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
-        var tenantId = User.GetTenantId();
-        var isSuperAdmin = User.IsSuperAdmin();
-
-        var query = _db.Users.AsNoTracking()
-            .Where(u => !u.IsDeleted && (isSuperAdmin || u.CompanyId == tenantId));
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var query = _db.Users.AsNoTracking().Where(u => !u.IsDeleted);
+        query = query.InEffectiveCompanyScope(_tenant.Scope, u => u.CompanyId);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(u => u.Email.Contains(filter.Search)
@@ -42,6 +42,7 @@ public class UsersController : ControllerBase
             {
                 u.Id, u.Email, u.FirstName, u.LastName, u.PhoneNumber,
                 CompanyId = u.CompanyId,
+                CompanyName = u.Company != null ? u.Company.Name : null,
                 Status = (int)u.Status, u.LastLoginAt, u.CreatedAt,
                 Roles = u.UserRoles.Where(ur => !ur.IsDeleted).Select(ur => ur.Role.Name).ToList(),
                 RoleIds = u.UserRoles.Where(ur => !ur.IsDeleted).Select(ur => ur.RoleId).ToList()

@@ -13,6 +13,22 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // Company scope selector: stateless header on every call. The backend treats it
+  // as intent only — it intersects it with the user's permitted-company set.
+  // sessionStorage keeps the JSON-array form; the header must be bare
+  // comma-separated ids (or ALL), so normalize here.
+  const scope = sessionStorage.getItem('companyScope');
+  if (scope && scope !== '') {
+    let headerValue: string | null = null;
+    if (scope === 'ALL') headerValue = 'ALL';
+    else if (scope.startsWith('[')) {
+      try {
+        const ids = JSON.parse(scope);
+        if (Array.isArray(ids) && ids.length > 0) headerValue = ids.join(',');
+      } catch { headerValue = null; }
+    } else if (scope.length > 0) headerValue = scope; // already comma-joined
+    if (headerValue) config.headers['X-Company-Scope'] = headerValue;
+  }
   return config;
 });
 

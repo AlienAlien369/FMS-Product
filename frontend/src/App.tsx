@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CompanyScopeProvider } from './contexts/CompanyScopeContext';
 import Layout from './components/Layout';
 import PermissionRoute from './components/PermissionRoute';
 import Login from './pages/Login';
@@ -62,9 +63,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <CompanyScopeProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </CompanyScopeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

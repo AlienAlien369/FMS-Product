@@ -1,7 +1,7 @@
 using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
-using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,25 +15,27 @@ namespace Freebuff.Platform.Api.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public DashboardController(ApplicationDbContext db) => _db = db;
+    private readonly ITenantContext _tenant;
+    public DashboardController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
 
     [HttpGet("stats")]
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
-        var tenantId = User.GetTenantId();
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (dashboards).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var now = DateTime.UtcNow;
 
-        var totalVehicles = await _db.Vehicles.CountAsync(v => v.CompanyId == tenantId && !v.IsDeleted);
-        var activeVehicles = await _db.Vehicles.CountAsync(v => v.CompanyId == tenantId && !v.IsDeleted && v.Status == VehicleStatus.Active);
-        var maintenanceVehicles = await _db.Vehicles.CountAsync(v => v.CompanyId == tenantId && !v.IsDeleted && v.Status == VehicleStatus.InMaintenance);
-        var totalDrivers = await _db.Drivers.CountAsync(d => d.CompanyId == tenantId && !d.IsDeleted);
-        var activeDrivers = await _db.Drivers.CountAsync(d => d.CompanyId == tenantId && !d.IsDeleted && d.Status == DriverStatus.Active);
-        var onTripDrivers = await _db.Drivers.CountAsync(d => d.CompanyId == tenantId && !d.IsDeleted && d.Status == DriverStatus.OnTrip);
-        var totalTrips = await _db.Trips.CountAsync(t => t.CompanyId == tenantId && !t.IsDeleted);
-        var activeTrips = await _db.Trips.CountAsync(t => t.CompanyId == tenantId && !t.IsDeleted && (t.Status == TripStatus.InProgress || t.Status == TripStatus.Started));
-        var totalUsers = await _db.Users.CountAsync(u => u.CompanyId == tenantId && !u.IsDeleted);
-        var totalGeofences = await _db.Geofences.CountAsync(g => g.CompanyId == tenantId && !g.IsDeleted);
+        var totalVehicles = await _db.Vehicles.CountAsync(v => !v.IsDeleted && (scope == null || scope.Contains(v.CompanyId)));
+        var activeVehicles = await _db.Vehicles.CountAsync(v => !v.IsDeleted && v.Status == VehicleStatus.Active && (scope == null || scope.Contains(v.CompanyId)));
+        var maintenanceVehicles = await _db.Vehicles.CountAsync(v => !v.IsDeleted && v.Status == VehicleStatus.InMaintenance && (scope == null || scope.Contains(v.CompanyId)));
+        var totalDrivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && (scope == null || scope.Contains(d.CompanyId)));
+        var activeDrivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && d.Status == DriverStatus.Active && (scope == null || scope.Contains(d.CompanyId)));
+        var onTripDrivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && d.Status == DriverStatus.OnTrip && (scope == null || scope.Contains(d.CompanyId)));
+        var totalTrips = await _db.Trips.CountAsync(t => !t.IsDeleted && (scope == null || scope.Contains(t.CompanyId)));
+        var activeTrips = await _db.Trips.CountAsync(t => !t.IsDeleted && (t.Status == TripStatus.InProgress || t.Status == TripStatus.Started) && (scope == null || scope.Contains(t.CompanyId)));
+        var totalUsers = await _db.Users.CountAsync(u => !u.IsDeleted && (scope == null || scope.Contains(u.CompanyId)));
+        var totalGeofences = await _db.Geofences.CountAsync(g => !g.IsDeleted && (scope == null || scope.Contains(g.CompanyId)));
 
         return Ok(ApiResponse<object>.Ok(new
         {
@@ -49,9 +51,9 @@ public class DashboardController : ControllerBase
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetVehiclesByStatus()
     {
-        var tenantId = User.GetTenantId();
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var data = await _db.Vehicles.AsNoTracking()
-            .Where(v => v.CompanyId == tenantId && !v.IsDeleted)
+            .Where(v => !v.IsDeleted && (scope == null || scope.Contains(v.CompanyId)))
             .GroupBy(v => v.Status)
             .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
             .ToListAsync();
@@ -63,9 +65,9 @@ public class DashboardController : ControllerBase
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetVehiclesByFuelType()
     {
-        var tenantId = User.GetTenantId();
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var data = await _db.Vehicles.AsNoTracking()
-            .Where(v => v.CompanyId == tenantId && !v.IsDeleted)
+            .Where(v => !v.IsDeleted && (scope == null || scope.Contains(v.CompanyId)))
             .GroupBy(v => v.FuelType)
             .Select(g => new { FuelType = g.Key.ToString(), Count = g.Count() })
             .ToListAsync();
@@ -77,9 +79,9 @@ public class DashboardController : ControllerBase
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetDriversByStatus()
     {
-        var tenantId = User.GetTenantId();
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var data = await _db.Drivers.AsNoTracking()
-            .Where(d => d.CompanyId == tenantId && !d.IsDeleted)
+            .Where(d => !d.IsDeleted && (scope == null || scope.Contains(d.CompanyId)))
             .GroupBy(d => d.Status)
             .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
             .ToListAsync();
@@ -91,9 +93,9 @@ public class DashboardController : ControllerBase
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetTopSafetyDrivers()
     {
-        var tenantId = User.GetTenantId();
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var data = await _db.Drivers.AsNoTracking()
-            .Where(d => d.CompanyId == tenantId && !d.IsDeleted && d.SafetyScore.HasValue)
+            .Where(d => !d.IsDeleted && d.SafetyScore.HasValue && (scope == null || scope.Contains(d.CompanyId)))
             .OrderByDescending(d => d.SafetyScore)
             .Take(8)
             .Select(d => new { d.Id, Name = d.FirstName + " " + d.LastName, d.SafetyScore, d.BehaviourScore, Status = d.Status.ToString() })
@@ -106,14 +108,15 @@ public class DashboardController : ControllerBase
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetRecentVehicles()
     {
-        var tenantId = User.GetTenantId();
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var data = await _db.Vehicles.AsNoTracking()
-            .Where(v => v.CompanyId == tenantId && !v.IsDeleted)
+            .Where(v => !v.IsDeleted && (scope == null || scope.Contains(v.CompanyId)))
             .OrderByDescending(v => v.LastLocationUpdate ?? v.CreatedAt)
             .Take(6)
             .Select(v => new
             {
                 v.Id, v.RegistrationNumber, v.Name, v.Make, v.Model,
+                CompanyName = v.Company != null ? v.Company.Name : null,
                 Status = v.Status.ToString(),
                 Speed = v.LastSpeed,
                 Ignition = v.IgnitionStatus,

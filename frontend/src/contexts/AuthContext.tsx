@@ -55,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<import('../lib/api').ApiResponse<AuthResponse>>('/auth/login', { email, password });
     const data = res.data.data;
     if (!data) throw new Error(res.data.message || 'Login failed');
+    // Company scope resets to the default (own company / All) on every new login.
+    sessionStorage.removeItem('companyScope');
     localStorage.setItem('token', data.token);
     localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('companyScope');
     setState({ isAuthenticated: false });
     setPermissions([]);
   };

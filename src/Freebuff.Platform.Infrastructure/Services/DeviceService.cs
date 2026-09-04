@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -108,9 +109,10 @@ public class DeviceService
     public async Task<Freebuff.Platform.Shared.Models.PagedResult<DeviceDto>> ListAsync(
         Freebuff.Platform.Shared.Models.PagedRequest filter, int? status = null, Guid? vendorId = null)
     {
-        var companyId = _tenant.IsSuperAdmin ? (Guid?)null : _tenant.TenantId;
-        var query = _db.Devices.AsNoTracking().Where(d => !d.IsDeleted);
-        if (companyId != null) query = query.Where(d => d.CompanyId == companyId.Value);
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var query = _db.Devices.AsNoTracking()
+            .Where(d => !d.IsDeleted && (scope == null || scope.Contains(d.CompanyId)));
         if (status != null) query = query.Where(d => (int)d.Status == status.Value);
         if (vendorId != null) query = query.Where(d => d.VendorId == vendorId.Value);
         if (!string.IsNullOrWhiteSpace(filter.Search))

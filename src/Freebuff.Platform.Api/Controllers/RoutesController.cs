@@ -3,6 +3,7 @@ using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,8 @@ namespace Freebuff.Platform.Api.Controllers;
 public class FleetRoutesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public FleetRoutesController(ApplicationDbContext db) => _db = db;
+    private readonly ITenantContext _tenant;
+    public FleetRoutesController(ApplicationDbContext db, ITenantContext tenant) { _db = db; _tenant = tenant; }
 
     private Guid GetTenantId() => Guid.Parse(User.FindFirstValue("tenant_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsSuperAdmin() => User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
@@ -31,11 +33,10 @@ public class FleetRoutesController : ControllerBase
         [FromQuery] int? status = null, [FromQuery] int? type = null, [FromQuery] int? priority = null,
         [FromQuery] string? sortBy = null, [FromQuery] bool sortDesc = false)
     {
-        var tenantId = GetTenantId();
-        var isSuperAdmin = IsSuperAdmin();
-
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var query = _db.Routes.AsNoTracking()
-            .Where(r => !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId))
+            .Where(r => !r.IsDeleted && (scope == null || scope.Contains(r.CompanyId)))
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -89,9 +90,9 @@ public class FleetRoutesController : ControllerBase
     [RequirePermission("route.view")]
     public async Task<IActionResult> GetStats()
     {
-        var tenantId = GetTenantId();
-        var isSuperAdmin = IsSuperAdmin();
-        var query = _db.Routes.AsNoTracking().Where(r => !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set.
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var query = _db.Routes.AsNoTracking().Where(r => !r.IsDeleted && (scope == null || scope.Contains(r.CompanyId)));
 
         return Ok(new ApiResponse<object>
         {

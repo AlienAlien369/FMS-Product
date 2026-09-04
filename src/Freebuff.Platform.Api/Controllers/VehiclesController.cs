@@ -1,5 +1,6 @@
 using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
@@ -17,11 +18,13 @@ public class VehiclesController : ControllerBase
 {
     private readonly VehicleService _vehicleService;
     private readonly ApplicationDbContext _db;
+    private readonly ITenantContext _tenant;
 
-    public VehiclesController(VehicleService vehicleService, ApplicationDbContext db)
+    public VehiclesController(VehicleService vehicleService, ApplicationDbContext db, ITenantContext tenant)
     {
         _vehicleService = vehicleService;
         _db = db;
+        _tenant = tenant;
     }
 
     [HttpGet]
@@ -37,11 +40,8 @@ public class VehiclesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
         var query = _db.Vehicles.AsNoTracking().Where(v => !v.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var tenantId = User.GetTenantId();
-            query = query.Where(v => v.CompanyId == tenantId);
-        }
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set.
+        query = query.InEffectiveCompanyScope(_tenant.Scope, v => v.CompanyId);
 
         var total = await query.CountAsync();
         var active = await query.CountAsync(v => v.Status == Domain.Enums.VehicleStatus.Active);

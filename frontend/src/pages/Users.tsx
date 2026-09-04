@@ -3,11 +3,12 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, UserX } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import UserModal from '../components/UserModal';
 
 interface User {
   id: string; email: string; firstName: string; lastName: string;
-  phoneNumber?: string; companyId?: string; status: number; lastLoginAt?: string; createdAt: string;
+  phoneNumber?: string; companyId?: string; companyName?: string; status: number; lastLoginAt?: string; createdAt: string;
   roles: string[]; roleIds: string[];
 }
 
@@ -16,6 +17,7 @@ interface PagedData { items: User[]; totalCount: number; page: number; pageSize:
 export default function Users() {
   const { user } = useAuth();
   const { can } = usePermissions();
+  const { version: scopeVersion, isMultiCompany } = useCompanyScope();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin');
   const canCreate = can('user.create');
   const canEdit = can('user.update');
@@ -38,7 +40,7 @@ export default function Users() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [page, search]);
+  useEffect(() => { fetchData(); }, [page, search, scopeVersion]);
 
   const handleDelete = async (id: string) => {
     try { await api.delete(`/users/${id}`); setConfirmDelete(null); fetchData(); } catch {}
@@ -100,12 +102,14 @@ export default function Users() {
                         </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</div>
-                          <div className="text-xs text-gray-400">Joined {formatDate(u.createdAt)}</div>
+                          <div className="text-xs text-gray-400">
+                            {isMultiCompany && u.companyName ? <span className="font-medium text-gray-500">{u.companyName} · </span> : null}Joined {formatDate(u.createdAt)}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
-                    {isSuperAdmin && <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{u.companyId ? u.companyId.slice(0, 8) : '—'}</td>}
+                    {isSuperAdmin && <td className="px-4 py-3 text-sm text-gray-500 text-xs">{u.companyName || (u.companyId ? u.companyId.slice(0, 8) : '—')}</td>}
                     <td className="px-4 py-3 text-sm text-gray-600">{u.phoneNumber || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">

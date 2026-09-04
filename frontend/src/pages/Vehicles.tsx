@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api, { type VehicleDeviceAssignment } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -14,7 +15,7 @@ interface VehicleDetail {
   id: string; registrationNumber: string; name?: string; vehicleType?: string; make?: string; model?: string;
   year?: number; color?: string; fuelType: number; fuelTankCapacity?: number; fuelCapacityUnit?: string;
   engineNumber?: string; chassisNumber?: string; vinNumber?: string;
-  companyId: string; driverId?: string; driverName?: string; clientId?: string; clientName?: string;
+  companyId: string; companyName?: string; driverId?: string; driverName?: string; clientId?: string; clientName?: string;
   status: number; deviceImei?: string; deviceType?: string; deviceSerialNumber?: string; deviceCount?: number;
   lastLatitude?: number; lastLongitude?: number; lastSpeed?: number; lastHeading?: number;
   lastLocationUpdate?: string; ignitionStatus?: boolean;
@@ -46,6 +47,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 // ── Main Component ───────────────────────────────────────
 export default function Vehicles() {
   const { can } = usePermissions();
+  const { version: scopeVersion, isMultiCompany } = useCompanyScope();
   const canCreate = can('vehicle.create');
   const canEdit = can('vehicle.update');
   const canDelete = can('vehicle.delete');
@@ -77,11 +79,11 @@ export default function Vehicles() {
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, sort, statusFilter]);
+  }, [page, search, sort, statusFilter, scopeVersion]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/vehicles/stats'); setStats(res.data.data); } catch { /* ignore */ }
-  }, []);
+  }, [scopeVersion]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -208,7 +210,12 @@ export default function Vehicles() {
                           <Truck className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{v.registrationNumber}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-gray-900">{v.registrationNumber}</div>
+                            {isMultiCompany && v.companyName && (
+                              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title={v.companyName}>{v.companyName}</span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-400">{[v.make, v.model].filter(Boolean).join(' ') || v.name || '\u2014'}</div>
                         </div>
                       </div>

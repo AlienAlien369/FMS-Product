@@ -2,6 +2,7 @@ using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
@@ -19,20 +20,22 @@ public class RolesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
-    public RolesController(ApplicationDbContext db, IPermissionService permissionService)
+    private readonly ITenantContext _tenant;
+    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant)
     {
         _db = db;
         _permissionService = permissionService;
+        _tenant = tenant;
     }
 
     [HttpGet]
     [RequirePermission("role.view")]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAll([FromQuery] PagedRequest filter)
     {
-        var tenantId = User.GetTenantId();
-        var isSuperAdmin = User.IsSuperAdmin();
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
         var query = _db.Roles.AsNoTracking()
-            .Where(r => !r.IsDeleted && (isSuperAdmin || r.CompanyId == tenantId));
+            .Where(r => !r.IsDeleted && (scope == null || scope.Contains(r.CompanyId)));
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(r => r.Name.Contains(filter.Search));
@@ -44,6 +47,7 @@ public class RolesController : ControllerBase
             .Select(r => new
             {
                 r.Id, r.Name, r.Description, r.IsSystemRole,
+                CompanyId = r.CompanyId,
                 Status = (int)r.Status, r.DisplayOrder,
                 UserCount = r.UserRoles.Count(ur => !ur.IsDeleted),
                 PermissionCount = r.RolePermissions.Count(rp => !rp.IsDeleted)

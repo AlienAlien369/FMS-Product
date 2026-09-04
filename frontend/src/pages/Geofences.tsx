@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -53,6 +54,7 @@ const STATUS_FILTERS: { key: string; label: string; value?: number; color: strin
 // ── Main Component ───────────────────────────────────────
 export default function GeofencesPage() {
   const { can } = usePermissions();
+  const { version: scopeVersion, isMultiCompany } = useCompanyScope();
   const canCreate = can('geofence.create');
   const canEdit = can('geofence.update');
   const canDelete = can('geofence.delete');
@@ -81,11 +83,11 @@ export default function GeofencesPage() {
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, statusFilter, sort]);
+  }, [page, search, statusFilter, sort, scopeVersion]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/geofences/stats'); setStats(res.data.data); } catch { /* ignore */ }
-  }, []);
+  }, [scopeVersion]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -208,7 +210,12 @@ export default function GeofencesPage() {
                           <Icon className="w-5 h-5" style={{ color: g.borderColor ?? '#6b7280' }} />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{g.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">{g.name}</p>
+                            {isMultiCompany && g.companyName && (
+                              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title={g.companyName}>{g.companyName}</span>
+                            )}
+                          </div>
                           {g.description && <p className="text-xs text-gray-500 truncate max-w-[200px]">{g.description}</p>}
                         </div>
                       </div>

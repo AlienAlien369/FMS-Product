@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Shield, Users, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import RoleModal from '../components/RoleModal';
 import { pageByKey } from '../config/pages';
 
@@ -17,6 +18,7 @@ interface GroupedPerm { module: string; permissions: { id: string; code: string;
 export default function Roles() {
   const { user } = useAuth();
   const { can } = usePermissions();
+  const { version: scopeVersion } = useCompanyScope();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
   const canCreate = can('role.create');
   const canEdit = can('role.update');
@@ -37,7 +39,7 @@ export default function Roles() {
   useEffect(() => {
     fetchRoles().finally(() => setLoading(false));
     api.get('/permissions/grouped').then(r => setAllPerms(r.data.data || [])).catch(() => {});
-  }, []);
+  }, [scopeVersion]);
 
   const expandRole = async (roleId: string) => {
     if (expanded === roleId) { setExpanded(null); return; }

@@ -211,4 +211,96 @@ public sealed class CompanyScopeTests : IClassFixture<E2eFixture>
         }
         throw new Xunit.Sdk.XunitException($"created vehicle {reg} missing from SA list");
     }
+
+    /// <summary>
+    /// Generic scope contract for EVERY tenant-scoped list endpoint (driven by
+    /// the page registry): an endpoint that "ignores scope entirely" fails here
+    /// automatically, so a future page can't silently regress the way Devices /
+    /// Geofences / Routes did. Per endpoint:
+    ///   - SA no-header must span ≥2 companies (skipped when the fixture has no
+    ///     cross-company data for that resource, e.g. devices live in demo only);
+    ///   - SA scope=[demo] must return strictly fewer rows, all demo-owned;
+    ///   - CA with a forged header naming another company must get exactly the
+    ///     same rows as with no header (own company only, never widened).
+    /// </summary>
+    [Fact]
+    public async Task Scope_Every_Tenant_List_Endpoint_Responds_To_Scope()
+    {
+        await SeedAsync();
+        const string saEmail = "admin@freebuff.com";
+        const string demoEmail = "admin@demofleet.com";
+        var saToken = await TokenAsync(saEmail);
+        var caToken = await TokenAsync(demoEmail);
+
+        // Resolve the demo company (id + name) and any other company id.
+        var comps = await GetAsync("/api/v1/admin/companies?pageSize=100", saToken);
+        Assert.Equal(200, comps.Status);
+        var compItems = comps.Data!.Value.GetProperty("items");
+        var demo = compItems.EnumerateArray().First(c => c.GetProperty("name").GetString() == "Demo Fleet Company");
+        var demoId = demo.GetProperty("id").GetString()!;
+        var demoName = demo.GetProperty("name").GetString()!;
+        var otherId = compItems.EnumerateArray().First(c => c.GetProperty("id").GetString() != demoId).GetProperty("id").GetString()!;
+
+        // (page key, list path, row field carrying the row's company identity, admin-only?)
+        var endpoints = new (string Page, string Path, string Field, bool AdminOnly)[]
+        {
+            ("vehicle",  "/api/v1/vehicles?pageSize=100",          "companyId",   false),
+            ("driver",   "/api/v1/drivers?pageSize=100",           "companyId",   false),
+            ("device",   "/api/v1/devices?pageSize=100",           "companyId",   false),
+            ("geofence", "/api/v1/geofences?pageSize=100",         "companyName", false),
+            ("route",    "/api/v1/routes?pageSize=100",            "companyName", false),
+            ("user",     "/api/v1/users?pageSize=100",             "companyId",   false),
+            ("role",     "/api/v1/roles?pageSize=100",             "companyId",   false),
+            ("company",  "/api/v1/admin/companies?pageSize=100",   "id",          true),
+        };
+
+        foreach (var (page, path, field, adminOnly) in endpoints)
+        {
+            var all = await GetAsync(path, saToken);
+            Assert.Equal(200, all.Status);
+            var items = all.Data!.Value.GetProperty("items");
+            var distinct = items.EnumerateArray()
+                .Select(i => i.GetProperty(field).GetString())
+                .Where(v => v != null).Distinct().ToList();
+            if (distinct.Count < 2)
+            {
+                _output.WriteLine($"SKIP  {page,-9} ({path}) — no cross-company fixture data (distinct companies = {distinct.Count})");
+                continue;
+            }
+
+            // SA scope=[demo] must narrow and leak nothing.
+            var dem = await GetAsync(path, saToken, scope: demoId);
+            Assert.Equal(200, dem.Status);
+            var demItems = dem.Data!.Value.GetProperty("items");
+            var demCount = demItems.GetArrayLength();
+            Assert.True(demCount < items.GetArrayLength(),
+                $"{page}: scope=[demo] returned {demCount} rows — not fewer than ALL ({items.GetArrayLength()}); endpoint ignores scope");
+            var expected = field == "companyName" ? demoName : demoId;
+            foreach (var row in demItems.EnumerateArray())
+                Assert.Equal(expected, row.GetProperty(field).GetString()); // zero leakage
+            _output.WriteLine($"PASS  {page,-9} ({path}) narrows {items.GetArrayLength()} → {demCount}, all demo");
+
+            // CA forged header naming another company → identical to no-header.
+            // (Admin-only endpoints are correctly 403 for CA outright — that is the
+            // strongest possible denial, so no forged-header comparison applies.)
+            var caDefault = await GetAsync(path, caToken);
+            var caForged = await GetAsync(path, caToken, scope: otherId);
+            if (adminOnly)
+            {
+                Assert.Equal(403, caDefault.Status);
+                Assert.Equal(403, caForged.Status);
+                _output.WriteLine($"PASS  {page,-9} CA blocked outright → 403 (admin-only endpoint)");
+                continue;
+            }
+            Assert.Equal(200, caDefault.Status);
+            Assert.Equal(200, caForged.Status);
+            var defItems = caDefault.Data!.Value.GetProperty("items");
+            var forgItems = caForged.Data!.Value.GetProperty("items");
+            var defComps = defItems.EnumerateArray().Select(i => i.GetProperty(field).GetString()).Distinct().OrderBy(v => v).ToList();
+            var forgComps = forgItems.EnumerateArray().Select(i => i.GetProperty(field).GetString()).Distinct().OrderBy(v => v).ToList();
+            Assert.Equal(defItems.GetArrayLength(), forgItems.GetArrayLength());
+            Assert.Equal(defComps, forgComps);
+            _output.WriteLine($"PASS  {page,-9} CA forged header → identical to default ({defItems.GetArrayLength()} rows)");
+        }
+    }
 }

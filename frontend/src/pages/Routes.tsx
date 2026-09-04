@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -69,6 +70,7 @@ function fmtDuration(d?: string) {
 // ── Main Component ───────────────────────────────────────
 export default function RoutesPage() {
   const { can } = usePermissions();
+  const { version: scopeVersion, isMultiCompany } = useCompanyScope();
   const canCreate = can('route.create');
   const canEdit = can('route.update');
   const canDelete = can('route.delete');
@@ -97,11 +99,11 @@ export default function RoutesPage() {
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, statusFilter, sort]);
+  }, [page, search, statusFilter, sort, scopeVersion]);
 
   const fetchStats = useCallback(async () => {
     try { const res = await api.get('/routes/stats'); setStats(res.data.data); } catch { /* ignore */ }
-  }, []);
+  }, [scopeVersion]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +208,12 @@ export default function RoutesPage() {
                         <Route className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{r.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{r.name}</p>
+                          {isMultiCompany && r.companyName && (
+                            <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title={r.companyName}>{r.companyName}</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${(TYPE_MAP[r.type] ?? TYPE_MAP[0]).color}`}>
                             {(TYPE_MAP[r.type] ?? TYPE_MAP[0]).label}

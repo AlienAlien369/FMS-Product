@@ -4,6 +4,7 @@ import api from '../lib/api';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Eye, Building2, X, CheckCircle, AlertCircle, Globe, Clock, DollarSign, Users, Package } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import CompanyEditModal from '../components/company/CompanyEditModal';
 import CreateCompanyModal from '../components/company/CreateCompanyModal';
 
@@ -32,6 +33,7 @@ function CompanyAdminList() {
   const canEdit = can('company.update');
   const canDelete = can('company.delete');
   const navigate = useNavigate();
+  const { version: scopeVersion } = useCompanyScope();
 
   const [data, setData] = useState<PagedData | null>(null);
   const [search, setSearch] = useState('');
@@ -61,7 +63,7 @@ function CompanyAdminList() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, search]);
+  useEffect(() => { fetchData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, search, scopeVersion]);
 
   const handleDelete = async () => {
     if (!confirmDelete) return;

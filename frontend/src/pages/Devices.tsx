@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api, { type PagedResult, type Device, type DeviceVendor, type DeviceSim, type Company } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../contexts/AuthContext';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   X, Radio, Cpu, CreditCard,
@@ -38,6 +39,7 @@ interface SimDraft { iccid: string; phoneNumber: string; carrier: string; isPrim
 export default function Devices() {
   const { can } = usePermissions();
   const { user } = useAuth();
+  const { version: scopeVersion, isMultiCompany, companyName } = useCompanyScope();
   const isSuperAdmin = !!user?.roles?.includes('SuperAdmin');
   const canCreate = can('device.create');
   const canEdit = can('device.update');
@@ -64,7 +66,7 @@ export default function Devices() {
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  }, [page, search, sortDesc, statusFilter]);
+  }, [page, search, sortDesc, statusFilter, scopeVersion]);
 
   const fetchVendors = useCallback(async () => {
     try { const res = await api.get('/devices/vendors'); setVendors(res.data.data || []); } catch { /* ignore */ }
@@ -148,7 +150,12 @@ export default function Devices() {
               ) : data.items.map(d => (
                 <tr key={d.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">
-                    <span className="inline-flex items-center gap-2"><Radio className="w-4 h-4 text-blue-500" /> {d.identityValue}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-2"><Radio className="w-4 h-4 text-blue-500" /> {d.identityValue}</span>
+                      {isMultiCompany && companyName(d.companyId) && (
+                        <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded" title={companyName(d.companyId)}>{companyName(d.companyId)}</span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400">{d.identityType === 0 ? 'IMEI' : d.identityType === 1 ? 'Serial' : d.identityType === 2 ? 'MAC' : 'Phone'}</div>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{d.deviceTypeOverride || ['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][d.deviceType] || 'Other'}</td>

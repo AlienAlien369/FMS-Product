@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
@@ -19,10 +20,12 @@ public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
-    public AdminController(ApplicationDbContext db, IPermissionService permissionService)
+    private readonly ITenantContext _tenant;
+    public AdminController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant)
     {
         _db = db;
         _permissionService = permissionService;
+        _tenant = tenant;
     }
 
     // ── Platform Overview ───────────────────────────────
@@ -46,7 +49,9 @@ public class AdminController : ControllerBase
     [HttpGet("companies")]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetAllCompanies([FromQuery] PagedRequest filter)
     {
-        var query = _db.Companies.AsNoTracking().Where(c => !c.IsDeleted);
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set (list view).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var query = _db.Companies.AsNoTracking().Where(c => !c.IsDeleted && (scope == null || scope.Contains(c.Id)));
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(c => c.Name.Contains(filter.Search) || (c.Slug != null && c.Slug.Contains(filter.Search))

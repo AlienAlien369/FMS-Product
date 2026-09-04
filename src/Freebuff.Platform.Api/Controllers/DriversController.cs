@@ -27,9 +27,9 @@ public class DriversController : ControllerBase
 
     [HttpGet]
     [RequirePermission("driver.view")]
-    public async Task<ActionResult<ApiResponse<PagedResult<DriverDto>>>> GetAll([FromQuery] PagedRequest filter)
+    public async Task<ActionResult<ApiResponse<PagedResult<DriverDto>>>> GetAll([FromQuery] PagedRequest filter, [FromQuery] int? status = null)
     {
-        var result = await _driverService.GetListAsync(filter);
+        var result = await _driverService.GetListAsync(filter, status);
         return Ok(ApiResponse<PagedResult<DriverDto>>.Ok(result));
     }
 

@@ -52,7 +52,8 @@ function CompanyAdminList() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/admin/companies?page=${page}&pageSize=10&search=${search}`);
+      const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
+      const res = await api.get(`/admin/companies?${params}`);
       setData(res.data.data);
     } catch (e: any) {
       notify('error', e.response?.data?.message || 'Failed to load companies');

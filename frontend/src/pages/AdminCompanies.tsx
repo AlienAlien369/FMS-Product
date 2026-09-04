@@ -33,8 +33,9 @@ export default function AdminCompanies() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
       const [companiesRes, overviewRes] = await Promise.all([
-        api.get(`/admin/companies?page=${page}&pageSize=10&search=${search}`),
+        api.get(`/admin/companies?${params}`),
         api.get('/admin/overview'),
       ]);
       setData(companiesRes.data.data);

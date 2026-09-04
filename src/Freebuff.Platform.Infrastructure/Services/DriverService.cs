@@ -27,10 +27,17 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
         return entity == null ? null : await MapToDtoAsync(entity);
     }
 
-    public async Task<PagedResult<DriverDto>> GetListAsync(PagedRequest filter)
+    public Task<PagedResult<DriverDto>> GetListAsync(PagedRequest filter)
+        => GetListAsync(filter, null);
+
+    /// <summary>List with an optional status filter (the Drivers UI status buttons).</summary>
+    public async Task<PagedResult<DriverDto>> GetListAsync(PagedRequest filter, int? status)
     {
         var query = _db.Drivers.AsNoTracking().Where(d => !d.IsDeleted).AsQueryable();
         if (_tenant.TenantId.HasValue && !_tenant.IsSuperAdmin) query = query.Where(d => d.CompanyId == _tenant.TenantId.Value);
+
+        if (status.HasValue)
+            query = query.Where(d => (int)d.Status == status.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(d => d.FirstName.Contains(filter.Search) || d.LastName.Contains(filter.Search) || d.EmployeeId.Contains(filter.Search));

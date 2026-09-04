@@ -34,7 +34,11 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         return entity == null ? null : MapToDto(entity);
     }
 
-    public async Task<PagedResult<VehicleDto>> GetListAsync(PagedRequest filter)
+    public Task<PagedResult<VehicleDto>> GetListAsync(PagedRequest filter)
+        => GetListAsync(filter, null);
+
+    /// <summary>List with an optional status filter (the Vehicles UI status buttons).</summary>
+    public async Task<PagedResult<VehicleDto>> GetListAsync(PagedRequest filter, int? status)
     {
         var query = _db.Vehicles
             .AsNoTracking()
@@ -45,6 +49,9 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
 
         if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
             query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+
+        if (status.HasValue)
+            query = query.Where(v => (int)v.Status == status.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(v =>

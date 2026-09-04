@@ -47,7 +47,8 @@ export default function Packages() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/admin/packages?page=${page}&pageSize=10&search=${search}`);
+      const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
+      const res = await api.get(`/admin/packages?${params}`);
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);

@@ -26,9 +26,9 @@ public class VehiclesController : ControllerBase
 
     [HttpGet]
     [RequirePermission("vehicle.view")]
-    public async Task<ActionResult<ApiResponse<PagedResult<VehicleDto>>>> GetAll([FromQuery] PagedRequest filter)
+    public async Task<ActionResult<ApiResponse<PagedResult<VehicleDto>>>> GetAll([FromQuery] PagedRequest filter, [FromQuery] int? status = null)
     {
-        var result = await _vehicleService.GetListAsync(filter);
+        var result = await _vehicleService.GetListAsync(filter, status);
         return Ok(ApiResponse<PagedResult<VehicleDto>>.Ok(result));
     }
 

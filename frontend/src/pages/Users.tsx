@@ -31,7 +31,8 @@ export default function Users() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/users?page=${page}&pageSize=10&search=${search}`);
+      const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
+      const res = await api.get(`/users?${params}`);
       setData(res.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);

@@ -1,6 +1,7 @@
 using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Enums;
+using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
@@ -18,11 +19,13 @@ public class DriversController : ControllerBase
 {
     private readonly DriverService _driverService;
     private readonly ApplicationDbContext _db;
+    private readonly ITenantContext _tenant;
 
-    public DriversController(DriverService driverService, ApplicationDbContext db)
+    public DriversController(DriverService driverService, ApplicationDbContext db, ITenantContext tenant)
     {
         _driverService = driverService;
         _db = db;
+        _tenant = tenant;
     }
 
     [HttpGet]
@@ -37,12 +40,9 @@ public class DriversController : ControllerBase
     [RequirePermission("driver.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetStats()
     {
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set.
         var query = _db.Drivers.AsNoTracking().Where(d => !d.IsDeleted);
-        if (!User.IsSuperAdmin())
-        {
-            var tenantId = User.GetTenantId();
-            query = query.Where(d => d.CompanyId == tenantId);
-        }
+        query = query.InEffectiveCompanyScope(_tenant.Scope, d => d.CompanyId);
 
         var total = await query.CountAsync();
         var active = await query.CountAsync(d => d.Status == DriverStatus.Active);

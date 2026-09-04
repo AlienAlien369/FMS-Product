@@ -4,6 +4,14 @@
  * renders a clear setup state instead of attempting to load the SDK.
  * The Maps JavaScript API and (for geofence drawing) the "drawing" library
  * must both be enabled for that key in Google Cloud Console.
+ *
+ * IMPORTANT: the Maps version is pinned to 3.64, not "weekly". Google removed
+ * the google.maps.drawing.DrawingManager class in version 3.65 (the drawing
+ * library is deprecated; `v=weekly` now serves >= 3.65 and throws on
+ * instantiation, which breaks the Draw-on-Map geofence editor). 3.64 is the
+ * last release that still ships the implementation. When 3.64 is eventually
+ * retired, the drawing UI must move to custom overlay drawing — see
+ * GeofenceMapPane.
  */
 
 let loadPromise: Promise<typeof google> | null = null;
@@ -40,7 +48,7 @@ export function loadGoogleMaps(libraries: ('drawing' | 'places' | 'geometry' | '
       return;
     }
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=${needed.join(',')}&v=weekly&callback=__fmsGmapsReady`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=${needed.join(',')}&v=3.64&callback=__fmsGmapsReady`;
     script.async = true;
     script.defer = true;
     script.dataset.fmsGmaps = '1';

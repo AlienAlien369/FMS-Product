@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, Component, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, MapPin, Building2, CreditCard, Languages, Settings } from 'lucide-react';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
@@ -59,6 +60,8 @@ interface PackageOption { id: string; name: string; price: number; billingCycle:
 function CompanyDetailInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [tab, setTab] = useState<'overview' | 'users' | 'roles' | 'modules' | 'documents' | 'subscription' | 'packages' | 'localization' | 'settings'>('overview');
   const [users, setUsers] = useState<any[]>([]);
@@ -364,7 +367,11 @@ function CompanyDetailInner() {
 
             {/* Roles */}
             {tab === 'roles' && (
-              <div className="divide-y divide-gray-100">
+              <div>
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Company Roles</h3>
+                </div>
+                <div className="divide-y divide-gray-100">
                 {roles.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">No roles</div>
                 ) : roles.map((r: any) => (
@@ -377,7 +384,7 @@ function CompanyDetailInner() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">{r.userCount} users &bull; {r.permissionCount} perms</span>
-                        {!r.isSystemRole && (
+                        {(isSuperAdmin || !r.isSystemRole) && (
                           <div className="flex items-center gap-1">
                             <button onClick={() => setRoleModal({ open: true, edit: r })} className="p-1.5 hover:bg-gray-100 rounded-lg"><Pencil className="w-4 h-4 text-gray-500" /></button>
                             <button onClick={() => setDeleteConfirm({ type: 'role', id: r.id, name: r.name })} className="p-1.5 hover:bg-gray-100 rounded-lg"><Trash2 className="w-4 h-4 text-red-500" /></button>
@@ -394,6 +401,7 @@ function CompanyDetailInner() {
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             )}
 

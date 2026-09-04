@@ -101,8 +101,9 @@ export default function Layout() {
     navigate('/login');
   };
 
-  const Sidebar = () => (
-    <aside className={`bg-gray-900 text-white h-full flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} ${mobileOpen ? 'fixed inset-0 z-50 w-64' : 'hidden lg:flex'}`}>
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <aside className={`bg-gray-900 text-white h-full flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} ${mobileOpen ? 'fixed inset-0 z-50 w-64' : 'hidden lg:flex'}`}>
       <div className="p-4 flex items-center justify-between border-b border-gray-700">
         {!collapsed && <span className="font-bold text-lg tracking-tight">Freebuff</span>}
         <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:block p-1 hover:bg-gray-700 rounded">
@@ -151,12 +152,7 @@ export default function Layout() {
           {!collapsed && <span>Logout</span>}
         </button>
       </div>
-    </aside>
-  );
-
-  return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+      </aside>
       {mobileOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between lg:px-6">

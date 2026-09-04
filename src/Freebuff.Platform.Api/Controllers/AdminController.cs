@@ -407,7 +407,8 @@ public class AdminController : ControllerBase
     {
         var role = await _db.Roles.FirstOrDefaultAsync(r => r.Id == rid && !r.IsDeleted && r.CompanyId == cid);
         if (role == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Role not found"));
-        if (role.IsSystemRole) return BadRequest(ApiResponse.Fail("FORBIDDEN", "System roles cannot be modified"));
+        // This controller is SuperAdmin-only, so system roles (e.g. Company Admin)
+        // are editable here — same behavior as the generic RolesController.
 
         if (dto.Name != null) role.Name = dto.Name;
         if (dto.Description != null) role.Description = dto.Description;
@@ -429,7 +430,8 @@ public class AdminController : ControllerBase
     {
         var role = await _db.Roles.FirstOrDefaultAsync(r => r.Id == rid && !r.IsDeleted && r.CompanyId == cid);
         if (role == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Role not found"));
-        if (role.IsSystemRole) return BadRequest(ApiResponse.Fail("FORBIDDEN", "System roles cannot be deleted"));
+        // SuperAdmin-only controller — system-role deletion follows the same
+        // rule as the generic RolesController (allowed for SuperAdmin).
         role.IsDeleted = true; role.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(message: "Role deleted"));

@@ -32,11 +32,16 @@ public class AdminController : ControllerBase
     [HttpGet("overview")]
     public async Task<ActionResult<ApiResponse<object>>> GetOverview()
     {
-        var companies = await _db.Companies.CountAsync(c => !c.IsDeleted);
-        var users = await _db.Users.CountAsync(u => !u.IsDeleted);
-        var vehicles = await _db.Vehicles.CountAsync(v => !v.IsDeleted);
-        var drivers = await _db.Drivers.CountAsync(d => !d.IsDeleted);
-        var roles = await _db.Roles.CountAsync(r => !r.IsDeleted);
+        // Query-side: effective scope = X-Company-Scope ∩ permitted set, so the
+        // platform overview cards narrow alongside the companies table when a
+        // SuperAdmin changes the scope selector. Modules stays the platform-wide
+        // registry count (modules are not company-owned data).
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var companies = await _db.Companies.CountAsync(c => !c.IsDeleted && (scope == null || scope.Contains(c.Id)));
+        var users = await _db.Users.CountAsync(u => !u.IsDeleted && (scope == null || scope.Contains(u.CompanyId)));
+        var vehicles = await _db.Vehicles.CountAsync(v => !v.IsDeleted && (scope == null || scope.Contains(v.CompanyId)));
+        var drivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && (scope == null || scope.Contains(d.CompanyId)));
+        var roles = await _db.Roles.CountAsync(r => !r.IsDeleted && (scope == null || scope.Contains(r.CompanyId)));
         var modules = await _db.Modules.CountAsync(m => !m.IsDeleted);
 
         return Ok(ApiResponse<object>.Ok(new

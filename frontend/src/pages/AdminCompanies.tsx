@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Search, Building2, Users, Truck, Shield, Package, ChevronLeft, ChevronRight, Eye, Plus, MapPin } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 import CreateCompanyModal from '../components/company/CreateCompanyModal';
 
@@ -22,6 +23,7 @@ const subStatusMap = SUBSCRIPTION_STATUS;
 export default function AdminCompanies() {
   const { can } = usePermissions();
   const canCreate = can('company.create');
+  const { version: scopeVersion } = useCompanyScope();
   const [data, setData] = useState<PagedData | null>(null);
   const [overview, setOverview] = useState<any>(null);
   const [search, setSearch] = useState('');
@@ -30,7 +32,7 @@ export default function AdminCompanies() {
   const [createModal, setCreateModal] = useState(false);
   const navigate = useNavigate();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: '10', search });
@@ -42,9 +44,9 @@ export default function AdminCompanies() {
       setOverview(overviewRes.data.data);
     } catch (err) { console.error(err); }
     setLoading(false);
-  };
+  }, [page, search, scopeVersion]);
 
-  useEffect(() => { fetchData(); }, [page, search]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const platformStats = overview ? [
     { label: 'Companies', value: overview.companies, icon: Building2, color: 'text-blue-600 bg-blue-50' },

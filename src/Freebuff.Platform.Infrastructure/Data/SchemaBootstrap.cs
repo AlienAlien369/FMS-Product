@@ -435,6 +435,8 @@ public static class SchemaBootstrap
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "RouteGeometry" text NULL;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CorridorEnabled" boolean NOT NULL DEFAULT false;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CorridorBufferMeters" double precision NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "DeviatedSince" timestamp with time zone NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CorridorAlerted" boolean NOT NULL DEFAULT false;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "DeviationThresholdMinutes" integer NULL;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "FuelUsedLiters" numeric NULL;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "IdleMinutes" integer NULL;

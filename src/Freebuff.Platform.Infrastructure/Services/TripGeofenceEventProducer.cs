@@ -56,6 +56,9 @@ public class TripGeofenceEventProducer
                 await _lifecycle.HandleZoneEventAsync(trip.Id, link.GeofenceId,
                     nowInside ? TripZoneEventKind.Entry : TripZoneEventKind.Exit, at);
             }
+            // Corridor deviation is a corridor problem, not a zone problem —
+            // evaluate every fix regardless of geofence boundaries.
+            _lifecycle.EvaluateCorridorDeviation(trip, latitude, longitude, at);
         }
     }
 }

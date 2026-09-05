@@ -32,6 +32,16 @@ public class Trip : BaseEntity
     public string? DelayReason { get; set; }
     public string? CancelReason { get; set; } // required for cancelled/aborted
 
+    /// <summary>
+    /// Corridor-deviation sub-state: when the vehicle's live position is farther
+    /// than CorridorBufferMeters from the route path, this records when the
+    /// deviation started. Cleared on re-entry. Does not replace Status.
+    /// </summary>
+    public DateTime? DeviatedSince { get; set; }
+
+    /// <summary>True once the TripCorridorDeviation alert has been raised for the current deviation episode.</summary>
+    public bool CorridorAlerted { get; set; }
+
     public TripType Type { get; set; } = TripType.Single;
 
     /// <summary>Denormalized legacy column (predates Type) — kept mapped and

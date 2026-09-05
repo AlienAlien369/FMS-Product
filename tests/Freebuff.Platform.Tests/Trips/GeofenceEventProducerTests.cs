@@ -80,6 +80,156 @@ public class GeofenceContainmentTests
 }
 
 /// <summary>
+/// Corridor-deviation rules: an in-progress trip with corridor tracking enabled
+/// records when its live position leaves the route corridor and raises the
+/// distinct TripCorridorDeviation alert once the deviation outlives the
+/// configured threshold — through the lifecycle service the producer calls.
+/// </summary>
+public class TripCorridorDeviationTests
+{
+    private static ApplicationDbContext NewDb(string name)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(name)
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
+    /// <summary>LineString (23.0,72.5) → (23.2,72.7); its midpoint is (23.1,72.6).</summary>
+    private const string Geometry = "{\"type\":\"LineString\",\"coordinates\":[[72.5,23.0],[72.7,23.2]]}";
+
+    private static Trip InProgressCorridorTrip(Guid company, Guid vehicle,
+        bool corridorEnabled = true, double? buffer = 500, int thresholdMinutes = 1) => new()
+    {
+        Id = Guid.NewGuid(), Name = "Corridor run", Status = TripStatus.InProgress,
+        CompanyId = company, TenantId = company,
+        VehicleId = vehicle, DriverId = Guid.NewGuid(),
+        StartLocation = "A", StartLatitude = 23.0, StartLongitude = 72.5,
+        EndLocation = "B", EndLatitude = 23.2, EndLongitude = 72.7,
+        CorridorEnabled = corridorEnabled, CorridorBufferMeters = buffer,
+        DeviationThresholdMinutes = thresholdMinutes, RouteGeometry = Geometry,
+        ActualStartTime = DateTime.UtcNow.AddMinutes(-10),
+    };
+
+    [Fact]
+    public void FixOnCorridor_ClearsDeviationState_NoAlert()
+    {
+        using var db = NewDb("corr_inside_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var trip = InProgressCorridorTrip(company, Guid.NewGuid());
+        trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-30);
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.6, DateTime.UtcNow); // on the line
+
+        Assert.Null(trip.DeviatedSince);
+        Assert.Empty(db.Alerts);
+    }
+
+    [Fact]
+    public void FixOffCorridor_BelowThreshold_SetsDeviatedSince_NoAlertYet()
+    {
+        using var db = NewDb("corr_below_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var trip = InProgressCorridorTrip(company, Guid.NewGuid());
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+        var at = DateTime.UtcNow;
+
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, at); // ~2 km off the line
+
+        Assert.Equal(at, trip.DeviatedSince);
+        Assert.False(trip.CorridorAlerted);
+        Assert.Empty(db.Alerts);
+    }
+
+    [Fact]
+    public async Task DeviationPastThreshold_RaisesAlertOnce()
+    {
+        using var db = NewDb("corr_past_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var vehicle = Guid.NewGuid();
+        var trip = InProgressCorridorTrip(company, vehicle, thresholdMinutes: 1);
+        trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-5); // already off-route 5 min
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow);
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow.AddSeconds(30)); // still off-route
+        await db.SaveChangesAsync(); // stage the alert, then assert the store
+
+        var alert = Assert.Single(db.Alerts);
+        Assert.Equal("TripCorridorDeviation", alert.AlertType);
+        Assert.Equal(company, alert.CompanyId);
+        Assert.Equal(vehicle, alert.VehicleId);
+        Assert.True(trip.CorridorAlerted);
+    }
+
+    [Fact]
+    public void ReenteringCorridor_ResetsEpisode_AllowsFreshAlert()
+    {
+        using var db = NewDb("corr_reenter_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var trip = InProgressCorridorTrip(company, Guid.NewGuid());
+        trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-5);
+        trip.CorridorAlerted = true;
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+        var at = DateTime.UtcNow;
+
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.6, at); // back on the line
+
+        Assert.Null(trip.DeviatedSince);
+        Assert.False(trip.CorridorAlerted);
+        Assert.Empty(db.Alerts);
+    }
+
+    [Fact]
+    public void CorridorDisabled_Or_MissingGeometry_IsNoOp()
+    {
+        using var db = NewDb("corr_off_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var disabled = InProgressCorridorTrip(company, Guid.NewGuid(), corridorEnabled: false);
+        disabled.DeviatedSince = DateTime.UtcNow.AddMinutes(-5);
+        var noGeometry = InProgressCorridorTrip(company, Guid.NewGuid());
+        noGeometry.RouteGeometry = null;
+        noGeometry.DeviatedSince = DateTime.UtcNow.AddMinutes(-5);
+        db.Trips.AddRange(disabled, noGeometry);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+
+        service.EvaluateCorridorDeviation(disabled, 23.1, 72.62, DateTime.UtcNow);
+        service.EvaluateCorridorDeviation(noGeometry, 23.1, 72.62, DateTime.UtcNow);
+
+        Assert.Null(disabled.DeviatedSince);
+        Assert.Null(noGeometry.DeviatedSince);
+        Assert.Empty(db.Alerts);
+    }
+
+    [Fact]
+    public void NotInProgressTrip_IsNoOp()
+    {
+        using var db = NewDb("corr_status_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var trip = InProgressCorridorTrip(company, Guid.NewGuid());
+        trip.Status = TripStatus.Scheduled; // corridor only matters while travelling
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var service = new TripLifecycleService(db);
+
+        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow);
+
+        Assert.Null(trip.DeviatedSince);
+        Assert.Empty(db.Alerts);
+    }
+}
+
+/// <summary>
 /// The event producer: after each accepted telemetry fix, evaluate the vehicle's
 /// active trips against their linked geofences and fire entry/exit zone events
 /// into the lifecycle (auto-start on origin exit, auto-complete on end-zone

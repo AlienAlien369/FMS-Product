@@ -1,6 +1,6 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
+_Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 
@@ -61,7 +61,7 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -92,8 +92,8 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Devices (`device`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
-| Routes (`route`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
+| Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -125,7 +125,7 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Drivers (`driver`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -157,7 +157,7 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -189,7 +189,7 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Drivers (`driver`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -221,7 +221,7 @@ _Generated 2026-09-04 11:27:00Z from the live seed + PageRegistry._
 | Drivers (`driver`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
-| Trips (`trip`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |

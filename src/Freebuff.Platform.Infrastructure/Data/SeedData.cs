@@ -469,9 +469,9 @@ public static class SeedData
                 });
             }
 
-            // Also assign vehicle + driver + client + trip + alert + fuel + maintenance + report permissions to Fleet Manager
+            // Also assign vehicle + device + driver + route + client + trip + alert + fuel + maintenance + report permissions to Fleet Manager
             var fmPermissions = allPermissions.Where(p =>
-                p.Module is "vehicle" or "driver" or "trip" or "geofence" or "alert" or "fuel" or "maintenance" or "report" or "client");
+                p.Module is "vehicle" or "device" or "driver" or "route" or "trip" or "geofence" or "alert" or "fuel" or "maintenance" or "report" or "client");
             foreach (var perm in fmPermissions)
             {
                 db.RolePermissions.Add(new RolePermission
@@ -529,7 +529,7 @@ public static class SeedData
         var fleetManagerRoles = await db.Roles
             .Where(r => r.Name == "Fleet Manager" && !r.IsDeleted && r.Status == EntityStatus.Active)
             .ToListAsync();
-        var fleetModules = new[] { "vehicle", "device", "driver", "trip", "geofence", "alert", "fuel", "maintenance", "report", "client" };
+        var fleetModules = new[] { "vehicle", "device", "driver", "route", "trip", "geofence", "alert", "fuel", "maintenance", "report", "client" };
         foreach (var role in fleetManagerRoles)
         {
             var existingFmPermIds = await db.RolePermissions

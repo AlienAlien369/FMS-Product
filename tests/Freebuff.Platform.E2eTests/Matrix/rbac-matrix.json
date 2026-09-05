@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-04T11:27:00.5096481Z",
+  "generatedAt": "2026-09-05T04:15:29.6887721Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -1312,7 +1312,7 @@
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
+      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -1386,6 +1386,12 @@
         "subscription.import",
         "subscription.update",
         "subscription.view",
+        "trip.create",
+        "trip.delete",
+        "trip.export",
+        "trip.import",
+        "trip.update",
+        "trip.view",
         "user.create",
         "user.delete",
         "user.export",
@@ -1691,7 +1697,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -1699,7 +1705,7 @@
         {
           "page": "trip",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -1707,7 +1713,7 @@
         {
           "page": "trip",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -1715,7 +1721,7 @@
         {
           "page": "trip",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -1723,7 +1729,7 @@
         {
           "page": "trip",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -1731,7 +1737,7 @@
         {
           "page": "trip",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2557,7 +2563,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
+      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -2583,6 +2589,18 @@
         "geofence.import",
         "geofence.update",
         "geofence.view",
+        "route.create",
+        "route.delete",
+        "route.export",
+        "route.import",
+        "route.update",
+        "route.view",
+        "trip.create",
+        "trip.delete",
+        "trip.export",
+        "trip.import",
+        "trip.update",
+        "trip.view",
         "vehicle.create",
         "vehicle.delete",
         "vehicle.export",
@@ -2834,7 +2852,7 @@
         {
           "page": "route",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": true,
           "httpTested": true
@@ -2842,7 +2860,7 @@
         {
           "page": "route",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": true,
           "httpTested": true
@@ -2850,7 +2868,7 @@
         {
           "page": "route",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": true,
           "httpTested": true
@@ -2858,7 +2876,7 @@
         {
           "page": "route",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": true,
           "httpTested": true
@@ -2866,7 +2884,7 @@
         {
           "page": "route",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2874,7 +2892,7 @@
         {
           "page": "route",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2882,7 +2900,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2890,7 +2908,7 @@
         {
           "page": "trip",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2898,7 +2916,7 @@
         {
           "page": "trip",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2906,7 +2924,7 @@
         {
           "page": "trip",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2914,7 +2932,7 @@
         {
           "page": "trip",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2922,7 +2940,7 @@
         {
           "page": "trip",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -3748,7 +3766,7 @@
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
+      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -3764,6 +3782,7 @@
         "role.view",
         "route.view",
         "settings.view",
+        "trip.view",
         "user.view",
         "vehicle.view"
       ],
@@ -4059,7 +4078,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -4925,7 +4944,7 @@
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "06cada9e-7112-43d7-ac9f-c494d192d9c5",
+      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4952,6 +4971,12 @@
         "route.import",
         "route.update",
         "route.view",
+        "trip.create",
+        "trip.delete",
+        "trip.export",
+        "trip.import",
+        "trip.update",
+        "trip.view",
         "vehicle.create",
         "vehicle.delete",
         "vehicle.export",
@@ -5251,7 +5276,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -5259,7 +5284,7 @@
         {
           "page": "trip",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -5267,7 +5292,7 @@
         {
           "page": "trip",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -5275,7 +5300,7 @@
         {
           "page": "trip",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -5283,7 +5308,7 @@
         {
           "page": "trip",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -5291,7 +5316,7 @@
         {
           "page": "trip",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6117,7 +6142,7 @@
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "a2a5281d-b88a-4e0e-8dfb-150ece03db5c",
+      "companyId": "e90e1751-b1e6-4c3c-9cdc-5735a02a333d",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -6154,6 +6179,12 @@
         "route.import",
         "route.update",
         "route.view",
+        "trip.create",
+        "trip.delete",
+        "trip.export",
+        "trip.import",
+        "trip.update",
+        "trip.view",
         "vehicle.create",
         "vehicle.delete",
         "vehicle.export",
@@ -6453,7 +6484,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6461,7 +6492,7 @@
         {
           "page": "trip",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6469,7 +6500,7 @@
         {
           "page": "trip",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6477,7 +6508,7 @@
         {
           "page": "trip",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6485,7 +6516,7 @@
         {
           "page": "trip",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6493,7 +6524,7 @@
         {
           "page": "trip",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -7319,7 +7350,7 @@
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "a2a5281d-b88a-4e0e-8dfb-150ece03db5c",
+      "companyId": "e90e1751-b1e6-4c3c-9cdc-5735a02a333d",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -7330,6 +7361,7 @@
         "driver.view",
         "geofence.view",
         "route.view",
+        "trip.view",
         "vehicle.view"
       ],
       "cells": [
@@ -7624,7 +7656,7 @@
         {
           "page": "trip",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false

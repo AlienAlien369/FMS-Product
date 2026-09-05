@@ -545,6 +545,83 @@ public sealed class TripLifecycleTests : IClassFixture<E2eFixture>, IAsyncLifeti
     }
 
     // ───────────────────────────────────────────────────────────────────────
+    // Corridor deviation: off-route fixes past the threshold raise an alert.
+    // ───────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task IngestedCorridorDeviation_PastThreshold_RaisesDistinctAlert()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (vehicleId, driverId) = await CreateFleetPairAsync(token, suffix);
+        var imei = "860" + Random.Shared.NextInt64(100_000_000_000, 999_999_999_999);
+
+        var (ds, ddata) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/devices", new
+        {
+            vendorCode = "sample-json", deviceType = 0, identityType = 0, identityValue = imei,
+        }, token);
+        Assert.True(ds is 200 or 201, $"device create status={ds}");
+        var deviceId = ddata!.Value.GetProperty("id").GetGuid();
+        var (as_, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/vehicles/{vehicleId}/devices", new { deviceId, role = 0 }, token);
+        Assert.True(as_ is 200 or 201, $"device assign status={as_}");
+
+        // Origin + end zones (needed to schedule), and a corridor along the
+        // route line (23.0,72.5) → (23.2,72.7) with a 1-minute threshold.
+        var (o1, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/geofences", new
+        { name = $"E2E Corr Origin {suffix}", type = 0, centerLatitude = 23.0, centerLongitude = 72.5, radius = 500 }, token);
+        var (o2, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/geofences", new
+        { name = $"E2E Corr End {suffix}", type = 0, centerLatitude = 23.2, centerLongitude = 72.7, radius = 500 }, token);
+        Assert.True(o1 is 200 or 201 && o2 is 200 or 201, "geofence create failed");
+        var originId = await GuidScalarAsync($"SELECT \"Id\"::text FROM \"Geofences\" WHERE \"Name\" = 'E2E Corr Origin {suffix}' AND \"IsDeleted\" = false");
+        var endId = await GuidScalarAsync($"SELECT \"Id\"::text FROM \"Geofences\" WHERE \"Name\" = 'E2E Corr End {suffix}' AND \"IsDeleted\" = false");
+
+        var tripId = await CreatedIdAsync(_db, token, new
+        {
+            name = $"E2E Corridor Trip {suffix}",
+            type = 0,
+            vehicleId,
+            driverId,
+            waypoints = new object[] { Waypoint(1, "Depot", 23.0, 72.5), Waypoint(2, "Customer", 23.2, 72.7) },
+            geofenceLinks = new object[] { Link(originId, 2), Link(endId, 3) },
+            routeGeometry = JsonSerializer.Serialize(new
+            {
+                type = "LineString",
+                coordinates = new[] { new[] { 72.5, 23.0 }, new[] { 72.7, 23.2 } },
+            }),
+            corridorEnabled = true, corridorBufferMeters = 500, deviationThresholdMinutes = 1,
+        });
+        var (sch, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/status", new { status = 1 }, token);
+        Assert.Equal(200, sch);
+        var (start, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/status", new { status = 2 }, token);
+        Assert.Equal(200, start);
+        _output.WriteLine("PASS  corridor trip scheduled + started");
+
+        // Fix 1 on the line (baseline); fix 2 off the line starts the episode;
+        // fix 3 still off the line, 2 min later → past the 1-min threshold.
+        var t0 = DateTime.UtcNow;
+        var fix = (DateTime ts, double lat, double lng) => new { imei, ts = ts.ToString("o"), lat, lon = lng, speed = 40.0 };
+        var (f1, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/ingest/sample-json", fix(t0, 23.1, 72.6));
+        var (f2, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/ingest/sample-json", fix(t0.AddMinutes(2), 23.1, 72.62));
+        var (f3, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post, "/api/v1/ingest/sample-json", fix(t0.AddMinutes(4), 23.1, 72.63));
+        Assert.True(f1 == 200 && f2 == 200 && f3 == 200, "ingest fixes rejected");
+
+        // The trip records the deviation episode and the distinct alert fired.
+        var deviated = await _db.ScalarAsync($$"""
+            SELECT "DeviatedSince" IS NOT NULL::text FROM "Trips" WHERE "Id" = '{{tripId}}'
+            """);
+        Assert.Equal("true", deviated);
+        var alertCount = await _db.ScalarAsync($$"""
+            SELECT COUNT(*)::text FROM "Alerts"
+            WHERE "AlertType" = 'TripCorridorDeviation' AND "VehicleId" = (
+                SELECT "VehicleId" FROM "Trips" WHERE "Id" = '{{tripId}}')
+            """);
+        Assert.Equal("1", alertCount);
+        _output.WriteLine("PASS  off-route fixes past threshold → TripCorridorDeviation alert (once)");
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
     // Double-booking hard block + cancel requires reason.
     // ───────────────────────────────────────────────────────────────────────
     [Fact]

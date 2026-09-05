@@ -270,6 +270,62 @@ public class TripLifecycleService
     }
 
     /// <summary>
+    /// Corridor deviation evaluation for one telemetry fix. When the trip is
+    /// in progress with corridor tracking enabled, a fix farther than
+    /// CorridorBufferMeters from the route path starts/extends a deviation
+    /// episode; once the episode outlives DeviationThresholdMinutes the
+    /// distinct TripCorridorDeviation alert fires exactly once per episode.
+    /// Re-entry inside the corridor resets the episode so a fresh deviation
+    /// can alert again. Mutations stage in the caller's context (no save).
+    /// </summary>
+    public void EvaluateCorridorDeviation(Trip trip, double latitude, double longitude, DateTime at)
+    {
+        // Corridor tracking only applies while the trip is actually travelling.
+        if (trip.Status != TripStatus.InProgress || !trip.CorridorEnabled || string.IsNullOrWhiteSpace(trip.RouteGeometry))
+        {
+            trip.DeviatedSince = null;
+            return;
+        }
+
+        var path = RouteAdherence.RoutePath.ParseLineString(trip.RouteGeometry);
+        if (path.Count < 2)
+        {
+            trip.DeviatedSince = null;
+            return;
+        }
+
+        var buffer = trip.CorridorBufferMeters ?? 500;
+        var threshold = TimeSpan.FromMinutes(trip.DeviationThresholdMinutes ?? 10);
+        if (!RouteAdherence.RouteCorridor.IsOutsideCorridor(latitude, longitude, path, buffer))
+        {
+            // Back on the path — end the episode and allow a fresh alert next time.
+            trip.DeviatedSince = null;
+            trip.CorridorAlerted = false;
+            return;
+        }
+
+        trip.DeviatedSince ??= at;
+        if (!trip.CorridorAlerted && at - trip.DeviatedSince.Value >= threshold)
+        {
+            _db.Alerts.Add(new Alert
+            {
+                Id = Guid.NewGuid(),
+                AlertType = "TripCorridorDeviation",
+                Severity = AlertSeverity.Medium,
+                Title = $"Trip '{trip.Name}' deviated from its route corridor",
+                Message = $"Vehicle stayed more than {buffer:0}m from the route path for over {threshold.TotalMinutes:0} minutes (since {trip.DeviatedSince.Value:u}).",
+                CompanyId = trip.CompanyId,
+                TenantId = trip.CompanyId,
+                VehicleId = trip.VehicleId,
+                DriverId = trip.DriverId,
+                Latitude = latitude,
+                Longitude = longitude
+            });
+            trip.CorridorAlerted = true;
+        }
+    }
+
+    /// <summary>
     /// Entry point for the geofence/telemetry event pipeline: one zone event
     /// (entry/exit) for one geofence, applied to the trip that links it.
     /// Exit of the origin zone auto-starts a scheduled trip; entry of the end

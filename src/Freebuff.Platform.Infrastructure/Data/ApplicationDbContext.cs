@@ -38,6 +38,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<Trip> Trips => Set<Trip>();
+    public DbSet<TripWaypoint> TripWaypoints => Set<TripWaypoint>();
+    public DbSet<TripGeofence> TripGeofences => Set<TripGeofence>();
+    public DbSet<TripStatusHistory> TripStatusHistories => Set<TripStatusHistory>();
     public DbSet<Geofence> Geofences => Set<Geofence>();
     public DbSet<VehicleGeofence> VehicleGeofences => Set<VehicleGeofence>();
     public DbSet<Route> Routes => Set<Route>();

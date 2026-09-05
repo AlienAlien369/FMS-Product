@@ -202,7 +202,40 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
         b.HasOne(t => t.Vehicle).WithMany(v => v.Trips).HasForeignKey(t => t.VehicleId);
         b.HasOne(t => t.Driver).WithMany(d => d.Trips).HasForeignKey(t => t.DriverId);
         b.HasOne(t => t.Client).WithMany(c => c.Trips).HasForeignKey(t => t.ClientId);
+        b.HasOne(t => t.Route).WithMany(r => r.Trips).HasForeignKey(t => t.RouteId);
+        b.HasMany(t => t.TripWaypoints).WithOne(w => w.Trip).HasForeignKey(w => w.TripId);
+        b.HasMany(t => t.TripGeofences).WithOne(g => g.Trip).HasForeignKey(g => g.TripId);
+        b.HasMany(t => t.StatusHistory).WithOne(h => h.Trip).HasForeignKey(h => h.TripId);
         b.HasQueryFilter(t => !t.IsDeleted);
+    }
+}
+
+public class TripWaypointConfiguration : IEntityTypeConfiguration<TripWaypoint>
+{
+    public void Configure(EntityTypeBuilder<TripWaypoint> b)
+    {
+        b.Property(w => w.Name).HasMaxLength(200).IsRequired();
+        b.HasIndex(w => new { w.TripId, w.SequenceOrder }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasQueryFilter(w => !w.IsDeleted);
+    }
+}
+
+public class TripGeofenceConfiguration : IEntityTypeConfiguration<TripGeofence>
+{
+    public void Configure(EntityTypeBuilder<TripGeofence> b)
+    {
+        b.HasIndex(g => new { g.TripId, g.GeofenceId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasQueryFilter(g => !g.IsDeleted);
+    }
+}
+
+public class TripStatusHistoryConfiguration : IEntityTypeConfiguration<TripStatusHistory>
+{
+    public void Configure(EntityTypeBuilder<TripStatusHistory> b)
+    {
+        b.HasIndex(h => h.TripId);
+        // History is an audit log — never soft-deleted.
+        b.HasQueryFilter(h => true);
     }
 }
 

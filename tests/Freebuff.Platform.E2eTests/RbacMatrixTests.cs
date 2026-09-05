@@ -142,6 +142,7 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
                 ("driver", "/api/v1/drivers"),
                 ("geofence", "/api/v1/geofences"),
                 ("route", "/api/v1/routes"),
+                ("trip", "/api/v1/trips"),
                 ("user", "/api/v1/users"),
                 ("role", "/api/v1/roles"),
                 ("package", "/api/v1/admin/packages"),
@@ -441,9 +442,9 @@ public sealed class RbacMatrixTests : IClassFixture<E2eFixture>, IAsyncLifetime
         // Unknown/unregistered route → clean 404, not a crash.
         var (n4, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/nonexistent-page");
         _checker.Check("GET unknown route = 404", n4 == 404, $"status={n4}");
-        // Registered-but-planned page (trip) has no controller → 404, not 500.
-        var (n5, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/trips");
-        _checker.Check("GET planned-page route (trips) = 404", n5 == 404, $"status={n5}");
+        // Registered-but-planned page (alert) has no controller → 404, not 500.
+        var (n5, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, "/api/v1/alerts");
+        _checker.Check("GET planned-page route (alerts) = 404", n5 == 404, $"status={n5}");
 
         // Malformed body on a valid endpoint → 400 (validation), not 500.
         var demo = await TokenAsync(DemoAdminEmail);

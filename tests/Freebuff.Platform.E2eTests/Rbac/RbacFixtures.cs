@@ -47,11 +47,11 @@ public static class RbacFixtures
     /// <summary>The pages a tenant can actually navigate to (live, non-adminOnly, nav+route).</summary>
     public static readonly string[] LivePageKeys =
     {
-        "dashboard", "vehicle", "driver", "geofence", "route",
+        "dashboard", "vehicle", "driver", "geofence", "route", "trip",
         "company", "user", "role", "localization", "settings"
     };
 
-    public static readonly string[] FleetCrudPageKeys = { "vehicle", "driver", "geofence", "route" };
+    public static readonly string[] FleetCrudPageKeys = { "vehicle", "driver", "geofence", "route", "trip" };
 
     public static async Task SeedAsync(E2eDb db)
     {

@@ -27,12 +27,15 @@ public class DeviceIngestionService
     private readonly ApplicationDbContext _db;
     private readonly IVendorAdapterRegistry _registry;
     private readonly ILogger<DeviceIngestionService> _logger;
+    private readonly TripGeofenceEventProducer _zoneEvents;
 
-    public DeviceIngestionService(ApplicationDbContext db, IVendorAdapterRegistry registry, ILogger<DeviceIngestionService> logger)
+    public DeviceIngestionService(ApplicationDbContext db, IVendorAdapterRegistry registry,
+        ILogger<DeviceIngestionService> logger, TripGeofenceEventProducer zoneEvents)
     {
         _db = db;
         _registry = registry;
         _logger = logger;
+        _zoneEvents = zoneEvents;
     }
 
     public async Task<IngestResult> IngestAsync(string vendorCode, string channel, byte[] payload, string? contentType, string? ingestKey)
@@ -162,6 +165,13 @@ public class DeviceIngestionService
 
         if (archiveRaw)
             await ArchiveAsync(vendor, device.Id, channel, payload, contentType, TelemetryParseStatus.Parsed, null);
+
+        // Trip automation: a position fix on an assigned vehicle may cross a
+        // linked geofence boundary — the producer fires entry/exit zone events
+        // (auto-start/complete, checkpoint visits, restricted-zone alerts) into
+        // the same context so the fix and its effects commit atomically.
+        if (assignment != null && telemetry.Latitude.HasValue && telemetry.Longitude.HasValue)
+            await _zoneEvents.ProcessPositionAsync(assignment.VehicleId, telemetry.Latitude.Value, telemetry.Longitude.Value, eventTime);
 
         await _db.SaveChangesAsync();
         return IngestResult.Ok(device.Id.ToString(), assignment?.VehicleId.ToString());

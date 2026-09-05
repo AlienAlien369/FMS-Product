@@ -45,6 +45,14 @@ public class FleetDbContext : DbContext
         modelBuilder.Entity<Client>().Ignore(c => c.Trips);
         modelBuilder.Entity<Trip>().Ignore(t => t.Company);
         modelBuilder.Entity<Trip>().Ignore(t => t.Client);
+        // Trip sub-entities + the Route link live in the main API context —
+        // ignore them here so Route/Company/Subscription never enter the fleet
+        // model (otherwise convention pulls the whole graph in and the
+        // Company.Subscription one-to-one becomes ambiguous).
+        modelBuilder.Entity<Trip>().Ignore(t => t.Route);
+        modelBuilder.Entity<Trip>().Ignore(t => t.TripWaypoints);
+        modelBuilder.Entity<Trip>().Ignore(t => t.TripGeofences);
+        modelBuilder.Entity<Trip>().Ignore(t => t.StatusHistory);
         modelBuilder.Entity<Geofence>().Ignore(g => g.Company);
 
         modelBuilder.Entity<Vehicle>(b =>

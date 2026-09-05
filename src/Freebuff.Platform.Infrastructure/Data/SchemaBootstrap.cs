@@ -342,6 +342,108 @@ public static class SchemaBootstrap
         );
         CREATE INDEX IF NOT EXISTS "IX_RawPayloads_ReceivedAt" ON "RawPayloads" ("ReceivedAtUtc");
         CREATE INDEX IF NOT EXISTS "IX_RawPayloads_Vendor_Device" ON "RawPayloads" ("VendorId", "DeviceId");
+        """,
+
+        // ── Trip module ──────────────────────────────────────────────────────
+        // Trip orchestrates Vehicle + Driver + Route (optional) + Geofences
+        // (mandatory before scheduling). Waypoints are first-class rows (round
+        // trips use a per-waypoint leg flag); TripGeofence carries the same
+        // checkpoint/restricted role model as RouteGeofence; StatusHistory is
+        // the audit trail of every transition. No FK constraints (matching the
+        // PackageModules/Pages precedent — application logic enforces integrity).
+        """
+        CREATE TABLE IF NOT EXISTS "TripWaypoints" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NULL,
+            "TripId" uuid NOT NULL,
+            "SequenceOrder" integer NOT NULL,
+            "LegType" integer NOT NULL,
+            "WaypointType" integer NOT NULL,
+            "Name" text NOT NULL,
+            "Latitude" double precision NOT NULL,
+            "Longitude" double precision NOT NULL,
+            "Address" text NULL,
+            "ExpectedArrival" timestamp with time zone NULL,
+            "ActualArrival" timestamp with time zone NULL,
+            "LinkedGeofenceId" uuid NULL,
+            "ProofOfCompletion" text NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_TripWaypoints" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_TripWaypoints_TripId" ON "TripWaypoints" ("TripId");
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_TripWaypoints_Trip_Seq" ON "TripWaypoints" ("TripId", "SequenceOrder") WHERE "IsDeleted" = false;
+
+        CREATE TABLE IF NOT EXISTS "TripGeofences" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NULL,
+            "TripId" uuid NOT NULL,
+            "GeofenceId" uuid NOT NULL,
+            "Role" integer NOT NULL,
+            "SequenceOrder" integer NULL,
+            "Visited" boolean NULL,
+            "VisitedAt" timestamp with time zone NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_TripGeofences" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_TripGeofences_TripId" ON "TripGeofences" ("TripId");
+        CREATE INDEX IF NOT EXISTS "IX_TripGeofences_GeofenceId" ON "TripGeofences" ("GeofenceId");
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_TripGeofences_Trip_Geofence" ON "TripGeofences" ("TripId", "GeofenceId") WHERE "IsDeleted" = false;
+
+        CREATE TABLE IF NOT EXISTS "TripStatusHistories" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NULL,
+            "TripId" uuid NOT NULL,
+            "FromStatus" integer NOT NULL,
+            "ToStatus" integer NOT NULL,
+            "Reason" text NULL,
+            "Source" text NOT NULL,
+            "ChangedAt" timestamp with time zone NOT NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_TripStatusHistories" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_TripStatusHistories_TripId" ON "TripStatusHistories" ("TripId");
+
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "Type" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "IsDelayed" boolean NOT NULL DEFAULT false;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "DelayReason" text NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CancelReason" text NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "RouteId" uuid NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "RouteGeometry" text NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CorridorEnabled" boolean NOT NULL DEFAULT false;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "CorridorBufferMeters" double precision NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "DeviationThresholdMinutes" integer NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "FuelUsedLiters" numeric NULL;
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "IdleMinutes" integer NULL;
+
+        -- Registry data migration: the trip page shipped in this release
+        -- (PageRegistry now marks it live with a real route). Flip the DB row
+        -- once so tenants see it in the catalog/sidebar; harmless re-run.
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/trips'
+            WHERE "Key" = 'trip' AND "IsDeleted" = false AND "Planned" = true;
         """
     };
 

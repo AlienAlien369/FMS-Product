@@ -477,7 +477,8 @@ public sealed class RegistryCrudTests : IClassFixture<E2eFixture>
         _checker.Check("Tenant sees only included modules (dashboard,fleet,organization)",
             string.Join(",", tenCodes) == "dashboard,fleet,organization",
             $"codes={string.Join(",", tenCodes)}");
-        _checker.Check("Tenant view excludes planned page", !tenKeys.Contains("trip"));
+        _checker.Check("Tenant view includes now-live trip page", tenKeys.Contains("trip"));
+        _checker.Check("Tenant view excludes planned page", !tenKeys.Contains("alert"));
         _checker.Check("Tenant view excludes adminOnly page", !tenKeys.Contains("platform"));
         _checker.Check("Tenant view excludes non-nav page (subscription)", !tenKeys.Contains("subscription"));
         _checker.Check("Tenant view keeps live pages (vehicle, route)",

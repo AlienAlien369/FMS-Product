@@ -21,6 +21,7 @@ import CompanyDetail from './pages/CompanyDetail';
 import Packages from './pages/Packages';
 import RoutesPage from './pages/Routes';
 import GeofencesPage from './pages/Geofences';
+import TripsPage from './pages/Trips';
 import type { ReactNode } from 'react';
 import { pagePermission } from './config/pages';
 
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="/packages" element={<PermissionRoute permission={pagePermission('package')} adminOnly><Packages /></PermissionRoute>} />
         <Route path="/modules" element={<PermissionRoute permission={pagePermission('module')} adminOnly><Modules /></PermissionRoute>} />
         <Route path="/routes" element={<PermissionRoute permission={pagePermission('route')}><RoutesPage /></PermissionRoute>} />
+        <Route path="/trips" element={<PermissionRoute permission={pagePermission('trip')}><TripsPage /></PermissionRoute>} />
         <Route path="/localization" element={<PermissionRoute permission={pagePermission('localization')}><Localization /></PermissionRoute>} />
         <Route path="/settings" element={<PermissionRoute permission={pagePermission('settings')}><Settings /></PermissionRoute>} />
       </Route>

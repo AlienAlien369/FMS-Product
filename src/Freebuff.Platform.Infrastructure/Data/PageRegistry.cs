@@ -85,7 +85,7 @@ public static class PageRegistry
         new PageDefinition("driver",       "Drivers",              "/drivers",              "users",            true,  false, false, true,  4,  "fleet", "Driver profiles and management"),
         new PageDefinition("geofence",     "Geofences",            "/geofences",            "globe",            true,  false, false, false, 5,  "fleet", "Geofence creation and monitoring"),
         new PageDefinition("route",        "Routes",               "/routes",               "navigation",       true,  false, false, false, 6,  "fleet", "Route planning and optimization"),
-        new PageDefinition("trip",         "Trips",                null,                    "navigation",       false, false, true,  false, 7,  "fleet", "Planned: trip entity exists, page not built yet"),
+        new PageDefinition("trip",         "Trips",                "/trips",                "navigation",       true,  false, false, false, 7,  "fleet", "Trip planning, tracking and replay"),
         new PageDefinition("alert",        "Alerts",               null,                    "bell",             false, false, true,  false, 8,  "fleet", "Planned: alert entity exists, page not built yet"),
         new PageDefinition("fuel",         "Fuel",                 null,                    "fuel",             false, false, true,  false, 9,  "fleet", "Planned: fuel entity exists, page not built yet"),
         new PageDefinition("maintenance",  "Maintenance",          null,                    "wrench",           false, false, true,  false, 10, "fleet", "Planned: maintenance entity exists, page not built yet"),

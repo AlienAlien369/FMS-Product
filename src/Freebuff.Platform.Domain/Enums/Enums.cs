@@ -124,14 +124,65 @@ public enum DriverStatus
     Suspended = 4
 }
 
+/// <summary>
+/// Trip lifecycle. Delayed is deliberately NOT a status — it is a sub-state
+/// flag on the trip (IsDelayed) so an in-progress trip that misses an
+/// expected arrival keeps its primary status and its ETA/alerting semantics.
+/// Cancelled/Aborted require an explicit reason.
+/// </summary>
 public enum TripStatus
 {
-    Planned = 0,
-    Started = 1,
+    Draft = 0,
+    Scheduled = 1,
     InProgress = 2,
-    Paused = 3,
-    Completed = 4,
-    Cancelled = 5
+    Completed = 3,
+    Cancelled = 4,
+    Aborted = 5
+}
+
+/// <summary>Single = one-directional origin→destination; Round = outbound + return legs to the origin.</summary>
+public enum TripType
+{
+    Single = 0,
+    Round = 1
+}
+
+/// <summary>
+/// Leg of a round trip a waypoint belongs to. Mirrors RouteGeofenceRole in
+/// spirit: the waypoint sequence is one ordered list; the leg flag splits it
+/// into outbound / return without creating two trip records.
+/// </summary>
+public enum TripLegType
+{
+    Outbound = 0,
+    Return = 1
+}
+
+/// <summary>Why a waypoint exists — powers "how many delivery stops"-style reporting.</summary>
+public enum TripWaypointType
+{
+    Pickup = 0,
+    Delivery = 1,
+    Rest = 2,
+    Fuel = 3,
+    Checkpoint = 4,
+    Other = 5
+}
+
+/// <summary>Semantic role of a geofence linked directly to a trip (same values as RouteGeofenceRole).</summary>
+public enum TripGeofenceRole
+{
+    Checkpoint = 0,
+    RestrictedZone = 1,
+    StartZone = 2,
+    EndZone = 3
+}
+
+/// <summary>The two zone events a geofence/telemetry pipeline can raise for a trip.</summary>
+public enum TripZoneEventKind
+{
+    Entry = 0,
+    Exit = 1
 }
 
 public enum GeofenceType

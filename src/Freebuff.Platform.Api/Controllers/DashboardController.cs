@@ -33,7 +33,7 @@ public class DashboardController : ControllerBase
         var activeDrivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && d.Status == DriverStatus.Active && (scope == null || scope.Contains(d.CompanyId)));
         var onTripDrivers = await _db.Drivers.CountAsync(d => !d.IsDeleted && d.Status == DriverStatus.OnTrip && (scope == null || scope.Contains(d.CompanyId)));
         var totalTrips = await _db.Trips.CountAsync(t => !t.IsDeleted && (scope == null || scope.Contains(t.CompanyId)));
-        var activeTrips = await _db.Trips.CountAsync(t => !t.IsDeleted && (t.Status == TripStatus.InProgress || t.Status == TripStatus.Started) && (scope == null || scope.Contains(t.CompanyId)));
+        var activeTrips = await _db.Trips.CountAsync(t => !t.IsDeleted && t.Status == TripStatus.InProgress && (scope == null || scope.Contains(t.CompanyId)));
         var totalUsers = await _db.Users.CountAsync(u => !u.IsDeleted && (scope == null || scope.Contains(u.CompanyId)));
         var totalGeofences = await _db.Geofences.CountAsync(g => !g.IsDeleted && (scope == null || scope.Contains(g.CompanyId)));
 

@@ -71,7 +71,7 @@ export const PAGES: PageDef[] = [
   { key: 'driver',       label: 'Drivers',             route: '/drivers',         icon: Users,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 4 },
   { key: 'geofence',     label: 'Geofences',           route: '/geofences',       icon: Globe,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 5 },
   { key: 'route',        label: 'Routes',              route: '/routes',          icon: Navigation,      nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 6 },
-  { key: 'trip',         label: 'Trips',               icon: Navigation,          nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 7 },
+  { key: 'trip',         label: 'Trips',               route: '/trips',           icon: Navigation,          nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 7 },
   { key: 'alert',        label: 'Alerts',              icon: Bell,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 8 },
   { key: 'fuel',         label: 'Fuel',                icon: Fuel,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 9 },
   { key: 'maintenance',  label: 'Maintenance',         icon: Wrench,              nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 10 },

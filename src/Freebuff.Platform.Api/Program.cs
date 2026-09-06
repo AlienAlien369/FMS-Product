@@ -66,6 +66,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "freebuff",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
+        // SignalR browsers cannot set Authorization headers on WebSocket
+        // connections, so the SignalR JS client appends the JWT as the
+        // access_token query parameter (standard SignalR convention).
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -87,6 +103,9 @@ builder.Services.AddScoped<DeviceService>();
 builder.Services.AddScoped<DeviceIngestionService>();
 builder.Services.AddScoped<IAlertTypeEnforcement, AlertTypeEnforcement>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Freebuff.Platform.Infrastructure.Services.INotificationRealtimeChannel,
+    Freebuff.Platform.Api.Hubs.SignalRNotificationChannel>();
 
 // ── Controllers + Swagger ────────────────────────────────
 builder.Services.AddControllers();
@@ -166,6 +185,9 @@ app.UseMiddleware<CompanyScopeMiddleware>();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+// Real-time notification channel: the bell subscribes here and receives
+// "notification.new" pushes instead of polling.
+app.MapHub<Freebuff.Platform.Api.Hubs.NotificationHub>("/hubs/notifications");
 
 // ── Auto-setup database ─────────────────────────────────
 using (var scope = app.Services.CreateScope())

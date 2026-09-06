@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Inbox } from 'lucide-react';
 import api from '../lib/api';
+import { onChannelUp, onNotification, stop } from '../lib/notificationSocket';
 import { useAuth } from '../contexts/AuthContext';
 
 interface NotificationItem {
@@ -22,8 +23,6 @@ const SEVERITY_COLORS: Record<number, string> = {
   3: 'bg-orange-500',
   4: 'bg-red-500',
 };
-
-const POLL_MS = 30_000; // near-real-time via short-interval polling (no WS channel yet)
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -68,10 +67,19 @@ export default function NotificationBell() {
     }
   };
 
+  // Instant updates: the server pushes "notification.new" over the SignalR
+  // channel the moment a row is committed; the badge re-fetches on each push
+  // (and on every (re)connect, to catch anything missed while the socket was
+  // down). No polling.
   useEffect(() => {
     load();
-    const t = setInterval(load, POLL_MS);
-    return () => clearInterval(t);
+    const offNew = onNotification(() => load());
+    const offUp = onChannelUp(() => load());
+    return () => {
+      offNew();
+      offUp();
+      void stop();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

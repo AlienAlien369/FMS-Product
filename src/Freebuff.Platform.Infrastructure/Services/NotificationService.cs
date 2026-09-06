@@ -13,6 +13,17 @@ namespace Freebuff.Platform.Infrastructure.Services;
 /// changed. Per-user NotificationPreference rows (personal mute) are honored
 /// here — an absence of a row means the user wants the event surfaced.
 /// </summary>
+/// <summary>
+/// Push channel for instant delivery of new notifications to connected clients
+/// (SignalR). The service layer depends only on this contract so it stays
+/// testable without a hub; the API layer supplies the SignalR implementation.
+/// Absence of an implementation (unit tests, minimal hosts) is a silent no-op.
+/// </summary>
+public interface INotificationRealtimeChannel
+{
+    Task PushToUserAsync(Guid userId, string eventType, string title, string message, int severity);
+}
+
 public interface INotificationService
 {
     /// <summary>Send to one user, honoring their personal preference mute.</summary>
@@ -46,11 +57,14 @@ public class NotificationService : INotificationService
 {
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
+    private readonly INotificationRealtimeChannel? _realtime;
 
-    public NotificationService(ApplicationDbContext db, IPermissionService permissionService)
+    public NotificationService(ApplicationDbContext db, IPermissionService permissionService,
+        INotificationRealtimeChannel? realtime = null)
     {
         _db = db;
         _permissionService = permissionService;
+        _realtime = realtime;
     }
 
     public async Task NotifyUserAsync(Guid companyId, Guid userId, string eventType, string title, string message,
@@ -182,6 +196,15 @@ public class NotificationService : INotificationService
             });
         }
         await _db.SaveChangesAsync();
+
+        // Push after the commit so a failed save never emits a phantom event.
+        if (_realtime != null)
+        {
+            foreach (var uid in recipients)
+            {
+                await _realtime.PushToUserAsync(uid, eventType, title, message, severity);
+            }
+        }
         return recipients.Count;
     }
 
@@ -208,5 +231,11 @@ public class NotificationService : INotificationService
             UpdatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync();
+
+        // Push after the commit so a failed save never emits a phantom event.
+        if (_realtime != null)
+        {
+            await _realtime.PushToUserAsync(userId, eventType, title, message, severity);
+        }
     }
 }

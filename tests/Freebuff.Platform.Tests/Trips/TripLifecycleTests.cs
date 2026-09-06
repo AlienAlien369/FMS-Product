@@ -263,7 +263,10 @@ public class TripZoneEventTests
         var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
-        var result = await service.HandleZoneEventAsync(trip.Id, restrictedGeofence, TripZoneEventKind.Entry, at);
+        // Fix coordinates where the vehicle actually breached (23.15, 72.65) —
+        // distinct from the trip start (23.0, 72.5).
+        var result = await service.HandleZoneEventAsync(trip.Id, restrictedGeofence, TripZoneEventKind.Entry, at,
+            23.15, 72.65);
 
         Assert.True(string.IsNullOrEmpty(result.Error));
         Assert.False(result.StatusChanged);
@@ -274,6 +277,39 @@ public class TripZoneEventTests
         Assert.Equal(company, alert.CompanyId);
         Assert.Equal(vehicle, alert.VehicleId);
         Assert.Equal(trip.DriverId, alert.DriverId);
+        Assert.Equal(23.15, alert.Latitude!.Value, 5);
+        Assert.Equal(72.65, alert.Longitude!.Value, 5);
+        Assert.Contains("violation at 23.15000, 72.65000", alert.Message);
+    }
+
+    [Fact]
+    public async Task EntryRestrictedZone_WithoutFixCoords_FallsBackToTripStartPosition()
+    {
+        using var db = NewDb("zone_restricted_fallback_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var vehicle = Guid.NewGuid();
+        var restrictedGeofence = Guid.NewGuid();
+        var trip = NewScheduledTrip(company, vehicle, Guid.NewGuid());
+        trip.Status = TripStatus.InProgress;
+        trip.ActualStartTime = DateTime.UtcNow.AddHours(-1);
+        db.Trips.Add(trip);
+        db.TripGeofences.Add(new TripGeofence
+        {
+            Id = Guid.NewGuid(), TripId = trip.Id, TenantId = company,
+            GeofenceId = restrictedGeofence, Role = TripGeofenceRole.RestrictedZone
+        });
+        db.SaveChanges();
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
+
+        // Manual zone event (no fix position available) → trip start position.
+        var result = await service.HandleZoneEventAsync(trip.Id, restrictedGeofence, TripZoneEventKind.Entry, DateTime.UtcNow);
+
+        Assert.True(string.IsNullOrEmpty(result.Error));
+        await db.SaveChangesAsync();
+        var alert = Assert.Single(db.Alerts);
+        Assert.Equal(23.0, alert.Latitude!.Value, 5);
+        Assert.Equal(72.5, alert.Longitude!.Value, 5);
+        Assert.DoesNotContain("violation at", alert.Message);
     }
 
     [Fact]

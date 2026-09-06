@@ -54,7 +54,7 @@ public class TripGeofenceEventProducer
                 var wasInside = GeofenceContainment.IsInside(link.Geofence, previous.Latitude!.Value, previous.Longitude!.Value);
                 if (nowInside == wasInside) continue;
                 await _lifecycle.HandleZoneEventAsync(trip.Id, link.GeofenceId,
-                    nowInside ? TripZoneEventKind.Entry : TripZoneEventKind.Exit, at);
+                    nowInside ? TripZoneEventKind.Entry : TripZoneEventKind.Exit, at, latitude, longitude);
             }
             // Corridor deviation is a corridor problem, not a zone problem —
             // evaluate every fix regardless of geofence boundaries.

@@ -156,7 +156,8 @@ public class TripCorridorDeviationTests
         trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-5); // already off-route 5 min
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
+        var notifications = new CapturingNotificationService();
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement(), notifications);
 
         await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, DateTime.UtcNow);
         await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, DateTime.UtcNow.AddSeconds(30)); // still off-route
@@ -167,6 +168,10 @@ public class TripCorridorDeviationTests
         Assert.Equal(company, alert.CompanyId);
         Assert.Equal(vehicle, alert.VehicleId);
         Assert.True(trip.CorridorAlerted);
+        // The alert.fired notification mirrors the alert's Medium severity.
+        var push = Assert.Single(notifications.Dispatched);
+        Assert.Equal("alert.fired", push.EventType);
+        Assert.Equal((int)AlertSeverity.Medium, push.Severity);
     }
 
     [Fact]
@@ -329,6 +334,44 @@ public class TripGeofenceEventProducerTests
 
         Assert.Equal(TripStatus.Completed, trip.Status);
         Assert.NotNull(trip.ActualEndTime);
+    }
+
+    [Fact]
+    public async Task EntryRestrictedZone_RaisesHighAlert_AndHighSeverityNotification()
+    {
+        using var db = NewDb("prod_restricted_" + Guid.NewGuid());
+        var company = Guid.NewGuid();
+        var vehicle = Guid.NewGuid();
+        var restricted = CircleGeofence(23.15, 72.65, 300);
+        var trip = TripFor(company, vehicle, TripStatus.InProgress, "Restricted");
+        trip.ActualStartTime = DateTime.UtcNow.AddHours(-1);
+        Link(db, trip, company, restricted, TripGeofenceRole.RestrictedZone);
+        var notifications = new CapturingNotificationService();
+        var lifecycle = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement(), notifications);
+        db.Geofences.Add(restricted);
+        db.Trips.Add(trip);
+        db.TelemetryEvents.Add(new TelemetryEvent
+        {
+            Id = Guid.NewGuid(), TenantId = company, DeviceId = Guid.NewGuid(), VehicleId = vehicle,
+            EventTimeUtc = DateTime.UtcNow.AddMinutes(-5), Latitude = 23.1, Longitude = 72.6 // ~5 km outside
+        });
+        await db.SaveChangesAsync();
+        var producer = new TripGeofenceEventProducer(db, lifecycle);
+
+        // Fix moves into the restricted zone center → violation alert + notification.
+        await producer.ProcessPositionAsync(vehicle, 23.15, 72.65, DateTime.UtcNow);
+        await db.SaveChangesAsync();
+
+        var alert = Assert.Single(db.Alerts);
+        Assert.Equal("TripRestrictedZoneViolation", alert.AlertType);
+        Assert.Equal(AlertSeverity.High, alert.Severity);
+        // The alert records the actual breach fix (23.15, 72.65), not the trip start (23.0, 72.5).
+        Assert.Equal(23.15, alert.Latitude!.Value, 5);
+        Assert.Equal(72.65, alert.Longitude!.Value, 5);
+        Assert.Contains("violation at 23.15000, 72.65000", alert.Message);
+        var push = Assert.Single(notifications.Dispatched);
+        Assert.Equal("alert.fired", push.EventType);
+        Assert.Equal((int)AlertSeverity.High, push.Severity); // High breach notifies as High
     }
 
     [Fact]

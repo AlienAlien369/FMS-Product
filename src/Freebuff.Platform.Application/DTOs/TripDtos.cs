@@ -41,6 +41,10 @@ public class TripDto
     public bool CorridorEnabled { get; set; }
     public double? CorridorBufferMeters { get; set; }
     public int? DeviationThresholdMinutes { get; set; }
+    /// <summary>When the vehicle first drifted beyond the corridor buffer (null = on path).</summary>
+    public DateTime? DeviatedSince { get; set; }
+    /// <summary>True once the distinct corridor-deviation alert has fired for the current episode.</summary>
+    public bool CorridorAlerted { get; set; }
 
     public int WaypointCount { get; set; }
     public int GeofenceCount { get; set; }

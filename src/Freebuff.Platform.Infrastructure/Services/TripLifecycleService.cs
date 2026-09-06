@@ -332,7 +332,7 @@ public class TripLifecycleService
                     Latitude = latitude,
                     Longitude = longitude
                 });
-                await NotifyAlertFiredAsync(trip, $"Trip '{trip.Name}' deviated from its route corridor",
+                await NotifyAlertFiredAsync(trip, AlertSeverity.Medium, $"Trip '{trip.Name}' deviated from its route corridor",
                     $"Vehicle stayed more than {buffer:0}m from the route path for over {threshold.TotalMinutes:0} minutes.");
             }
             trip.CorridorAlerted = true;
@@ -346,8 +346,12 @@ public class TripLifecycleService
     /// zone auto-completes an in-progress one; checkpoint entry marks visits;
     /// restricted-zone entry raises a distinct alert. Source is always
     /// "geofence_event" so manual vs automated transitions stay separable.
+    /// When the event originates from a telemetry fix, the fix position is
+    /// passed so the violation alert records where the breach happened;
+    /// manual zone events omit it and fall back to the trip start position.
     /// </summary>
-    public async Task<TripZoneEventResult> HandleZoneEventAsync(Guid tripId, Guid geofenceId, TripZoneEventKind kind, DateTime at)
+    public async Task<TripZoneEventResult> HandleZoneEventAsync(Guid tripId, Guid geofenceId, TripZoneEventKind kind, DateTime at,
+        double? latitude = null, double? longitude = null)
     {
         var result = new TripZoneEventResult();
         var trip = await _db.Trips
@@ -401,21 +405,24 @@ public class TripLifecycleService
             {
                 if (await _alertEnforcement.IsEntitledAsync(trip.CompanyId, "route.restricted_zone_violation"))
                 {
+                    var violation = latitude.HasValue
+                        ? $" (violation at {latitude:0.00000}, {longitude:0.00000})"
+                        : string.Empty;
                     _db.Alerts.Add(new Alert
                     {
                         Id = Guid.NewGuid(),
                         AlertType = "TripRestrictedZoneViolation",
                         Severity = AlertSeverity.High,
                         Title = $"Vehicle entered a restricted zone on trip '{trip.Name}'",
-                        Message = $"Trip '{trip.Name}' entered restricted-zone geofence {geofenceId} at {at:u}.",
+                        Message = $"Trip '{trip.Name}' entered restricted-zone geofence {geofenceId} at {at:u}{violation}.",
                         CompanyId = trip.CompanyId,
                         TenantId = trip.CompanyId,
                         VehicleId = trip.VehicleId,
                         DriverId = trip.DriverId,
-                        Latitude = trip.StartLatitude,
-                        Longitude = trip.StartLongitude,
+                        Latitude = latitude ?? trip.StartLatitude,
+                        Longitude = longitude ?? trip.StartLongitude,
                     });
-                    await NotifyAlertFiredAsync(trip, $"Vehicle entered a restricted zone on trip '{trip.Name}'",
+                    await NotifyAlertFiredAsync(trip, AlertSeverity.High, $"Vehicle entered a restricted zone on trip '{trip.Name}'",
                         $"Trip '{trip.Name}' entered a do-not-enter geofence at {at:u}.");
                 }
                 result.Warnings.Add($"Restricted-zone violation on trip '{trip.Name}': vehicle entered a do-not-enter geofence.");
@@ -523,7 +530,7 @@ public class TripLifecycleService
         }
         if (trip.TripGeofences.Any(g => g.Role == TripGeofenceRole.Checkpoint && g.Visited != true))
         {
-            await NotifyAlertFiredAsync(trip, $"Trip '{trip.Name}' completed with missed checkpoints",
+            await NotifyAlertFiredAsync(trip, AlertSeverity.Medium, $"Trip '{trip.Name}' completed with missed checkpoints",
                 $"One or more checkpoint geofences were never visited before trip '{trip.Name}' completed.");
         }
     }
@@ -531,13 +538,15 @@ public class TripLifecycleService
     /// <summary>
     /// A raised fleet alert is also a notification event (alert.fired) for the
     /// company's admins. Separate from the alert record — the notification bell
-    /// consumes the alert pipeline as one of several notification sources.
+    /// consumes the alert pipeline as one of several notification sources. The
+    /// notification carries the SAME severity as the alert record so the bell
+    /// distinguishes a High restricted-zone breach from a Medium corridor nudge.
     /// </summary>
-    private async Task NotifyAlertFiredAsync(Trip trip, string title, string message)
+    private async Task NotifyAlertFiredAsync(Trip trip, AlertSeverity severity, string title, string message)
     {
         if (_notificationService == null) return;
         await _notificationService.NotifyCompanyAdminsAsync(trip.CompanyId, "alert.fired", title, message,
-            (int)AlertSeverity.Medium, "Trip", trip.Id, $"/trips/{trip.Id}");
+            (int)severity, "Trip", trip.Id, $"/trips/{trip.Id}");
     }
 
     private static double HaversineKm(double lat1, double lng1, double lat2, double lng2)

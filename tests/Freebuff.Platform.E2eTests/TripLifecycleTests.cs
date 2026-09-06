@@ -619,6 +619,16 @@ public sealed class TripLifecycleTests : IClassFixture<E2eFixture>, IAsyncLifeti
             """);
         Assert.Equal("1", alertCount);
         _output.WriteLine("PASS  off-route fixes past threshold → TripCorridorDeviation alert (once)");
+
+        // The trip detail now exposes the live deviation state through the API:
+        // the episode is still active (no fix returned to the path yet), so
+        // DeviatedSince is set and the alert flag is true.
+        var (gd, gdata) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, $"/api/v1/trips/{tripId}", null, token);
+        Assert.Equal(200, gd);
+        Assert.NotNull(gdata!.Value.GetProperty("deviatedSince").GetString());
+        Assert.True(gdata.Value.GetProperty("corridorAlerted").GetBoolean());
+        Assert.True(gdata.Value.GetProperty("corridorEnabled").GetBoolean());
+        _output.WriteLine("PASS  trip detail exposes deviatedSince + corridorAlerted while off the corridor");
     }
 
     // ───────────────────────────────────────────────────────────────────────

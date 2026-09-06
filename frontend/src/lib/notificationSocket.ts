@@ -11,10 +11,19 @@ export interface NotificationPush {
 
 const HUB_PATH = '/hubs/notifications';
 
-/** Same base-URL resolution as lib/api.ts — absolute in prod, same-origin in dev (Vite proxies /hubs). */
+/**
+ * Same base-URL resolution as lib/api.ts — absolute in prod, same-origin in
+ * dev (Vite proxies /hubs). VITE_API_URL is the API origin (no /api/v1); when
+ * it is unset (Vercel prod build), fall back to the hardcoded production API
+ * origin exactly like api.ts does, so the browser never negotiates against the
+ * frontend's own origin (which would hit the SPA rewrite and kill the socket).
+ */
+const PRODUCTION_API = 'https://fms-product-api.onrender.com';
 function hubUrl(): string {
   const apiUrl = import.meta.env.VITE_API_URL;
-  return apiUrl ? `${apiUrl.replace(/\/+$/, '')}${HUB_PATH}` : HUB_PATH;
+  if (apiUrl) return `${apiUrl.replace(/\/+$/, '')}${HUB_PATH}`;
+  if (window.location.hostname === 'localhost') return HUB_PATH;
+  return `${PRODUCTION_API}${HUB_PATH}`;
 }
 
 let connection: HubConnection | null = null;

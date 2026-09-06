@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { Bell, CheckCheck, Filter, Inbox } from 'lucide-react';
+import SeverityChip, { SEVERITY_LABELS } from '../components/SeverityChip';
 
 interface NotificationItem {
   id: string; title: string; message: string; eventType?: string; actionUrl?: string;
@@ -9,12 +10,6 @@ interface NotificationItem {
 }
 interface PreferenceItem { eventType: string; eventTypeName: string; category: string; enabled: boolean; }
 interface PagedData<T> { items: T[]; totalCount: number; page: number; pageSize: number; totalPages: number; }
-
-const SEVERITY_LABELS: Record<number, string> = { 0: 'Info', 1: 'Low', 2: 'Medium', 3: 'High', 4: 'Critical' };
-const SEVERITY_COLORS: Record<number, string> = {
-  0: 'bg-gray-100 text-gray-600', 1: 'bg-blue-100 text-blue-700',
-  2: 'bg-amber-100 text-amber-700', 3: 'bg-orange-100 text-orange-700', 4: 'bg-red-100 text-red-700',
-};
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -153,9 +148,7 @@ export default function Notifications() {
             <button key={n.id} onClick={() => open(n)}
               className={`w-full text-left px-4 py-3.5 hover:bg-gray-50 transition-colors ${n.isRead ? 'opacity-60' : ''}`}>
               <div className="flex items-start gap-3">
-                <span className={`mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${SEVERITY_COLORS[n.severity] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {SEVERITY_LABELS[n.severity] ?? '—'}
-                </span>
+                <SeverityChip severity={n.severity} className="mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-gray-900">{n.title}</p>

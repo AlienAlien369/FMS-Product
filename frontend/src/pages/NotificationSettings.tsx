@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../lib/api';
+import SeverityChip, { SEVERITY_LABELS } from '../components/SeverityChip';
 
 interface NotificationEventType {
   id: string;
@@ -13,8 +14,6 @@ interface NotificationEventType {
   status: number;
 }
 
-const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical'];
-const SEVERITY_COLORS = ['bg-blue-100 text-blue-700', 'bg-green-100 text-green-700', 'bg-yellow-100 text-yellow-700', 'bg-orange-100 text-orange-700', 'bg-red-100 text-red-700'];
 const CATEGORIES = ['Company', 'Permission', 'Fleet', 'User', 'Device', 'System'];
 
 export default function NotificationSettings() {
@@ -132,7 +131,7 @@ export default function NotificationSettings() {
                     {t.description && <div className="text-xs text-gray-500">{t.description}</div>}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{t.category}</td>
-                  <td className="px-4 py-3"><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${SEVERITY_COLORS[t.defaultSeverity] || 'bg-gray-100 text-gray-600'}`}>{SEVERITY_LABELS[t.defaultSeverity] ?? t.defaultSeverity}</span></td>
+                  <td className="px-4 py-3"><SeverityChip severity={t.defaultSeverity} size="md" /></td>
                   <td className="px-4 py-3">
                     <button onClick={() => handleToggleStatus(t)}
                       className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${t.status === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -188,7 +187,7 @@ export default function NotificationSettings() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Severity</label>
                   <select value={form.defaultSeverity} onChange={e => setForm({ ...form, defaultSeverity: Number(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                    {SEVERITY_LABELS.map((s, i) => <option key={i} value={i}>{s}</option>)}
+                    {[0, 1, 2, 3, 4].map(s => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
                   </select>
                 </div>
                 <div>

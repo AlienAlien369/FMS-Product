@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Inbox } from 'lucide-react';
 import api from '../lib/api';
 import { onChannelUp, onNotification, stop } from '../lib/notificationSocket';
 import { useAuth } from '../contexts/AuthContext';
+import SeverityChip from './SeverityChip';
 
 interface NotificationItem {
   id: string;
@@ -15,14 +16,6 @@ interface NotificationItem {
   isRead: boolean;
   createdAt: string;
 }
-
-const SEVERITY_COLORS: Record<number, string> = {
-  0: 'bg-gray-400',
-  1: 'bg-blue-400',
-  2: 'bg-amber-400',
-  3: 'bg-orange-500',
-  4: 'bg-red-500',
-};
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -147,7 +140,7 @@ export default function NotificationBell() {
                 className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${n.isRead ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-start gap-2.5">
-                  <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${SEVERITY_COLORS[n.severity] ?? 'bg-gray-400'}`} />
+                  <SeverityChip severity={n.severity} className="mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>

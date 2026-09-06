@@ -10,6 +10,7 @@ import Companies from './pages/Companies';
 import Vehicles from './pages/Vehicles';
 import Devices from './pages/Devices';
 import DeviceVendors from './pages/DeviceVendors';
+import AlertTypes from './pages/AlertTypes';
 import Drivers from './pages/Drivers';
 import Localization from './pages/Localization';
 import Settings from './pages/Settings';
@@ -22,6 +23,8 @@ import Packages from './pages/Packages';
 import RoutesPage from './pages/Routes';
 import GeofencesPage from './pages/Geofences';
 import TripsPage from './pages/Trips';
+import NotificationsPage from './pages/Notifications';
+import NotificationSettings from './pages/NotificationSettings';
 import type { ReactNode } from 'react';
 import { pagePermission } from './config/pages';
 
@@ -47,6 +50,9 @@ function AppRoutes() {
         <Route path="/admin/companies" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><AdminCompanies /></PermissionRoute>} />
         <Route path="/admin/companies/:id" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><CompanyDetail /></PermissionRoute>} />
         <Route path="/admin/device-vendors" element={<PermissionRoute permission={pagePermission('devicevendor')} adminOnly><DeviceVendors /></PermissionRoute>} />
+        <Route path="/admin/alert-types" element={<PermissionRoute permission={pagePermission('alerttype')} adminOnly><AlertTypes /></PermissionRoute>} />
+        <Route path="/admin/notification-settings" element={<PermissionRoute permission={pagePermission('notificationsettings')} adminOnly><NotificationSettings /></PermissionRoute>} />
+        <Route path="/notifications" element={<PermissionRoute permission={pagePermission('notification')}><NotificationsPage /></PermissionRoute>} />
         <Route path="/users" element={<PermissionRoute permission={pagePermission('user')}><Users /></PermissionRoute>} />
         <Route path="/roles" element={<PermissionRoute permission={pagePermission('role')}><Roles /></PermissionRoute>} />
         <Route path="/packages" element={<PermissionRoute permission={pagePermission('package')} adminOnly><Packages /></PermissionRoute>} />

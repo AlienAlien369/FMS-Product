@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-05T04:15:29.6887721Z",
+  "generatedAt": "2026-09-06T05:14:22.5975913Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -15,6 +15,12 @@
         "alert.import",
         "alert.update",
         "alert.view",
+        "alerttype.create",
+        "alerttype.delete",
+        "alerttype.export",
+        "alerttype.import",
+        "alerttype.update",
+        "alerttype.view",
         "client.create",
         "client.delete",
         "client.export",
@@ -93,6 +99,12 @@
         "notification.import",
         "notification.update",
         "notification.view",
+        "notificationsettings.create",
+        "notificationsettings.delete",
+        "notificationsettings.export",
+        "notificationsettings.import",
+        "notificationsettings.update",
+        "notificationsettings.view",
         "package.create",
         "package.delete",
         "package.export",
@@ -1306,13 +1318,109 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     },
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
+      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -1362,6 +1470,12 @@
         "localization.import",
         "localization.update",
         "localization.view",
+        "notification.create",
+        "notification.delete",
+        "notification.export",
+        "notification.import",
+        "notification.update",
+        "notification.view",
         "role.create",
         "role.delete",
         "role.export",
@@ -2321,7 +2435,7 @@
         {
           "page": "notification",
           "action": "view",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2329,7 +2443,7 @@
         {
           "page": "notification",
           "action": "create",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2337,7 +2451,7 @@
         {
           "page": "notification",
           "action": "update",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2345,7 +2459,7 @@
         {
           "page": "notification",
           "action": "delete",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2353,7 +2467,7 @@
         {
           "page": "notification",
           "action": "export",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2361,7 +2475,7 @@
         {
           "page": "notification",
           "action": "import",
-          "expected": false,
+          "expected": true,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -2552,6 +2666,102 @@
         },
         {
           "page": "devicevendor",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -2563,7 +2773,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
+      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -3760,13 +3970,109 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     },
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
+      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4938,13 +5244,109 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     },
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "5692c673-1b25-40ec-b78b-dacdaa186e3a",
+      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -6136,13 +6538,109 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     },
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "e90e1751-b1e6-4c3c-9cdc-5735a02a333d",
+      "companyId": "748b2a30-36eb-4988-8ff2-b71c2dd21488",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -7344,13 +7842,109 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     },
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "e90e1751-b1e6-4c3c-9cdc-5735a02a333d",
+      "companyId": "748b2a30-36eb-4988-8ff2-b71c2dd21488",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -8516,6 +9110,102 @@
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "alerttype",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "notificationsettings",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
         }
       ]
     }
@@ -8547,8 +9237,8 @@
     }
   ],
   "coverage": {
-    "totalCells": 1008,
-    "cellsCoveredByPermMatrix": 1008,
+    "totalCells": 1092,
+    "cellsCoveredByPermMatrix": 1092,
     "cellsWithHttpEndpointTest": 217
   }
 }

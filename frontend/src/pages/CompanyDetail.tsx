@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback, Component, type ReactNode } from 'rea
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
-import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, MapPin, Building2, CreditCard, Languages, Settings } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Package, FileText, Globe, Clock, DollarSign, Mail, Pencil, Plus, Trash2, MapPin, Building2, CreditCard, Languages, Settings, Bell } from 'lucide-react';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
 import CompanyEditModal from '../components/company/CompanyEditModal';
 import SubscriptionModal from '../components/company/SubscriptionModal';
+import AlertSubscriptionTab from '../components/AlertSubscriptionTab';
 import UserModal from '../components/company/UserModal';
 import RoleModal from '../components/company/RoleModal';
 
@@ -63,7 +64,7 @@ function CompanyDetailInner() {
   const { user } = useAuth();
   const isSuperAdmin = user?.roles?.includes('SuperAdmin') ?? false;
   const [company, setCompany] = useState<CompanyInfo | null>(null);
-  const [tab, setTab] = useState<'overview' | 'users' | 'roles' | 'modules' | 'documents' | 'subscription' | 'packages' | 'localization' | 'settings'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'roles' | 'modules' | 'documents' | 'subscription' | 'packages' | 'localization' | 'settings' | 'alerts'>('overview');
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [modules, setModules] = useState<any>(null);
@@ -133,6 +134,7 @@ function CompanyDetailInner() {
     { key: 'localization' as const, label: 'Localization', icon: Languages },
     { key: 'settings' as const, label: 'Settings', icon: Settings },
     { key: 'documents' as const, label: 'Documents', icon: FileText },
+    { key: 'alerts' as const, label: 'Alerts', icon: Bell },
   ];
 
   return (
@@ -551,6 +553,9 @@ function CompanyDetailInner() {
             )}
 
             {/* Documents */}
+            {tab === 'alerts' && (
+              <AlertSubscriptionTab companyId={id!} />
+            )}
             {tab === 'documents' && (
               <div className="overflow-x-auto">
                 <table className="w-full">

@@ -100,13 +100,15 @@ public static class PageRegistry
         new PageDefinition("document",     "Documents",            "/admin/companies/:id",  "file-text",        false, true,  false, false, 16, "organization", "Company documents (Company Detail tab)"),
         new PageDefinition("subscription", "Subscription",         null,                    "credit-card",      false, false, false, false, 17, "organization", "Subscription (Settings / Company Detail)"),
         new PageDefinition("client",       "Clients",              null,                    "building",         false, false, true,  false, 18, "organization", "Planned: clients entity exists, page not built yet"),
-        new PageDefinition("notification", "Notifications",        null,                    "bell",             false, false, true,  false, 19, "organization", "Planned: notification entity exists, page not built yet"),
+        new PageDefinition("notification", "Notifications",        "/notifications",        "bell",             true,  false, false, false, 19, "organization", "Personal in-app notification inbox (bell + page)"),
 
         // ── Platform Administration module ────────────────────────────────
         new PageDefinition("platform",     "Platform Admin",       "/admin/companies",      "crown",            true,  true,  false, true,  20, "platform", "Platform-level company management"),
         new PageDefinition("package",      "Packages",             "/packages",             "package",          true,  true,  false, false, 21, "platform", "Subscription packages and plans"),
         new PageDefinition("module",       "Modules",              "/modules",              "package",          true,  true,  false, false, 22, "platform", "Module catalog management"),
         new PageDefinition("devicevendor", "Device Vendors",       "/admin/device-vendors", "cpu",              true,  true,  false, false, 23, "platform", "Device vendor and adapter registry (Super Admin)"),
+        new PageDefinition("alerttype",    "Alert Types",          "/admin/alert-types",    "bell",             true,  true,  false, false, 24, "platform", "Platform alert type catalog (Super Admin)"),
+        new PageDefinition("notificationsettings", "Notification Settings", "/admin/notification-settings", "bell", true, true, false, false, 25, "platform", "Platform notification event type registry (Super Admin)"),
     };
 
     public static PageDefinition? ByKey(string key)

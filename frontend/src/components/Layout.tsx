@@ -1,8 +1,9 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CompanyScopeSelector from './CompanyScopeSelector';
-import { LogOut, ChevronLeft, Menu, Bell, Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import NotificationBell from './NotificationBell';
+import { LogOut, ChevronLeft, Menu, Search } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { NAV_GROUPS } from '../config/navigation';
@@ -29,14 +30,22 @@ const iconFor = (key: string): any => PAGES.find(p => p.key === key)?.icon;
 const FallbackIcon = PAGES.find(p => p.key === 'module')?.icon;
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshPermissions, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { hasPermission } = useAuth();
+  // Live permission refresh: role edits apply without a logout. The notification
+  // bell re-fetches on permission.role_updated within its poll window; this
+  // additionally re-fetches on every navigation so a stale cached permission set
+  // never outlives the next click (e.g. a now-revoked Delete button disappears
+  // before the user can try it and hit a confusing 403).
+  useEffect(() => {
+    refreshPermissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Live DB module/page registry. Same query key as the Modules management page,
   // so a SuperAdmin reorder/status change there invalidates ['modules'] and the
@@ -165,7 +174,7 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-3">
             <CompanyScopeSelector />
-            <Bell className="w-5 h-5 text-gray-500 hover:text-gray-700 cursor-pointer" />
+            <NotificationBell />
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}

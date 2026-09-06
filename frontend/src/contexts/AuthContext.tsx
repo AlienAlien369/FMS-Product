@@ -11,6 +11,8 @@ interface AuthContextType extends AuthState {
   hasPermission: (permission: string) => boolean;
   hasAnyPermission: (permissions: string[]) => boolean;
   hasAllPermissions: (permissions: string[]) => boolean;
+  /** Re-fetch the permission set without re-authenticating (live UI refresh on role edits). */
+  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -91,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, permissions, login, logout, isLoading, hasPermission, hasAnyPermission, hasAllPermissions }}>
+    <AuthContext.Provider value={{ ...state, permissions, login, logout, isLoading, hasPermission, hasAnyPermission, hasAllPermissions, refreshPermissions: fetchPermissions }}>
       {children}
     </AuthContext.Provider>
   );

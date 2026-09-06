@@ -446,6 +446,151 @@ public static class SchemaBootstrap
         -- once so tenants see it in the catalog/sidebar; harmless re-run.
         UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/trips'
             WHERE "Key" = 'trip' AND "IsDeleted" = false AND "Planned" = true;
+
+        -- Same flip for the notification page (personal in-app inbox, shipped
+        -- with the notification system). New pages (notificationsettings) are
+        -- created by the seed on next boot — only existing rows need the flip.
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/notifications'
+            WHERE "Key" = 'notification' AND "IsDeleted" = false AND "Planned" = true;
+
+        -- ── Alert type registry (three-tier control) ──────────────────────
+        CREATE TABLE IF NOT EXISTS "AlertTypes" (
+            "Id" uuid PRIMARY KEY,
+            "Code" text NOT NULL,
+            "Name" text NOT NULL,
+            "Description" text NULL,
+            "Category" text NOT NULL,
+            "DefaultSeverity" integer NOT NULL DEFAULT 2,
+            "DisplayOrder" integer NOT NULL DEFAULT 0,
+            "Status" integer NOT NULL DEFAULT 0,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "UpdatedAt" timestamp with time zone NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_AlertTypes_Code" ON "AlertTypes" ("Code") WHERE "IsDeleted" = false;
+
+        CREATE TABLE IF NOT EXISTS "CompanyAlertSubscriptions" (
+            "Id" uuid PRIMARY KEY,
+            "CompanyId" uuid NOT NULL REFERENCES "Companies"("Id"),
+            "AlertTypeId" uuid NOT NULL REFERENCES "AlertTypes"("Id"),
+            "Enabled" boolean NOT NULL DEFAULT true,
+            "Source" text NOT NULL DEFAULT 'package_default',
+            "Status" integer NOT NULL DEFAULT 0,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "UpdatedAt" timestamp with time zone NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_CompanyAlertSubscriptions_CompanyId_AlertTypeId"
+            ON "CompanyAlertSubscriptions" ("CompanyId", "AlertTypeId") WHERE "IsDeleted" = false;
+
+        CREATE TABLE IF NOT EXISTS "RoleAlertVisibilities" (
+            "Id" uuid PRIMARY KEY,
+            "CompanyId" uuid NOT NULL REFERENCES "Companies"("Id"),
+            "RoleId" uuid NOT NULL REFERENCES "Roles"("Id"),
+            "AlertTypeId" uuid NOT NULL REFERENCES "AlertTypes"("Id"),
+            "Visible" boolean NOT NULL DEFAULT true,
+            "Status" integer NOT NULL DEFAULT 0,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "UpdatedAt" timestamp with time zone NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_RoleAlertVisibilities_CompanyId_RoleId_AlertTypeId"
+            ON "RoleAlertVisibilities" ("CompanyId", "RoleId", "AlertTypeId") WHERE "IsDeleted" = false;
+
+        -- ── Registry-table BaseEntity repair ────────────────────────────────
+        -- The alert/notification registry tables above ship a REDUCED column set
+        -- (for legacy DBs that never went through EnsureCreated). EF's model maps
+        -- the full BaseEntity (TenantId, CreatedBy, UpdatedBy, DeletedAt,
+        -- DeletedBy, DeletionReason, Version), so inserts on a legacy DB fail with
+        -- "column X does not exist". These idempotent ALTERs bring every registry
+        -- table up to the exact shape EnsureCreated would have produced.
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
+        ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
+        ALTER TABLE "RoleAlertVisibilities" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+
+        -- ── Notification system (event-type registry + per-user preferences) ──
+        -- Notifications table itself predates the bootstrap; add the registry-
+        -- linked columns idempotently (DeliveryChannel reserved for email/SMS phase).
+        ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "EventType" text NULL;
+        ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "Severity" integer NOT NULL DEFAULT 2;
+        ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "RelatedEntityType" text NULL;
+        ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "RelatedEntityId" uuid NULL;
+        ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "DeliveryChannel" text NULL;
+
+        CREATE TABLE IF NOT EXISTS "NotificationEventTypes" (
+            "Id" uuid PRIMARY KEY,
+            "Code" text NOT NULL,
+            "Name" text NOT NULL,
+            "Description" text NULL,
+            "Category" text NOT NULL,
+            "DefaultSeverity" integer NOT NULL DEFAULT 2,
+            "DisplayOrder" integer NOT NULL DEFAULT 0,
+            "Status" integer NOT NULL DEFAULT 0,
+            "TenantId" uuid NULL,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "UpdatedBy" text NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL DEFAULT 0
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_NotificationEventTypes_Code" ON "NotificationEventTypes" ("Code") WHERE "IsDeleted" = false;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
+        ALTER TABLE "NotificationEventTypes" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+
+        CREATE TABLE IF NOT EXISTS "NotificationPreferences" (
+            "Id" uuid PRIMARY KEY,
+            "UserId" uuid NOT NULL REFERENCES "Users"("Id"),
+            "CompanyId" uuid NOT NULL REFERENCES "Companies"("Id"),
+            "EventType" text NOT NULL,
+            "Enabled" boolean NOT NULL DEFAULT true,
+            "Status" integer NOT NULL DEFAULT 0,
+            "TenantId" uuid NULL,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "UpdatedBy" text NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL DEFAULT 0
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_NotificationPreferences_UserId_EventType"
+            ON "NotificationPreferences" ("UserId", "EventType") WHERE "IsDeleted" = false;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
+        ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
         """
     };
 

@@ -1,12 +1,12 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
+_Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 
 ## Coverage
-- Total (role × page × action) cells: **1008**
-- Covered by the effective-permission matrix test: **1008**
+- Total (role × page × action) cells: **1092**
+- Covered by the effective-permission matrix test: **1092**
 - Cells with an HTTP endpoint test: **217**
 - Uncovered cells: **0** (every (role × page × action) cell is asserted by `RbacMatrixTests.Matrix_EffectivePermissions_Exhaustive`)
 
@@ -47,6 +47,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Modules (`module`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Device Vendors (`devicevendor`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Alert Types (`alerttype`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Notification Settings (`notificationsettings`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 
 ## Company Admin  (`admin@demofleet.com`)
 
@@ -74,11 +76,13 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Documents (`document`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Subscription (`subscription`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
-| Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notifications (`notification`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Fleet Manager  (`e2e.fleetmanager@demo.test`)
 
@@ -111,6 +115,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Read Only  (`e2e.readonly@demo.test`)
 
@@ -143,6 +149,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Ops Manager  (`e2e.ops@demo.test`)
 
@@ -175,6 +183,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Basic Admin  (`e2e.admin@basic.test`)
 
@@ -207,6 +217,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Basic Viewer  (`e2e.viewer@basic.test`)
 
@@ -239,6 +251,8 @@ _Generated 2026-09-05 04:15:29Z from the live seed + PageRegistry._
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Device Vendors (`devicevendor`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Alert Types (`alerttype`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Notification Settings (`notificationsettings`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 
 ## Notes
 - `export` / `import` have **no dedicated HTTP endpoints** in the current API — they are gated at the permission-calculation and selector layers (see `RbacEdgeCaseTests.Edge_ExportImport_GatedLikeOtherActions`).

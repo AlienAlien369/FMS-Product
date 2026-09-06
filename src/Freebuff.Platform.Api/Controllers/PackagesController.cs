@@ -2,6 +2,7 @@ using Freebuff.Platform.Application.DTOs;
 using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +16,12 @@ namespace Freebuff.Platform.Api.Controllers;
 public class PackagesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public PackagesController(ApplicationDbContext db) => _db = db;
+    private readonly INotificationService _notificationService;
+    public PackagesController(ApplicationDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     // ── List all packages ────────────────────────────────
     [HttpGet]
@@ -232,6 +238,26 @@ public class PackagesController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // ── Notification: package module grants changed ────────────────────
+        // Module access is a pure function of the company's package, so editing
+        // which modules a package grants changes access for every active company
+        // on it. Notify those companies' admins (company.config_changed).
+        if (dto.ModuleIds != null)
+        {
+            var affectedCompanies = await _db.Subscriptions.AsNoTracking()
+                .Where(s => s.PackageId == id && !s.IsDeleted && s.Status == SubscriptionStatus.Active)
+                .Select(s => s.CompanyId)
+                .Distinct()
+                .ToListAsync();
+            foreach (var coId in affectedCompanies)
+            {
+                await _notificationService.NotifyCompanyAdminsAsync(coId, "company.config_changed",
+                    $"Package '{package.Name}' modules updated",
+                    $"Super Admin changed the modules included in your '{package.Name}' package. Your company's module access may have changed.",
+                    (int)Domain.Enums.AlertSeverity.Medium, "Package", id, "/settings");
+            }
+        }
 
         var subCount = await _db.Subscriptions.CountAsync(s => s.PackageId == id && !s.IsDeleted && s.Status == SubscriptionStatus.Active);
         var dtoResult = MapToDto(package, subCount);

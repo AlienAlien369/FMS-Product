@@ -112,7 +112,7 @@ public class TripCorridorDeviationTests
     };
 
     [Fact]
-    public void FixOnCorridor_ClearsDeviationState_NoAlert()
+    public async Task FixOnCorridor_ClearsDeviationState_NoAlert()
     {
         using var db = NewDb("corr_inside_" + Guid.NewGuid());
         var company = Guid.NewGuid();
@@ -120,26 +120,26 @@ public class TripCorridorDeviationTests
         trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-30);
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.6, DateTime.UtcNow); // on the line
+        await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.6, DateTime.UtcNow); // on the line
 
         Assert.Null(trip.DeviatedSince);
         Assert.Empty(db.Alerts);
     }
 
     [Fact]
-    public void FixOffCorridor_BelowThreshold_SetsDeviatedSince_NoAlertYet()
+    public async Task FixOffCorridor_BelowThreshold_SetsDeviatedSince_NoAlertYet()
     {
         using var db = NewDb("corr_below_" + Guid.NewGuid());
         var company = Guid.NewGuid();
         var trip = InProgressCorridorTrip(company, Guid.NewGuid());
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, at); // ~2 km off the line
+        await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, at); // ~2 km off the line
 
         Assert.Equal(at, trip.DeviatedSince);
         Assert.False(trip.CorridorAlerted);
@@ -156,10 +156,10 @@ public class TripCorridorDeviationTests
         trip.DeviatedSince = DateTime.UtcNow.AddMinutes(-5); // already off-route 5 min
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow);
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow.AddSeconds(30)); // still off-route
+        await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, DateTime.UtcNow);
+        await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, DateTime.UtcNow.AddSeconds(30)); // still off-route
         await db.SaveChangesAsync(); // stage the alert, then assert the store
 
         var alert = Assert.Single(db.Alerts);
@@ -170,7 +170,7 @@ public class TripCorridorDeviationTests
     }
 
     [Fact]
-    public void ReenteringCorridor_ResetsEpisode_AllowsFreshAlert()
+    public async Task ReenteringCorridor_ResetsEpisode_AllowsFreshAlert()
     {
         using var db = NewDb("corr_reenter_" + Guid.NewGuid());
         var company = Guid.NewGuid();
@@ -179,10 +179,10 @@ public class TripCorridorDeviationTests
         trip.CorridorAlerted = true;
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.6, at); // back on the line
+        await service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.6, at); // back on the line
 
         Assert.Null(trip.DeviatedSince);
         Assert.False(trip.CorridorAlerted);
@@ -190,7 +190,7 @@ public class TripCorridorDeviationTests
     }
 
     [Fact]
-    public void CorridorDisabled_Or_MissingGeometry_IsNoOp()
+    public async Task CorridorDisabled_Or_MissingGeometry_IsNoOp()
     {
         using var db = NewDb("corr_off_" + Guid.NewGuid());
         var company = Guid.NewGuid();
@@ -201,10 +201,10 @@ public class TripCorridorDeviationTests
         noGeometry.DeviatedSince = DateTime.UtcNow.AddMinutes(-5);
         db.Trips.AddRange(disabled, noGeometry);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
-        service.EvaluateCorridorDeviation(disabled, 23.1, 72.62, DateTime.UtcNow);
-        service.EvaluateCorridorDeviation(noGeometry, 23.1, 72.62, DateTime.UtcNow);
+        await service.EvaluateCorridorDeviationAsync(disabled, 23.1, 72.62, DateTime.UtcNow);
+        await service.EvaluateCorridorDeviationAsync(noGeometry, 23.1, 72.62, DateTime.UtcNow);
 
         Assert.Null(disabled.DeviatedSince);
         Assert.Null(noGeometry.DeviatedSince);
@@ -220,9 +220,9 @@ public class TripCorridorDeviationTests
         trip.Status = TripStatus.Scheduled; // corridor only matters while travelling
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
-        service.EvaluateCorridorDeviation(trip, 23.1, 72.62, DateTime.UtcNow);
+        service.EvaluateCorridorDeviationAsync(trip, 23.1, 72.62, DateTime.UtcNow);
 
         Assert.Null(trip.DeviatedSince);
         Assert.Empty(db.Alerts);
@@ -286,7 +286,7 @@ public class TripGeofenceEventProducerTests
             });
         }
         await db.SaveChangesAsync();
-        return new TripGeofenceEventProducer(db, new TripLifecycleService(db));
+        return new TripGeofenceEventProducer(db, new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement()));
     }
 
     [Fact]

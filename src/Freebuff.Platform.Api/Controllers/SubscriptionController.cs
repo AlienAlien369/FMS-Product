@@ -17,10 +17,12 @@ public class SubscriptionController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
-    public SubscriptionController(ApplicationDbContext db, IPermissionService permissionService)
+    private readonly INotificationService _notificationService;
+    public SubscriptionController(ApplicationDbContext db, IPermissionService permissionService, INotificationService notificationService)
     {
         _db = db;
         _permissionService = permissionService;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -110,6 +112,14 @@ public class SubscriptionController : ControllerBase
         // Package change alters company-level module access → drop cached permissions
         _permissionService.InvalidateAllCache();
 
+        // ── Notification: company.package_changed → that company's admins ──
+        // Super Admin changed the company's package/module access; the company's
+        // admin users must see it in the bell even if they're not online right now.
+        await _notificationService.NotifyCompanyAdminsAsync(cid, "company.package_changed",
+            $"Company package changed to {package.Name}",
+            $"Super Admin assigned the '{package.Name}' package to your company. Module access may have changed.",
+            (int)Domain.Enums.AlertSeverity.Medium, "Company", cid, "/settings");
+
         return Ok(ApiResponse.Ok(message: "Subscription assigned"));
     }
 
@@ -149,6 +159,12 @@ public class SubscriptionController : ControllerBase
 
         // Package removal alters company-level module access → drop cached permissions
         _permissionService.InvalidateAllCache();
+
+        // ── Notification: company.package_changed (removal) → company admins ──
+        await _notificationService.NotifyCompanyAdminsAsync(cid, "company.package_changed",
+            "Company package removed",
+            "Super Admin removed your company's package. Module access has been revoked — contact your provider.",
+            (int)Domain.Enums.AlertSeverity.High, "Company", cid, "/settings");
 
         return Ok(ApiResponse.Ok(message: "Subscription canceled"));
     }

@@ -168,7 +168,7 @@ public class TripZoneEventTests
             GeofenceId = endGeofence, Role = TripGeofenceRole.EndZone
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, endGeofence, TripZoneEventKind.Entry, at);
@@ -197,7 +197,7 @@ public class TripZoneEventTests
             GeofenceId = checkpointGeofence, Role = TripGeofenceRole.Checkpoint, SequenceOrder = 1
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, checkpointGeofence, TripZoneEventKind.Entry, at);
@@ -231,7 +231,7 @@ public class TripZoneEventTests
             GeofenceId = ckptB, Role = TripGeofenceRole.Checkpoint, SequenceOrder = 2
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, ckptB, TripZoneEventKind.Entry, at);
@@ -260,7 +260,7 @@ public class TripZoneEventTests
             GeofenceId = restrictedGeofence, Role = TripGeofenceRole.RestrictedZone
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, restrictedGeofence, TripZoneEventKind.Entry, at);
@@ -299,7 +299,7 @@ public class TripZoneEventTests
             GeofenceId = endGeofence, Role = TripGeofenceRole.EndZone
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, endGeofence, TripZoneEventKind.Entry, at);
@@ -334,7 +334,7 @@ public class TripZoneEventTests
             GeofenceId = checkpointGeofence, Role = TripGeofenceRole.Checkpoint, SequenceOrder = 1
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var now = DateTime.UtcNow;
 
         // Entry (wrong direction) into the origin — only an EXIT starts the trip.
@@ -374,7 +374,7 @@ public class TripZoneEventTests
             GeofenceId = originGeofence, Role = TripGeofenceRole.StartZone
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var at = DateTime.UtcNow;
 
         var result = await service.HandleZoneEventAsync(trip.Id, originGeofence, TripZoneEventKind.Exit, at);
@@ -422,7 +422,7 @@ public class TripLifecycleServiceDbTests
     {
         using var db = NewDb("conflict_" + Guid.NewGuid());
         var (company, vehicle, driver, _, _) = SeedActiveTrip(db);
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.AssignmentConflictsAsync(company, vehicle, driver);
         Assert.Contains(errors, e => e.Contains("Vehicle is already assigned"));
@@ -434,7 +434,7 @@ public class TripLifecycleServiceDbTests
     {
         using var db = NewDb("free_" + Guid.NewGuid());
         var (company, _, _, otherVehicle, _) = SeedActiveTrip(db);
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
         var freeDriver = Guid.NewGuid();
 
         var errors = await service.AssignmentConflictsAsync(company, otherVehicle, freeDriver);
@@ -446,7 +446,7 @@ public class TripLifecycleServiceDbTests
     {
         using var db = NewDb("self_" + Guid.NewGuid());
         var (company, vehicle, driver, _, active) = SeedActiveTrip(db);
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.AssignmentConflictsAsync(company, vehicle, driver, active.Id);
         Assert.Empty(errors);
@@ -469,7 +469,7 @@ public class TripLifecycleServiceDbTests
             new TripWaypoint { Id = Guid.NewGuid(), TripId = draft.Id, SequenceOrder = 1, Name = "A", Latitude = 1, Longitude = 1 },
             new TripWaypoint { Id = Guid.NewGuid(), TripId = draft.Id, SequenceOrder = 2, Name = "B", Latitude = 2, Longitude = 2 });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.SchedulingPreconditionsAsync(draft.Id);
         Assert.Contains(errors, e => e.Contains("at least one linked geofence"));
@@ -497,7 +497,7 @@ public class TripLifecycleServiceDbTests
             GeofenceId = Guid.NewGuid(), Role = TripGeofenceRole.Checkpoint, SequenceOrder = 1
         });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.SchedulingPreconditionsAsync(draft.Id);
         Assert.Empty(errors);
@@ -516,7 +516,7 @@ public class TripLifecycleServiceDbTests
         };
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.TransitionAsync(trip, TripStatus.Cancelled, null, "manual", "tester");
         Assert.Contains(errors, e => e.Contains("reason is required"));
@@ -536,7 +536,7 @@ public class TripLifecycleServiceDbTests
         };
         db.Trips.Add(trip);
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.TransitionAsync(trip, TripStatus.Cancelled, "why", "manual", "tester");
         Assert.Contains(errors, e => e.Contains("no further transitions"));
@@ -564,7 +564,7 @@ public class TripLifecycleServiceDbTests
             new TelemetryEvent { Id = Guid.NewGuid(), TenantId = company, DeviceId = Guid.NewGuid(), VehicleId = vehicle, EventTimeUtc = t0.AddMinutes(1), Latitude = 0.05, Longitude = 0, SpeedKmh = 80 },
             new TelemetryEvent { Id = Guid.NewGuid(), TenantId = company, DeviceId = Guid.NewGuid(), VehicleId = vehicle, EventTimeUtc = t0.AddMinutes(2), Latitude = 0.1, Longitude = 0, SpeedKmh = 70 });
         db.SaveChanges();
-        var service = new TripLifecycleService(db);
+        var service = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
 
         var errors = await service.TransitionAsync(trip, TripStatus.Completed, null, "manual", "tester");
         Assert.Empty(errors);

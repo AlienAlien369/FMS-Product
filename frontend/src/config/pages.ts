@@ -86,13 +86,15 @@ export const PAGES: PageDef[] = [
   { key: 'document',     label: 'Documents',     route: '/admin/companies/:id', icon: FileText,   nav: false, adminOnly: true,  planned: false, module: 'organization', order: 16 },
   { key: 'subscription', label: 'Subscription',  icon: CreditCard,              nav: false, adminOnly: false, planned: false, module: 'organization', order: 17 },
   { key: 'client',       label: 'Clients',       icon: Building2,  nav: false, adminOnly: false, planned: true,  module: 'organization', order: 18 },
-  { key: 'notification', label: 'Notifications', icon: Bell,       nav: false, adminOnly: false, planned: true,  module: 'organization', order: 19 },
+  { key: 'notification', label: 'Notifications', route: '/notifications', icon: Bell, nav: true, adminOnly: false, planned: false, module: 'organization', order: 19 },
 
   // ── Platform Administration module ───────────────────────────────────────
   { key: 'platform',     label: 'Platform Admin',      route: '/admin/companies', icon: Crown,           nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 20 },
   { key: 'package',      label: 'Packages',            route: '/packages',        icon: Package,         nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 21 },
   { key: 'module',       label: 'Modules',             route: '/modules',         icon: Package,         nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 22 },
   { key: 'devicevendor', label: 'Device Vendors',      route: '/admin/device-vendors', icon: Cpu,     nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 23 },
+  { key: 'alerttype',    label: 'Alert Types',          route: '/admin/alert-types',    icon: Bell,    nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 24 },
+  { key: 'notificationsettings', label: 'Notification Settings', route: '/admin/notification-settings', icon: Bell, nav: true, adminOnly: true, planned: false, module: 'platform', order: 25 },
 ];
 
 /** Permission code for a page + action, e.g. pagePermission('vehicle', 'create') → 'vehicle.create'. */

@@ -85,6 +85,8 @@ builder.Services.AddSingleton<Freebuff.Platform.Ingestion.Contracts.IVendorAdapt
     sp => sp.GetRequiredService<Freebuff.Platform.Ingestion.Registry.VendorAdapterRegistry>());
 builder.Services.AddScoped<DeviceService>();
 builder.Services.AddScoped<DeviceIngestionService>();
+builder.Services.AddScoped<IAlertTypeEnforcement, AlertTypeEnforcement>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // ── Controllers + Swagger ────────────────────────────────
 builder.Services.AddControllers();

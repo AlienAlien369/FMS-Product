@@ -15,7 +15,16 @@ namespace Freebuff.Platform.Infrastructure.Services;
 public class TripLifecycleService
 {
     private readonly ApplicationDbContext _db;
-    public TripLifecycleService(ApplicationDbContext db) { _db = db; }
+    private readonly IAlertTypeEnforcement _alertEnforcement;
+    private readonly INotificationService? _notificationService;
+
+    public TripLifecycleService(ApplicationDbContext db, IAlertTypeEnforcement alertEnforcement,
+        INotificationService? notificationService = null)
+    {
+        _db = db;
+        _alertEnforcement = alertEnforcement;
+        _notificationService = notificationService;
+    }
 
     // ── Pure validation (unit-testable without a database) ─────────────────
 
@@ -184,7 +193,7 @@ public class TripLifecycleService
                 trip.ActualEndTime ??= at ?? DateTime.UtcNow;
                 trip.ActualStartTime ??= trip.ActualEndTime;
                 await AggregateMetricsAsync(trip);
-                RaiseMissedCheckpointAlerts(trip);
+                await RaiseMissedCheckpointAlerts(trip);
                 break;
             }
             case TripStatus.Cancelled:
@@ -278,7 +287,7 @@ public class TripLifecycleService
     /// Re-entry inside the corridor resets the episode so a fresh deviation
     /// can alert again. Mutations stage in the caller's context (no save).
     /// </summary>
-    public void EvaluateCorridorDeviation(Trip trip, double latitude, double longitude, DateTime at)
+    public async Task EvaluateCorridorDeviationAsync(Trip trip, double latitude, double longitude, DateTime at)
     {
         // Corridor tracking only applies while the trip is actually travelling.
         if (trip.Status != TripStatus.InProgress || !trip.CorridorEnabled || string.IsNullOrWhiteSpace(trip.RouteGeometry))
@@ -307,20 +316,25 @@ public class TripLifecycleService
         trip.DeviatedSince ??= at;
         if (!trip.CorridorAlerted && at - trip.DeviatedSince.Value >= threshold)
         {
-            _db.Alerts.Add(new Alert
+            if (await _alertEnforcement.IsEntitledAsync(trip.CompanyId, "route.corridor_deviation"))
             {
-                Id = Guid.NewGuid(),
-                AlertType = "TripCorridorDeviation",
-                Severity = AlertSeverity.Medium,
-                Title = $"Trip '{trip.Name}' deviated from its route corridor",
-                Message = $"Vehicle stayed more than {buffer:0}m from the route path for over {threshold.TotalMinutes:0} minutes (since {trip.DeviatedSince.Value:u}).",
-                CompanyId = trip.CompanyId,
-                TenantId = trip.CompanyId,
-                VehicleId = trip.VehicleId,
-                DriverId = trip.DriverId,
-                Latitude = latitude,
-                Longitude = longitude
-            });
+                _db.Alerts.Add(new Alert
+                {
+                    Id = Guid.NewGuid(),
+                    AlertType = "TripCorridorDeviation",
+                    Severity = AlertSeverity.Medium,
+                    Title = $"Trip '{trip.Name}' deviated from its route corridor",
+                    Message = $"Vehicle stayed more than {buffer:0}m from the route path for over {threshold.TotalMinutes:0} minutes (since {trip.DeviatedSince.Value:u}).",
+                    CompanyId = trip.CompanyId,
+                    TenantId = trip.CompanyId,
+                    VehicleId = trip.VehicleId,
+                    DriverId = trip.DriverId,
+                    Latitude = latitude,
+                    Longitude = longitude
+                });
+                await NotifyAlertFiredAsync(trip, $"Trip '{trip.Name}' deviated from its route corridor",
+                    $"Vehicle stayed more than {buffer:0}m from the route path for over {threshold.TotalMinutes:0} minutes.");
+            }
             trip.CorridorAlerted = true;
         }
     }
@@ -385,20 +399,25 @@ public class TripLifecycleService
             }
             else if (trip.TripGeofences.Any(g => g.Role == TripGeofenceRole.RestrictedZone && g.GeofenceId == geofenceId))
             {
-                _db.Alerts.Add(new Alert
+                if (await _alertEnforcement.IsEntitledAsync(trip.CompanyId, "route.restricted_zone_violation"))
                 {
-                    Id = Guid.NewGuid(),
-                    AlertType = "TripRestrictedZoneViolation",
-                    Severity = AlertSeverity.High,
-                    Title = $"Vehicle entered a restricted zone on trip '{trip.Name}'",
-                    Message = $"Trip '{trip.Name}' entered restricted-zone geofence {geofenceId} at {at:u}.",
-                    CompanyId = trip.CompanyId,
-                    TenantId = trip.CompanyId,
-                    VehicleId = trip.VehicleId,
-                    DriverId = trip.DriverId,
-                    Latitude = trip.StartLatitude,
-                    Longitude = trip.StartLongitude,
-                });
+                    _db.Alerts.Add(new Alert
+                    {
+                        Id = Guid.NewGuid(),
+                        AlertType = "TripRestrictedZoneViolation",
+                        Severity = AlertSeverity.High,
+                        Title = $"Vehicle entered a restricted zone on trip '{trip.Name}'",
+                        Message = $"Trip '{trip.Name}' entered restricted-zone geofence {geofenceId} at {at:u}.",
+                        CompanyId = trip.CompanyId,
+                        TenantId = trip.CompanyId,
+                        VehicleId = trip.VehicleId,
+                        DriverId = trip.DriverId,
+                        Latitude = trip.StartLatitude,
+                        Longitude = trip.StartLongitude,
+                    });
+                    await NotifyAlertFiredAsync(trip, $"Vehicle entered a restricted zone on trip '{trip.Name}'",
+                        $"Trip '{trip.Name}' entered a do-not-enter geofence at {at:u}.");
+                }
                 result.Warnings.Add($"Restricted-zone violation on trip '{trip.Name}': vehicle entered a do-not-enter geofence.");
             }
         }
@@ -483,8 +502,10 @@ public class TripLifecycleService
     /// alert (distinct alert type, filterable separately from geofence breaches).
     /// Runs on completion — manual and zone-event paths both pass through here.
     /// </summary>
-    private void RaiseMissedCheckpointAlerts(Trip trip)
+    private async Task RaiseMissedCheckpointAlerts(Trip trip)
     {
+        var entitled = await _alertEnforcement.IsEntitledAsync(trip.CompanyId, "route.checkpoint_missed");
+        if (!entitled) return;
         foreach (var ckpt in trip.TripGeofences.Where(g => g.Role == TripGeofenceRole.Checkpoint && g.Visited != true))
         {
             _db.Alerts.Add(new Alert
@@ -500,6 +521,23 @@ public class TripLifecycleService
                 DriverId = trip.DriverId
             });
         }
+        if (trip.TripGeofences.Any(g => g.Role == TripGeofenceRole.Checkpoint && g.Visited != true))
+        {
+            await NotifyAlertFiredAsync(trip, $"Trip '{trip.Name}' completed with missed checkpoints",
+                $"One or more checkpoint geofences were never visited before trip '{trip.Name}' completed.");
+        }
+    }
+
+    /// <summary>
+    /// A raised fleet alert is also a notification event (alert.fired) for the
+    /// company's admins. Separate from the alert record — the notification bell
+    /// consumes the alert pipeline as one of several notification sources.
+    /// </summary>
+    private async Task NotifyAlertFiredAsync(Trip trip, string title, string message)
+    {
+        if (_notificationService == null) return;
+        await _notificationService.NotifyCompanyAdminsAsync(trip.CompanyId, "alert.fired", title, message,
+            (int)AlertSeverity.Medium, "Trip", trip.Id, $"/trips/{trip.Id}");
     }
 
     private static double HaversineKm(double lat1, double lng1, double lat2, double lng2)

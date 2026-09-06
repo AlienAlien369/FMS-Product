@@ -307,6 +307,77 @@ public static class SeedData
             Console.WriteLine($"[Seed] Drift check: soft-deleted {orphans.Count} permission rows not in PageRegistry: {string.Join(", ", orphans.Select(o => o.Code))}");
         }
 
+        // ── Alert Type Catalog (platform registry) ──────────────────────
+        // Idempotent: only inserts rows that don't yet exist by Code.
+        var existingAlertCodes = (await db.AlertTypes
+            .Where(a => !a.IsDeleted).Select(a => a.Code).ToListAsync()).ToHashSet();
+        var defaultAlertTypes = new (string Code, string Name, string? Desc, string Cat, int Sev, int Ord)[]
+        {
+            ("geofence.entry",                    "Geofence Entry",                    "Vehicle entered a geofence zone",                          "Geofence", 1, 1),
+            ("geofence.exit",                     "Geofence Exit",                     "Vehicle exited a geofence zone",                           "Geofence", 1, 2),
+            ("geofence.dwell",                    "Geofence Dwell",                    "Vehicle remained inside a geofence beyond dwell threshold", "Geofence", 2, 3),
+            ("route.restricted_zone_violation",   "Route Restricted Zone Violation",   "Vehicle entered a restricted zone on its assigned route",  "Route",    3, 10),
+            ("route.checkpoint_missed",           "Route Checkpoint Missed",           "Trip completed without visiting a linked checkpoint",      "Route",    2, 11),
+            ("route.corridor_deviation",          "Route Corridor Deviation",          "Vehicle traveled outside the route corridor buffer",       "Route",    2, 12),
+            ("trip.delayed",                      "Trip Delayed",                      "Trip missed an expected arrival time",                     "Trip",     2, 20),
+            ("trip.completed",                    "Trip Completed",                    "Trip reached its final destination",                       "Trip",     0, 21),
+            ("vehicle.maintenance_due",           "Vehicle Maintenance Due",           "Vehicle is due for scheduled maintenance",                 "Vehicle",  2, 30),
+            ("device.offline",                    "Device Offline",                    "Tracking device stopped reporting telemetry",              "Device",   2, 40),
+            ("driver.license_expiring",           "Driver License Expiring",           "Driver license expires within 30 days",                    "Driver",   1, 50),
+        };
+        var newAlertTypes = new List<AlertType>();
+        foreach (var (code, name, desc, cat, sev, ord) in defaultAlertTypes)
+        {
+            if (existingAlertCodes.Contains(code)) continue;
+            newAlertTypes.Add(new AlertType
+            {
+                Id = Guid.NewGuid(), Code = code, Name = name, Description = desc,
+                Category = cat, DefaultSeverity = sev, DisplayOrder = ord,
+                Status = EntityStatus.Active
+            });
+        }
+        if (newAlertTypes.Count > 0)
+        {
+            db.AlertTypes.AddRange(newAlertTypes);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Alert catalog: inserted {newAlertTypes.Count} new alert types");
+        }
+
+        // ── Notification Event Type Catalog (platform registry) ────────────
+        // Idempotent: only inserts rows that don't yet exist by Code. Adding a new
+        // notification source later is a row here, not new bell-icon code.
+        var existingNotifCodes = (await db.NotificationEventTypes
+            .Where(e => !e.IsDeleted).Select(e => e.Code).ToListAsync()).ToHashSet();
+        var defaultNotificationEvents = new (string Code, string Name, string? Desc, string Cat, int Sev, int Ord)[]
+        {
+            ("company.package_changed",          "Company Package Changed",          "A company's package/module access was changed by Super Admin", "Company",  2, 1),
+            ("permission.role_updated",          "Role Permissions Updated",          "A role's permissions were changed by an administrator",        "Permission", 2, 2),
+            ("alert.fired",                      "Fleet Alert Raised",                "A geofence/route/trip alert fired for this company",          "Fleet",    2, 3),
+            ("user.created",                     "User Account Created",              "A new user account was created",                              "User",     0, 4),
+            ("user.deactivated",                 "User Account Deactivated",          "A user account was deactivated",                              "User",     2, 5),
+            ("company.config_changed",           "Company Configuration Changed",     "Company-level configuration (settings, entitlements) changed", "Company",  2, 6),
+            ("device.offline",                   "Device Offline",                    "A tracking device stopped reporting",                         "Device",   2, 7),
+            ("devicevendor.status_changed",      "Device Vendor Status Changed",       "A device vendor was activated or deactivated",                "Device",   1, 8),
+            ("subscription.expiring_soon",       "Subscription Expiring Soon",         "A company subscription expires within 30 days",               "Company",  1, 9),
+        };
+        var newNotificationEvents = new List<NotificationEventType>();
+        foreach (var (code, name, desc, cat, sev, ord) in defaultNotificationEvents)
+        {
+            if (existingNotifCodes.Contains(code)) continue;
+            newNotificationEvents.Add(new NotificationEventType
+            {
+                Id = Guid.NewGuid(), Code = code, Name = name, Description = desc,
+                Category = cat, DefaultSeverity = sev, DisplayOrder = ord,
+                Status = EntityStatus.Active
+            });
+        }
+        if (newNotificationEvents.Count > 0)
+        {
+            db.NotificationEventTypes.AddRange(newNotificationEvents);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Notification catalog: inserted {newNotificationEvents.Count} new event types");
+        }
+
         // Packages
         if (!await db.Packages.AnyAsync())
         {
@@ -550,6 +621,36 @@ public static class SeedData
             }
         }
         await db.SaveChangesAsync();
+
+        // ── Company Alert Subscriptions: auto-subscribe all companies to all
+        //    active alert types as package_default. Runs idempotently.
+        var allActiveAlertTypeIds2 = await db.AlertTypes
+            .Where(a => !a.IsDeleted && a.Status == EntityStatus.Active)
+            .Select(a => a.Id).ToListAsync();
+        var allCompanyIds2 = await db.Companies
+            .Where(c => !c.IsDeleted && c.Status == EntityStatus.Active)
+            .Select(c => c.Id).ToListAsync();
+        var existingSubKeys2 = (await db.CompanyAlertSubscriptions
+            .Where(s => !s.IsDeleted)
+            .Select(s => new { s.CompanyId, AlertTypeId = s.AlertTypeId })
+            .ToListAsync()).ToHashSet();
+        var newSubs2 = new List<CompanyAlertSubscription>();
+        foreach (var coId in allCompanyIds2)
+        foreach (var atId in allActiveAlertTypeIds2)
+        {
+            if (existingSubKeys2.Contains(new { CompanyId = coId, AlertTypeId = atId })) continue;
+            newSubs2.Add(new CompanyAlertSubscription
+            {
+                Id = Guid.NewGuid(), CompanyId = coId, AlertTypeId = atId,
+                Enabled = true, Source = "package_default"
+            });
+        }
+        if (newSubs2.Count > 0)
+        {
+            db.CompanyAlertSubscriptions.AddRange(newSubs2);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Alert subscriptions: created {newSubs2.Count} company×alert rows");
+        }
 
         // Ensure lakshya@gmail.com test user exists in Demo Fleet Company
         if (!await db.Users.AnyAsync(u => u.Email == "lakshya@gmail.com" && !u.IsDeleted))

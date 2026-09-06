@@ -22,12 +22,14 @@ public class RolesController : ControllerBase
     private readonly IPermissionService _permissionService;
     private readonly ITenantContext _tenant;
     private readonly TargetCompanyResolver _targetCompany;
-    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, TargetCompanyResolver targetCompany)
+    private readonly INotificationService _notificationService;
+    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, TargetCompanyResolver targetCompany, INotificationService notificationService)
     {
         _db = db;
         _permissionService = permissionService;
         _tenant = tenant;
         _targetCompany = targetCompany;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -234,6 +236,14 @@ public class RolesController : ControllerBase
         // Step 3: Clear tracker to start clean — avoids stale entity conflicts
         _db.ChangeTracker.Clear();
 
+        // Snapshot the role's current permission ids BEFORE replacement so the
+        // notification layer can diff effective permissions (what users can
+        // actually do) and avoid notifying for edits that changed nothing.
+        var oldRolePermIds = await _db.RolePermissions.AsNoTracking()
+            .Where(rp => rp.RoleId == id && !rp.IsDeleted)
+            .Select(rp => rp.PermissionId)
+            .ToListAsync();
+
         // Step 4: Replace role-permissions via raw SQL (bypasses change tracker entirely)
         if (dto.PermissionIds != null)
         {
@@ -282,6 +292,25 @@ public class RolesController : ControllerBase
 
         // Invalidate all permission caches for this tenant
         _permissionService.InvalidateAllCache();
+
+        // ── Notifications: the role edit is a first-class notification event ──
+        // (a) Company Admins of the role's company are ALWAYS told a role changed.
+        // (b) Users of the role are told ONLY if their own effective permissions
+        //     actually changed (role grants ∩ company package modules) — toggling
+        //     a permission the company can't grant is a no-op edit and stays quiet.
+        if (dto.PermissionIds != null)
+        {
+            var roleCompanyId = roleExists.CompanyId;
+            await _notificationService.NotifyCompanyAdminsAsync(roleCompanyId, "permission.role_updated",
+                $"Role '{dto.Name ?? roleExists.Name}' permissions updated",
+                $"An administrator changed the permissions of role '{dto.Name ?? roleExists.Name}'.",
+                (int)Domain.Enums.AlertSeverity.Medium, "Role", id, "/roles");
+            await _notificationService.NotifyUsersWhoseEffectivePermissionsChangedAsync(roleCompanyId, id,
+                oldRolePermIds.ToHashSet(), finalPermIds.ToHashSet(),
+                $"Your access changed — role '{dto.Name ?? roleExists.Name}' was updated",
+                $"An administrator changed permissions on role '{dto.Name ?? roleExists.Name}'. Your effective access may have changed; the UI has been refreshed.",
+                (int)Domain.Enums.AlertSeverity.Medium, "Role", id, "/roles");
+        }
 
         return Ok(ApiResponse.Ok(message: "Role updated"));
     }

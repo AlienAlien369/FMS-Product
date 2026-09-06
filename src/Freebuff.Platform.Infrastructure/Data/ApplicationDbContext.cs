@@ -51,6 +51,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<AlertConfiguration> AlertConfigurations => Set<AlertConfiguration>();
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<NotificationEventType> NotificationEventTypes => Set<NotificationEventType>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+
+    // ── Alert type registry (three-tier) ──────────────────────────────────
+    public DbSet<AlertType> AlertTypes => Set<AlertType>();
+    public DbSet<CompanyAlertSubscription> CompanyAlertSubscriptions => Set<CompanyAlertSubscription>();
+    public DbSet<RoleAlertVisibility> RoleAlertVisibilities => Set<RoleAlertVisibility>();
     public DbSet<FuelRecord> FuelRecords => Set<FuelRecord>();
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
     public DbSet<Document> Documents => Set<Document>();

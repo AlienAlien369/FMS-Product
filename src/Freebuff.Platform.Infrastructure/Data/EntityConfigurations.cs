@@ -281,3 +281,66 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         b.HasQueryFilter(a => true);
     }
 }
+
+public class AlertTypeConfiguration : IEntityTypeConfiguration<AlertType>
+{
+    public void Configure(EntityTypeBuilder<AlertType> b)
+    {
+        b.HasIndex(a => a.Code).IsUnique();
+        b.HasQueryFilter(a => !a.IsDeleted);
+    }
+}
+
+public class CompanyAlertSubscriptionConfiguration : IEntityTypeConfiguration<CompanyAlertSubscription>
+{
+    public void Configure(EntityTypeBuilder<CompanyAlertSubscription> b)
+    {
+        b.HasIndex(c => new { c.CompanyId, c.AlertTypeId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasOne(c => c.Company).WithMany().HasForeignKey(c => c.CompanyId);
+        b.HasOne(c => c.AlertType).WithMany().HasForeignKey(c => c.AlertTypeId);
+        b.HasQueryFilter(c => !c.IsDeleted);
+    }
+}
+
+public class RoleAlertVisibilityConfiguration : IEntityTypeConfiguration<RoleAlertVisibility>
+{
+    public void Configure(EntityTypeBuilder<RoleAlertVisibility> b)
+    {
+        b.HasIndex(r => new { r.CompanyId, r.RoleId, r.AlertTypeId }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasOne(r => r.Company).WithMany().HasForeignKey(r => r.CompanyId);
+        b.HasOne(r => r.Role).WithMany().HasForeignKey(r => r.RoleId);
+        b.HasOne(r => r.AlertType).WithMany().HasForeignKey(r => r.AlertTypeId);
+        b.HasQueryFilter(r => !r.IsDeleted);
+    }
+}
+
+public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
+{
+    public void Configure(EntityTypeBuilder<Notification> b)
+    {
+        b.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt });
+        b.HasOne(n => n.User).WithMany(u => u.Notifications).HasForeignKey(n => n.UserId);
+        b.HasQueryFilter(n => !n.IsDeleted);
+    }
+}
+
+public class NotificationEventTypeConfiguration : IEntityTypeConfiguration<NotificationEventType>
+{
+    public void Configure(EntityTypeBuilder<NotificationEventType> b)
+    {
+        b.HasIndex(e => e.Code).IsUnique();
+        b.Property(e => e.Code).HasMaxLength(200).IsRequired();
+        b.Property(e => e.Name).HasMaxLength(200).IsRequired();
+        b.HasQueryFilter(e => !e.IsDeleted);
+    }
+}
+
+public class NotificationPreferenceConfiguration : IEntityTypeConfiguration<NotificationPreference>
+{
+    public void Configure(EntityTypeBuilder<NotificationPreference> b)
+    {
+        b.HasIndex(p => new { p.UserId, p.EventType }).IsUnique().HasFilter("\"IsDeleted\" = false");
+        b.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId);
+        b.HasQueryFilter(p => !p.IsDeleted);
+    }
+}

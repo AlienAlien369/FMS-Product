@@ -26,6 +26,10 @@ cd frontend
 npm run dev
 ```
 Vite serves on port 5173. Proxy forwards `/api` to `http://localhost:8080`.
+The `predev` hook (scripts/sync-maps-key.mjs) auto-fetches
+`VITE_GOOGLE_MAPS_API_KEY` from the deployed Vercel production bundle and
+writes it to `frontend/.env.local` when the key is missing — no manual env
+setup needed for the map panes.
 
 ### Windows Detached (PowerShell)
 ```powershell

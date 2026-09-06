@@ -334,6 +334,48 @@ public sealed class NotificationSystemTests : IClassFixture<E2eFixture>, IAsyncL
         _output.WriteLine("PASS  notification endpoints reachable, registry seeded");
     }
 
+    /// <summary>
+    /// The UI's severity selector is a passthrough (?severity=N) — this locks in
+    /// the contract the interaction depends on: picking High returns ONLY
+    /// severity-3 rows (the restricted-zone alert.fired family), never the
+    /// Medium corridor rows. Rows are seeded directly for the demo admin,
+    /// shaped exactly like the trip pipeline emits them, so the test never
+    /// depends on leftover drive data.
+    /// </summary>
+    [Fact]
+    public async Task SeverityFilter_PickHigh_ShowsOnlyRestrictedZoneNotifications()
+    {
+        var ca = await LoginAsync("admin@demofleet.com");
+
+        var uid = await _db.ScalarAsync("SELECT \"Id\"::text FROM \"Users\" WHERE \"Email\"='admin@demofleet.com' AND \"IsDeleted\"=false LIMIT 1");
+        var cid = await _db.ScalarAsync("SELECT \"CompanyId\"::text FROM \"Users\" WHERE \"Email\"='admin@demofleet.com' AND \"IsDeleted\"=false LIMIT 1");
+        Assert.False(string.IsNullOrEmpty(uid), "demo admin user not found");
+        Assert.False(string.IsNullOrEmpty(cid), "demo admin company not found");
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        await _db.ExecuteAsync($@"
+            INSERT INTO ""Notifications"" (""Id"",""Title"",""Message"",""IsRead"",""UserId"",""CompanyId"",""Status"",""TenantId"",""CreatedAt"",""UpdatedAt"",""IsDeleted"",""Version"",""EventType"",""Severity"",""DeliveryChannel"")
+            VALUES
+            ('{Guid.NewGuid()}'::uuid, 'E2E high restricted-zone {suffix}', 'Vehicle entered a do-not-enter geofence', false, '{uid}'::uuid, '{cid}'::uuid, 0, '{cid}'::uuid, now(), now(), false, 0, 'alert.fired', 3, 'in_app'),
+            ('{Guid.NewGuid()}'::uuid, 'E2E medium corridor deviation {suffix}', 'Vehicle stayed outside the route buffer', false, '{uid}'::uuid, '{cid}'::uuid, 0, '{cid}'::uuid, now(), now(), false, 0, 'alert.fired', 2, 'in_app');
+        ");
+
+        // The UI's "High" selection sends ?severity=3 — only the restricted-zone
+        // breach comes back, the Medium corridor row is excluded.
+        var high = await ListBySeverityAsync(ca, 3);
+        Assert.All(high, n => Assert.Equal(3, n.GetProperty("severity").GetInt32()));
+        Assert.Contains(high, n => (n.GetProperty("title").GetString() ?? "").Contains($"restricted-zone {suffix}"));
+        Assert.DoesNotContain(high, n => (n.GetProperty("title").GetString() ?? "").Contains("corridor deviation"));
+
+        // The other end of the selector: ?severity=2 returns only the corridor row.
+        var medium = await ListBySeverityAsync(ca, 2);
+        Assert.All(medium, n => Assert.Equal(2, n.GetProperty("severity").GetInt32()));
+        Assert.Contains(medium, n => (n.GetProperty("title").GetString() ?? "").Contains($"corridor deviation {suffix}"));
+        Assert.DoesNotContain(medium, n => (n.GetProperty("title").GetString() ?? "").Contains("restricted-zone"));
+
+        _output.WriteLine("PASS  severity filter — High shows only restricted-zone, Medium only corridor");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task<string> LoginAsync(string email, string password = "Admin@123")
@@ -360,6 +402,14 @@ public sealed class NotificationSystemTests : IClassFixture<E2eFixture>, IAsyncL
             ? $"/api/v1/notifications?pageSize=50&eventType={Uri.EscapeDataString(eventType)}"
             : "/api/v1/notifications?pageSize=50";
         var (s, d) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, url, null, token);
+        Assert.Equal(200, s);
+        return d!.Value.GetProperty("items").EnumerateArray().ToList();
+    }
+
+    private async Task<List<JsonElement>> ListBySeverityAsync(string token, int severity)
+    {
+        var (s, d) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            $"/api/v1/notifications?pageSize=50&severity={severity}", null, token);
         Assert.Equal(200, s);
         return d!.Value.GetProperty("items").EnumerateArray().ToList();
     }

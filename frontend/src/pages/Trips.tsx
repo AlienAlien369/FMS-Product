@@ -9,7 +9,7 @@ import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   Eye, X, Navigation, Zap, MapPin, ArrowUp, ArrowDown, Layers, Flag, Ban, Play, CheckCircle2,
-  Clock, Radio, History, Calendar, Route as RouteIcon,
+  Clock, Radio, History, Calendar, Route as RouteIcon, AlertTriangle,
 } from 'lucide-react';
 
 // ── Types (mirror TripDtos.cs) ────────────────────────────
@@ -55,6 +55,7 @@ interface TripDetail {
   fuelUsedLiters?: number | null; idleMinutes?: number | null;
   routeGeometry?: string | null;
   corridorEnabled: boolean; corridorBufferMeters?: number | null; deviationThresholdMinutes?: number | null;
+  deviatedSince?: string | null; corridorAlerted?: boolean;
   waypointCount: number; geofenceCount: number; checkpointCount: number; restrictedZoneCount: number; boundaryZoneCount: number;
   waypoints?: TripWaypoint[];
   tripGeofences?: TripGeofenceRow[];
@@ -612,6 +613,20 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
             )}
             {d.cancelReason && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700"><strong>Reason:</strong> {d.cancelReason}</div>
+            )}
+
+            {/* Corridor deviation — live while the vehicle is off the route path */}
+            {d.deviatedSince && (
+              <div className="flex items-start gap-2 bg-orange-50 border border-orange-300 rounded-lg px-3 py-2.5 text-xs text-orange-800">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Deviated from corridor since {fmtDate(d.deviatedSince)}</p>
+                  <p className="text-orange-700 mt-0.5">
+                    Vehicle is outside the {d.corridorBufferMeters ?? '—'} m route buffer
+                    {d.corridorAlerted ? ' · deviation alert raised' : ' · threshold not yet crossed'}.
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Live tracking */}

@@ -110,7 +110,15 @@ export default function PodCaptureModal({ tripId, waypointId, waypointName, onCl
         form.append('file', photoFile);
         if (lat != null) form.append('latitude', String(lat));
         if (lng != null) form.append('longitude', String(lng));
-        const r = await api.post(`/trips/${tripId}/waypoints/${waypointId}/pod/photo`, form);
+        // The shared client defaults to Content-Type: application/json — with
+        // that header axios JSON-serializes FormData (formDataToJSON) and the
+        // server's [FromForm] endpoint can't bind it (400 "Only image uploads
+        // are allowed"). Dropping the header for THIS call lets axios/browser
+        // send multipart/form-data with a real boundary. Do NOT set
+        // 'multipart/form-data' manually — it would ship without a boundary.
+        const r = await api.post(`/trips/${tripId}/waypoints/${waypointId}/pod/photo`, form, {
+          headers: { 'Content-Type': undefined as unknown as string },
+        });
         onCaptured(r.data.data);
       } else {
         if (!issuedOtp) { setError('Issue an OTP to the customer first.'); setBusy(false); return; }

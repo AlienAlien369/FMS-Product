@@ -36,3 +36,6 @@ logs/
 
 # Build
 *.log
+
+# Runtime POD photo uploads (config-driven Storage:UploadsPath)
+src/Freebuff.Platform.Api/uploads/

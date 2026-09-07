@@ -10,6 +10,15 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ⚠ FormData contract: with the global JSON header above, axios v1.x converts a
+// FormData body via formDataToJSON and sends JSON instead of multipart — the
+// server's [FromForm] endpoints reject it (POD photo upload hit this: 400
+// "Only image uploads are allowed" from a JSON body). ANY call that posts
+// FormData through this client MUST pass headers: { 'Content-Type': undefined }
+// so axios/browser emit multipart/form-data with a boundary. Verified live by
+// .verify/pod-upload-client-proof.mjs against the dev API; do not remove the
+// per-call override when editing PodCaptureModal.
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;

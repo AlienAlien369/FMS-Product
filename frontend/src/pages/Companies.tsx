@@ -5,6 +5,7 @@ import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Eye, Building2
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { ResponsiveCards, Pager } from '../components/ui';
 import CompanyEditModal from '../components/company/CompanyEditModal';
 import CreateCompanyModal from '../components/company/CreateCompanyModal';
 
@@ -98,7 +99,7 @@ function CompanyAdminList() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -173,6 +174,34 @@ function CompanyAdminList() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No companies found"
+        keyOf={c => c.id}
+        title={c => c.name}
+        subtitle={c => c.slug || '—'}
+        statusChip={c => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${c.status === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+            {c.status === 0 ? 'Active' : 'Inactive'}
+          </span>
+        )}
+        primary={c => [
+          { label: 'Contact', value: c.contactEmail || '—' },
+          { label: 'Country', value: c.country || '—' },
+          { label: 'Users', value: String(c.userCount ?? 0) },
+          { label: 'Vehicles', value: String(c.vehicleCount ?? 0) },
+        ]}
+        actions={c => [
+          { key: 'view', label: 'View Details', icon: <Eye className="w-4 h-4" />, onClick: () => navigate(`/admin/companies/${c.id}`) },
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Pencil className="w-4 h-4" />, onClick: () => setEditCompany(c) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => { setDeleteError(''); setConfirmDelete(c); } }] : []),
+        ]}
+        footer={data && data.totalPages > 1 ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={data.hasPrevious} hasNext={data.hasNext}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount} companies`} /> : undefined}
+      />
 
       {/* Delete confirmation with server-side guard feedback */}
       {confirmDelete && (

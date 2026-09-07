@@ -4,6 +4,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
+import { ResponsiveCards, DetailField, Pager } from '../components/ui';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   X, Radio, Cpu, CreditCard,
@@ -98,25 +99,25 @@ export default function Devices() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-2">
+      {/* Filters — single scrolling row on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           {STATUS_FILTERS.map(f => (
             <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${statusFilter === f.key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${statusFilter === f.key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
               {f.label}
             </button>
           ))}
         </div>
-        <div className="flex-1 min-w-[200px] relative">
+        <div className="flex-1 min-w-0 sm:min-w-[200px] relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search by IMEI / serial / model..." className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Table — desktop only; the stacked-card view below serves mobile */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -189,6 +190,54 @@ export default function Devices() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No devices found"
+        keyOf={d => d.id}
+        title={d => (
+          <span className="flex items-center gap-1.5 flex-wrap">
+            {d.identityValue}
+            {isMultiCompany && companyName(d.companyId) && (
+              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{companyName(d.companyId)}</span>
+            )}
+          </span>
+        )}
+        subtitle={d => `${d.identityType === 0 ? 'IMEI' : d.identityType === 1 ? 'Serial' : d.identityType === 2 ? 'MAC' : 'Phone'} · ${d.model || '—'}`}
+        statusChip={d => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_BADGE[d.status] || 'bg-gray-100 text-gray-700'}`}>{STATUS_LABEL[d.status] || d.status}</span>
+        )}
+        primary={d => [
+          { label: 'Type', value: d.deviceTypeOverride || DEVICE_TYPE_LABELS[d.deviceType] || 'Other' },
+          { label: 'Vendor', value: d.vendorName || d.vendorCode || '—' },
+          { label: 'Assigned to', value: d.currentVehicleRegistration || 'Unassigned' },
+          {
+            label: 'SIMs',
+            value: canEdit
+              ? <button onClick={() => setSimModal(d)} className="text-blue-600 text-sm font-medium">{d.sims.length} SIM{d.sims.length === 1 ? '' : 's'}</button>
+              : `${d.sims.length} SIM${d.sims.length === 1 ? '' : 's'}`,
+          },
+        ]}
+        details={d => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 pt-2">
+            <DetailField label="Model" value={d.model} />
+            <DetailField label="Firmware" value={d.firmwareVersion} />
+            <DetailField label="Last seen" value={d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : undefined} />
+            <DetailField label="Installed" value={d.installDate ? new Date(d.installDate).toLocaleDateString() : undefined} />
+            <DetailField label="Activated" value={d.activatedAt ? new Date(d.activatedAt).toLocaleDateString() : undefined} />
+            <DetailField label="Created" value={d.createdAt ? new Date(d.createdAt).toLocaleDateString() : undefined} />
+          </div>
+        )}
+        actions={d => [
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: d }) }] : []),
+          ...(canEdit ? [{ key: 'sims', label: 'SIMs', icon: <CreditCard className="w-4 h-4" />, onClick: () => setSimModal(d) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(d) }] : []),
+        ]}
+        footer={data && data.totalPages > 1 ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={page > 1} hasNext={page < data.totalPages}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount}`} /> : undefined}
+      />
 
       {/* Create / Edit modal */}
       {modal.open && <DeviceModal

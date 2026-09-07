@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CompanyScopeSelector from './CompanyScopeSelector';
 import NotificationBell from './NotificationBell';
-import { LogOut, ChevronLeft, Menu, Search } from 'lucide-react';
+import { LogOut, ChevronLeft, Menu, Search, X } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -106,6 +106,14 @@ export default function Layout() {
     return baseGroups.flatMap(g => g.items).find(i => i.path === location.pathname)?.label ?? 'Freebuff';
   }, [baseGroups, location.pathname]);
 
+  // Drawer: lock body scroll while open; Escape closes it.
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false); };
+    if (mobileOpen) document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -113,12 +121,18 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <aside className={`bg-gray-900 text-white h-full flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} ${mobileOpen ? 'fixed inset-0 z-50 w-64' : 'hidden lg:flex'}`}>
-      <div className="p-4 flex items-center justify-between border-b border-gray-700">
+      {/* Drawer: slides in over content on mobile, persistent on lg+. */}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 bg-gray-900 text-white flex flex-col transition-transform duration-300 ${collapsed ? 'lg:w-16' : 'lg:w-64'} w-64 ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0 lg:shadow-none'}`}>
+      <div className="p-4 flex items-center justify-between border-b border-gray-700 min-h-[60px]">
         {!collapsed && <span className="font-bold text-lg tracking-tight">Freebuff</span>}
-        <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:block p-1 hover:bg-gray-700 rounded">
-          <ChevronLeft className={`w-5 h-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="lg:hidden p-2.5 hover:bg-gray-700 rounded-lg text-gray-300 min-w-[44px] min-h-[44px]">
+            <X className="w-5 h-5" />
+          </button>
+          <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:block p-1 hover:bg-gray-700 rounded">
+            <ChevronLeft className={`w-5 h-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
       </div>
       {!collapsed && (
         <div className="px-3 py-2">
@@ -167,7 +181,7 @@ export default function Layout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between lg:px-6">
           <div className="flex items-center gap-3">
-            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-1 hover:bg-gray-100 rounded">
+            <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="lg:hidden p-2.5 hover:bg-gray-100 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center">
               <Menu className="w-5 h-5" />
             </button>
             <h1 className="text-lg font-semibold text-gray-800">{pageTitle}</h1>

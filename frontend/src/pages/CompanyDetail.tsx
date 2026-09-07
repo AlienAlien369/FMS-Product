@@ -9,6 +9,7 @@ import SubscriptionModal from '../components/company/SubscriptionModal';
 import AlertSubscriptionTab from '../components/AlertSubscriptionTab';
 import UserModal from '../components/company/UserModal';
 import RoleModal from '../components/company/RoleModal';
+import { ResponsiveCards, DetailField } from '../components/ui';
 
 // Types
 // ── Error Boundary ──────────────────────────────────────
@@ -218,7 +219,7 @@ function CompanyDetailInner() {
 
       {/* Tabs */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit flex-wrap">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit max-w-full overflow-x-auto flex-nowrap">
           {tabs.map(t => {
             const Icon = t.icon;
             return (
@@ -323,7 +324,8 @@ function CompanyDetailInner() {
 
             {/* Users */}
             {tab === 'users' && (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -365,6 +367,41 @@ function CompanyDetailInner() {
                   </tbody>
                 </table>
               </div>
+              {/* Mobile stacked cards — same data, same actions as the table */}
+              <div className="md:hidden p-3 space-y-3">
+                {users.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">No users</div>
+                ) : users.map((u: any) => (
+                  <div key={u.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 pt-3.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[15px] font-semibold text-gray-900">{u.firstName} {u.lastName}</div>
+                          <div className="text-[13px] text-gray-500 mt-0.5">{u.email}</div>
+                        </div>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${u.status === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{u.status === 0 ? 'Active' : 'Inactive'}</span>
+                      </div>
+                      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <div className="text-[11px] text-gray-400 uppercase tracking-wide">Roles</div>
+                          <div className="text-sm text-gray-800">{u.roles?.length ? u.roles.slice(0, 2).join(', ') + (u.roles.length > 2 ? ` +${u.roles.length - 2}` : '') : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-gray-400 uppercase tracking-wide">Last login</div>
+                          <div className="text-sm text-gray-800">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-100 mt-2.5">
+                      <div className="flex">
+                        <button onClick={() => setUserModal({ open: true, edit: u })} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 text-sm text-gray-700 hover:bg-gray-50"><Pencil className="w-4 h-4" /> Edit</button>
+                        <button onClick={() => setDeleteConfirm({ type: 'user', id: u.id, name: `${u.firstName} ${u.lastName}` })} className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 text-sm text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /> Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
             )}
 
             {/* Roles */}
@@ -557,7 +594,8 @@ function CompanyDetailInner() {
               <AlertSubscriptionTab companyId={id!} />
             )}
             {tab === 'documents' && (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -585,6 +623,24 @@ function CompanyDetailInner() {
                   </tbody>
                 </table>
               </div>
+              {/* Mobile stacked cards — read-only list, same fields as the table */}
+              <div className="md:hidden p-3 space-y-3">
+                {documents.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">No documents uploaded</div>
+                ) : documents.map((d: any) => (
+                  <div key={d.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+                    <div className="text-[15px] font-semibold text-gray-900 break-words">{d.fileName}</div>
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                      <DetailField label="Category" value={d.category || '—'} />
+                      <DetailField label="Type" value={d.contentType} />
+                      <DetailField label="Size" value={`${(d.fileSize / 1024).toFixed(1)} KB`} />
+                      <DetailField label="Expiry" value={d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : '—'} />
+                      <DetailField label="Uploaded" value={new Date(d.createdAt).toLocaleDateString()} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
             )}
           </>
         )}

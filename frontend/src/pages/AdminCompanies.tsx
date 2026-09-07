@@ -5,6 +5,7 @@ import { Search, Building2, Users, Truck, Shield, Package, ChevronLeft, ChevronR
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
+import { ResponsiveCards, DetailField, Pager } from '../components/ui';
 import CreateCompanyModal from '../components/company/CreateCompanyModal';
 
 interface Company {
@@ -100,7 +101,7 @@ export default function AdminCompanies() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -197,6 +198,40 @@ export default function AdminCompanies() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No companies found"
+        keyOf={c => c.id}
+        title={c => c.name}
+        subtitle={c => c.slug || '—'}
+        statusChip={c => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${c.status === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+            {c.status === 0 ? 'Active' : c.status === 2 ? 'Pending' : c.status === 3 ? 'Suspended' : 'Inactive'}
+          </span>
+        )}
+        primary={c => [
+          { label: 'Location', value: [c.city, c.country].filter(Boolean).join(', ') || '—' },
+          { label: 'Contact', value: c.contactEmail || '—' },
+          { label: 'Users', value: String(c.userCount ?? 0) },
+          { label: 'Vehicles', value: String(c.vehicleCount ?? 0) },
+        ]}
+        details={c => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 pt-2">
+            <DetailField label="Subscription" value={c.subscriptionStatus != null ? `${subStatusMap[c.subscriptionStatus]?.label || 'Unknown'}${c.isSubscriptionExpired ? ' · Expired' : ''}` : 'No subscription'} />
+            <DetailField label="Package" value={c.packageName ? `${c.packageName}${c.packagePrice != null ? ` ($${c.packagePrice})` : ''}` : '—'} />
+            <DetailField label="Modules" value={String(c.moduleCount ?? 0)} />
+            <DetailField label="Contact phone" value={c.contactPhone || '—'} />
+          </div>
+        )}
+        actions={c => [
+          { key: 'view', label: 'View Details', icon: <Eye className="w-4 h-4" />, onClick: () => navigate(`/admin/companies/${c.id}`) },
+        ]}
+        footer={data && data.totalPages > 1 ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={data.hasPrevious} hasNext={data.hasNext}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount} companies`} /> : undefined}
+      />
 
       {/* Create Company Modal */}
       {createModal && <CreateCompanyModal onClose={() => setCreateModal(false)} onSaved={() => { setCreateModal(false); fetchData(); }} />}

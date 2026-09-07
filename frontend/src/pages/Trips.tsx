@@ -6,6 +6,7 @@ import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
 import RouteMapPane from '../components/RouteMapPane';
 import WaypointPodPanel from '../components/WaypointPodPanel';
+import { ResponsiveCards, DetailField, Pager } from '../components/ui';
 import { safetyEventLabel, type SafetyEventLite } from '../lib/safety';
 import type { PagedResult } from '../lib/api';
 import {
@@ -251,7 +252,7 @@ export default function TripsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -356,6 +357,52 @@ export default function TripsPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={items}
+        loading={loading}
+        empty="No trips found"
+        keyOf={t => t.id}
+        title={t => (
+          <span className="flex items-center gap-1.5 flex-wrap">
+            {t.name}
+            {t.isDelayed && t.status !== 3 && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Delayed</span>
+            )}
+          </span>
+        )}
+        subtitle={t => `${t.vehicleName || '—'} · ${t.driverName || 'no driver'}`}
+        statusChip={t => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${(STATUS_MAP[t.status] ?? STATUS_MAP[0]).color}`}>
+            {(STATUS_MAP[t.status] ?? STATUS_MAP[0]).label}
+          </span>
+        )}
+        primary={t => [
+          { label: 'Type', value: (TYPE_MAP[t.type] ?? TYPE_MAP[0]).label },
+          { label: 'Route', value: t.routeName ?? 'Dynamic route' },
+          { label: 'Start', value: fmtDate(t.scheduledStartTime) },
+          {
+            label: 'Geofences',
+            value: t.geofenceCount > 0
+              ? [t.checkpointCount > 0 && `${t.checkpointCount} ckpt`, t.restrictedZoneCount > 0 && `${t.restrictedZoneCount} restricted`, t.boundaryZoneCount > 0 && `${t.boundaryZoneCount} boundary`].filter(Boolean).join(' · ')
+              : '—',
+          },
+        ]}
+        details={t => (
+          <div className="pt-2">
+            <DetailField label="Waypoints" value={String(t.waypointCount)} />
+            {t.description && <DetailField label="Description" value={t.description} />}
+          </div>
+        )}
+        actions={t => [
+          { key: 'view', label: 'View / Track', icon: <Eye className="w-4 h-4" />, onClick: () => setModal({ open: true, view: t }) },
+          ...(canEdit && (t.status === 0 || t.status === 1) ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: t }) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(t) }] : []),
+        ]}
+        footer={data && data.totalCount > 10 ? <Pager page={page} totalPages={Math.ceil(data.totalCount / 10)} hasPrev={page > 1} hasNext={page * 10 < data.totalCount}
+          onChange={setPage} label={`${((page - 1) * 10) + 1}–${Math.min(page * 10, data.totalCount)} of ${data.totalCount}`} /> : undefined}
+      />
 
       {/* Delete Confirmation */}
       {deleteConfirm && (

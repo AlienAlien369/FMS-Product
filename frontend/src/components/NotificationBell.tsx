@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Inbox } from 'lucide-react';
+import { Bell, CheckCheck, Inbox, X } from 'lucide-react';
 import api from '../lib/api';
 import { onChannelUp, onNotification, stop } from '../lib/notificationSocket';
 import { useAuth } from '../contexts/AuthContext';
 import SeverityChip from './SeverityChip';
+import { SheetDropdown } from './ui';
 
 interface NotificationItem {
   id: string;
@@ -32,7 +33,6 @@ export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { refreshPermissions } = useAuth();
 
@@ -76,14 +76,6 @@ export default function NotificationBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
-
   const markReadAndGo = async (n: NotificationItem) => {
     setOpen(false);
     if (!n.isRead) {
@@ -103,65 +95,71 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative" ref={panelRef}>
-      <button
-        onClick={() => { setOpen(!open); if (!open) { setLoading(true); load().finally(() => setLoading(false)); } }}
-        className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
-        aria-label="Notifications"
-      >
-        <Bell className="w-5 h-5 text-gray-500 hover:text-gray-700" />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-            {unread > 99 ? '99+' : unread}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl border border-gray-200 shadow-xl z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-900">Notifications</span>
+    <SheetDropdown
+      open={open}
+      onOpenChange={setOpen}
+      panelClass="sm:w-96"
+      trigger={
+        <button
+          onClick={() => { setOpen(!open); if (!open) { setLoading(true); load().finally(() => setLoading(false)); } }}
+          className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+          aria-label="Notifications"
+        >
+          <Bell className="w-5 h-5 text-gray-500 hover:text-gray-700" />
+          {unread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </button>
+      }
+      header={
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+          <span className="text-sm font-semibold text-gray-900">Notifications</span>
+          <div className="flex items-center gap-1">
             {unread > 0 && (
-              <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+              <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 min-h-[44px] px-2">
                 <CheckCheck className="w-3.5 h-3.5" /> Mark all read
               </button>
             )}
-          </div>
-          <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
-            {items.length === 0 ? (
-              <div className="py-10 text-center text-gray-400">
-                <Inbox className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">{loading ? 'Loading…' : 'No notifications'}</p>
-              </div>
-            ) : items.map(n => (
-              <button
-                key={n.id}
-                onClick={() => markReadAndGo(n)}
-                className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${n.isRead ? 'opacity-60' : ''}`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <SeverityChip severity={n.severity} className="mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
-                      <span className="text-[11px] text-gray-400 whitespace-nowrap">{timeAgo(n.createdAt)}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-          <div className="border-t border-gray-100 p-2">
-            <button
-              onClick={() => { setOpen(false); navigate('/notifications'); }}
-              className="w-full px-3 py-2 text-center text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              View All
-            </button>
+            <button onClick={() => setOpen(false)} aria-label="Close notifications" className="sm:hidden p-2.5 text-gray-500 min-w-[44px] min-h-[44px]"><X className="w-5 h-5" /></button>
           </div>
         </div>
-      )}
-    </div>
+      }
+    >
+      <div className="max-h-[70dvh] sm:max-h-[60vh] overflow-y-auto divide-y divide-gray-50">
+        {items.length === 0 ? (
+          <div className="py-10 text-center text-gray-400">
+            <Inbox className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">{loading ? 'Loading…' : 'No notifications'}</p>
+          </div>
+        ) : items.map(n => (
+          <button
+            key={n.id}
+            onClick={() => markReadAndGo(n)}
+            className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${n.isRead ? 'opacity-60' : ''}`}
+          >
+            <div className="flex items-start gap-2.5">
+              <SeverityChip severity={n.severity} className="mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-900 truncate">{n.title}</p>
+                  <span className="text-[11px] text-gray-400 whitespace-nowrap">{timeAgo(n.createdAt)}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+      <div className="border-t border-gray-100 p-2 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <button
+          onClick={() => { setOpen(false); navigate('/notifications'); }}
+          className="w-full px-3 py-2.5 text-center text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-h-[44px]"
+        >
+          View All
+        </button>
+      </div>
+    </SheetDropdown>
   );
 }

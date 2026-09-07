@@ -4,6 +4,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
+import { ResponsiveCards, Pager, DetailField } from '../components/ui';
 import SeverityChip from '../components/SeverityChip';
 import { safetyEventLabel, type SafetyEventLite as SafetyEvent } from '../lib/safety';
 import type { PagedResult } from '../lib/api';
@@ -134,13 +135,13 @@ export default function Drivers() {
         </div>
       )}
 
-      {/* Status Filter Tabs */}
-      <div className="flex flex-wrap gap-2">
+      {/* Status Filter Tabs — single scrolling row on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
         {STATUS_FILTERS.map(f => {
           const count = stats ? (stats as any)[f.statKey] ?? 0 : 0;
           return (
             <button key={f.key} onClick={() => { setStatusFilter(f.key); setPage(1); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === f.key ? f.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${statusFilter === f.key ? f.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f.label} <span className="ml-1 opacity-70">{count}</span>
             </button>
           );
@@ -163,8 +164,8 @@ export default function Drivers() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Table — desktop only; the stacked-card view below serves mobile */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -276,6 +277,50 @@ export default function Drivers() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No drivers found"
+        keyOf={d => d.id}
+        title={d => (
+          <span className="flex items-center gap-1.5 flex-wrap">
+            {d.fullName}
+            {isMultiCompany && d.companyName && (
+              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{d.companyName}</span>
+            )}
+          </span>
+        )}
+        subtitle={d => [d.city, d.country].filter(Boolean).join(', ') || d.employeeId}
+        statusChip={d => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_MAP[d.status]?.color || 'bg-gray-100 text-gray-700'}`}>
+            {STATUS_MAP[d.status]?.label || 'Unknown'}
+          </span>
+        )}
+        primary={d => [
+          { label: 'Vehicle', value: d.assignedVehicleReg || 'Unassigned' },
+          { label: 'Contact', value: d.phoneNumber || d.email || '—' },
+          { label: 'Safety', value: d.safetyScore != null ? `${d.safetyScore}%` : '—' },
+          { label: 'Trips', value: d.tripCount },
+        ]}
+        details={d => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 pt-2">
+            <DetailField label="Employee ID" value={d.employeeId} />
+            <DetailField label="Email" value={d.email} />
+            <DetailField label="License" value={d.licenseNumber} />
+            <DetailField label="License expiry" value={d.licenseExpiry ? new Date(d.licenseExpiry).toLocaleDateString() : undefined} />
+            <DetailField label="Address" value={d.address} />
+            <DetailField label="Joined" value={d.createdAt ? new Date(d.createdAt).toLocaleDateString() : undefined} />
+          </div>
+        )}
+        actions={d => [
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: d }) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(d) }] : []),
+        ]}
+        footer={data ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={data.hasPrevious} hasNext={data.hasNext}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount} drivers`} /> : undefined}
+      />
 
       {/* Modals */}
       {modal.view && <DriverViewModal driver={modal.view} onClose={() => setModal({ open: false })} />}

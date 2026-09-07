@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Bell, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../lib/api';
 import SeverityChip, { SEVERITY_LABELS } from '../components/SeverityChip';
+import { ResponsiveCards, DetailField } from '../components/ui';
 
 interface NotificationEventType {
   id: string;
@@ -105,7 +106,7 @@ export default function NotificationSettings() {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="text-center py-12 text-gray-400">Loading…</div>
         ) : types.length === 0 ? (
@@ -151,6 +152,35 @@ export default function NotificationSettings() {
           </table>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same actions as the table */}
+      <ResponsiveCards
+        items={types}
+        loading={loading}
+        empty="No event types"
+        keyOf={t => t.id}
+        title={t => t.name}
+        subtitle={t => <code className="font-mono text-[13px]">{t.code}</code>}
+        statusChip={t => (
+          <button onClick={() => handleToggleStatus(t)}
+            className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${t.status === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+            {t.status === 0 ? 'Active' : 'Inactive'}
+          </button>
+        )}
+        primary={t => [
+          { label: 'Category', value: t.category },
+          { label: 'Severity', value: <SeverityChip severity={t.defaultSeverity} size="md" /> },
+        ]}
+        details={t => (
+          <div className="pt-2">
+            {t.description && <DetailField label="Description" value={t.description} />}
+          </div>
+        )}
+        actions={t => [
+          { key: 'edit', label: 'Edit', icon: <Pencil className="w-4 h-4" />, onClick: () => { setEditType(t); setShowCreate(true); setForm({ code: t.code, name: t.name, description: t.description ?? '', category: t.category, defaultSeverity: t.defaultSeverity, displayOrder: t.displayOrder }); } },
+          { key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => handleDelete(t.id) },
+        ]}
+      />
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

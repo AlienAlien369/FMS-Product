@@ -5,6 +5,7 @@ import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
 import RouteMapPane from '../components/RouteMapPane';
+import { ResponsiveCards, Pager } from '../components/ui';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -199,7 +200,7 @@ export default function RoutesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -323,6 +324,47 @@ export default function RoutesPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={sorted}
+        loading={loading}
+        empty="No routes found"
+        keyOf={r => r.id}
+        title={r => r.name}
+        subtitle={r => r.originName + (r.destinationName ? ` → ${r.destinationName}` : '')}
+        statusChip={r => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${(STATUS_MAP[r.status] ?? STATUS_MAP[0]).color}`}>
+            {(STATUS_MAP[r.status] ?? STATUS_MAP[0]).label}
+          </span>
+        )}
+        primary={r => [
+          { label: 'Type', value: (TYPE_MAP[r.type] ?? TYPE_MAP[0]).label },
+          { label: 'Distance', value: r.totalDistance != null ? `${r.totalDistance} ${r.distanceUnit ?? 'km'}` : '—' },
+          { label: 'Duration', value: fmtDuration(r.estimatedDuration) },
+          { label: 'Vehicles', value: `${r.assignedVehicleCount} / ${r.maxVehicles ?? '∞'}` },
+        ]}
+        details={r => (
+          <div className="pt-2 space-y-2">
+            {r.geofenceCount > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {r.checkpointCount > 0 && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">{r.checkpointCount} checkpoint{r.checkpointCount > 1 ? 's' : ''}</span>}
+                {r.restrictedZoneCount > 0 && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">{r.restrictedZoneCount} restricted</span>}
+                {r.boundaryZoneCount > 0 && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">{r.boundaryZoneCount} boundary</span>}
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">{r.geofenceCount} total</span>
+              </div>
+            )}
+            {r.priority != null && <div className="text-xs text-gray-500">Priority: {r.priority}{r.isOptimized ? ' · Optimized' : ''}{r.isTemplate ? ' · Template' : ''}</div>}
+          </div>
+        )}
+        actions={r => [
+          { key: 'view', label: 'View', icon: <Eye className="w-4 h-4" />, onClick: () => setModal({ open: true, view: r }) },
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: r }) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(r) }] : []),
+        ]}
+        footer={data && data.totalCount > 10 ? <Pager page={page} totalPages={Math.ceil(data.totalCount / 10)} hasPrev={page > 1} hasNext={page * 10 < data.totalCount}
+          onChange={setPage} label={`${((page - 1) * 10) + 1}–${Math.min(page * 10, data.totalCount)} of ${data.totalCount}`} /> : undefined}
+      />
 
       {/* Delete Confirmation */}
       {deleteConfirm && (

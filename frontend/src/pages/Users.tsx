@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, UserX } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
+import { ResponsiveCards, DetailField, Pager } from '../components/ui';
 import UserModal from '../components/UserModal';
 
 interface User {
@@ -72,7 +73,7 @@ export default function Users() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -167,6 +168,58 @@ export default function Users() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No users found"
+        keyOf={u => u.id}
+        title={u => u.firstName + ' ' + u.lastName}
+        subtitle={u => u.email}
+        statusChip={u => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${statusMap[u.status]?.color || 'bg-gray-100 text-gray-700'}`}>
+            {statusMap[u.status]?.label || 'Unknown'}
+          </span>
+        )}
+        primary={u => [
+          ...(isSuperAdmin ? [{ label: 'Company', value: u.companyName || '—' }] : []),
+          { label: 'Phone', value: u.phoneNumber || '—' },
+          {
+            label: 'Roles',
+            value: u.roles?.length > 0
+              ? u.roles.slice(0, 2).join(', ') + (u.roles.length > 2 ? ` +${u.roles.length - 2}` : '')
+              : 'None',
+          },
+          { label: 'Last login', value: u.lastLoginAt ? formatDate(u.lastLoginAt) : 'Never' },
+        ]}
+        details={u => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 pt-2">
+            <DetailField label="Joined" value={formatDate(u.createdAt)} />
+            <DetailField label="Last login time" value={u.lastLoginAt ? formatTime(u.lastLoginAt) : '—'} />
+            <div className="col-span-2">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Roles</div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {u.roles?.length > 0 ? u.roles.map((r, i) => (
+                  <span key={i} className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{r}</span>
+                )) : <span className="text-xs text-gray-400">No roles</span>}
+              </div>
+            </div>
+          </div>
+        )}
+        actions={u => [
+          ...(canEdit ? [{
+            key: 'edit', label: 'Edit', icon: <Pencil className="w-4 h-4" />,
+            onClick: () => {
+              setEditUser({ id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, phoneNumber: u.phoneNumber, roleIds: u.roleIds });
+              setModalOpen(true);
+            },
+          }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setConfirmDelete(u.id) }] : []),
+        ]}
+        footer={data && data.totalPages > 1 ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={data.hasPrevious} hasNext={data.hasNext}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount} users`} /> : undefined}
+      />
 
       {/* Delete Confirmation */}
       {confirmDelete && (

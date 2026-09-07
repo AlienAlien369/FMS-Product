@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { VEHICLE_STATUS, FUEL_TYPE } from '../lib/constants';
 import { TYRE_POSITIONS, TYRE_STATUS_STYLE, SPEED_STATUS_STYLE } from '../lib/sensors';
+import { ModalSheet, ModalHeader, ModalFooter, ResponsiveCards, Pager, BtnPrimary, BtnSecondary, BtnDanger, DetailField } from '../components/ui';
 
 // ── Types ────────────────────────────────────────────────
 interface VehicleDetail {
@@ -142,8 +143,8 @@ export default function Vehicles() {
         </div>
       )}
 
-      {/* Status Filter Tabs */}
-      <div className="flex flex-wrap gap-2">
+      {/* Status Filter Tabs — single scrolling row on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
         {STATUS_FILTERS.map(f => {
           const count = f.statKey && stats ? (stats as any)[f.statKey] ?? 0 : 0;
           return (
@@ -154,7 +155,7 @@ export default function Vehicles() {
               if (f.key === 'all') next.delete('status'); else next.set('status', f.key);
               setSearchParams(next, { replace: true });
             }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${statusFilter === f.key ? f.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${statusFilter === f.key ? f.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f.label} <span className="ml-1 opacity-70">{count}</span>
             </button>
           );
@@ -177,8 +178,8 @@ export default function Vehicles() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Table — desktop only; the stacked-card view below serves mobile */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -287,23 +288,67 @@ export default function Vehicles() {
         )}
       </div>
 
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={data?.items ?? []}
+        loading={loading}
+        empty="No vehicles found"
+        keyOf={v => v.id}
+        title={v => (
+          <span className="flex items-center gap-1.5 flex-wrap">
+            {v.registrationNumber}
+            {isMultiCompany && v.companyName && (
+              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{v.companyName}</span>
+            )}
+          </span>
+        )}
+        subtitle={v => [v.make, v.model].filter(Boolean).join(' ') || v.name || '—'}
+        statusChip={v => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_MAP[v.status]?.color || 'bg-gray-100 text-gray-700'}`}>
+            {STATUS_MAP[v.status]?.label || 'Unknown'}
+          </span>
+        )}
+        primary={v => [
+          { label: 'Driver', value: v.driverName || 'Unassigned' },
+          { label: 'Device', value: (v.deviceCount ?? (v.deviceImei ? 1 : 0)) > 0 ? `${v.deviceCount ?? (v.deviceImei ? 1 : 0)} device${(v.deviceCount ?? 1) > 1 ? 's' : ''}` : 'No device' },
+          { label: 'Fuel', value: FUEL_MAP[v.fuelType] || 'Unknown' },
+          { label: 'Tracking', value: v.lastLatitude ? `${v.lastSpeed?.toFixed(0) ?? '—'} km/h` : 'No data' },
+        ]}
+        details={v => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 pt-2">
+            <DetailField label="Type" value={v.vehicleType} />
+            <DetailField label="Client" value={v.clientName} />
+            <DetailField label="Fuel capacity" value={v.fuelTankCapacity ? `${v.fuelTankCapacity} ${v.fuelCapacityUnit || 'L'}` : undefined} />
+            <DetailField label="Ignition" value={v.ignitionStatus != null ? (v.ignitionStatus ? 'ON' : 'OFF') : undefined} />
+            <DetailField label="Last update" value={v.lastLocationUpdate ? new Date(v.lastLocationUpdate).toLocaleString() : undefined} />
+            <DetailField label="Created" value={v.createdAt ? new Date(v.createdAt).toLocaleDateString() : undefined} />
+          </div>
+        )}
+        actions={v => [
+          { key: 'view', label: 'View Details', icon: <Eye className="w-4 h-4" />, onClick: () => setModal({ open: false, view: v }) },
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: v }) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(v) }] : []),
+        ]}
+        footer={data ? <Pager page={data.page} totalPages={data.totalPages} hasPrev={data.hasPrevious} hasNext={data.hasNext}
+          onChange={setPage} label={`${data.items.length} of ${data.totalCount} vehicles`} /> : undefined}
+      />
+
       {/* Modals */}
       {modal.view && <VehicleViewModal vehicle={modal.view} onClose={() => setModal({ open: false })} />}
       {modal.open && !modal.view && (
         <VehicleFormModal vehicle={modal.edit} drivers={drivers} clients={clients} onClose={() => setModal({ open: false })} onSaved={onSaved} />
       )}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setDeleteConfirm(null)} />
-          <div className="relative bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Vehicle</h3>
-            <p className="text-sm text-gray-600 mb-4">Are you sure you want to delete <strong>{deleteConfirm.registrationNumber}</strong> ({deleteConfirm.name || '\u2014'})?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700">Delete</button>
-            </div>
+        <ModalSheet onClose={() => setDeleteConfirm(null)} maxWidth="max-w-sm">
+          <ModalHeader title="Delete Vehicle" onClose={() => setDeleteConfirm(null)} />
+          <div className="px-4 sm:px-6 py-4">
+            <p className="text-sm text-gray-600">Are you sure you want to delete <strong>{deleteConfirm.registrationNumber}</strong> ({deleteConfirm.name || '\u2014'})?</p>
           </div>
-        </div>
+          <ModalFooter>
+            <button onClick={() => setDeleteConfirm(null)} className={BtnSecondary}>Cancel</button>
+            <button onClick={() => handleDelete(deleteConfirm.id)} className={BtnDanger}>Delete</button>
+          </ModalFooter>
+        </ModalSheet>
       )}
     </div>
   );
@@ -343,11 +388,9 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <ModalSheet onClose={onClose} maxWidth="max-w-3xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Truck className="w-5 h-5 text-blue-600" /></div>
             <div>
@@ -357,7 +400,7 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
           </div>
           <div className="flex items-center gap-3">
             <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_MAP[vehicle.status]?.color}`}>{STATUS_MAP[vehicle.status]?.label}</span>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+            <button onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-lg text-gray-500 min-w-[44px] min-h-[44px]"><X className="w-5 h-5" /></button>
           </div>
         </div>
 
@@ -375,7 +418,7 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
           {activeTab === 'overview' && (
             <div className="space-y-5">
               <div className="space-y-3">
@@ -512,8 +555,7 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalSheet>
   );
 }
 
@@ -614,14 +656,12 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+    <ModalSheet onClose={onClose} maxWidth="max-w-2xl">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Vehicle' : 'Add Vehicle'}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-500" /></button>
+          <button onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-lg text-gray-500 min-w-[44px] min-h-[44px]"><X className="w-5 h-5" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-5">
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
           {!isEdit && <TargetCompanyField hook={tgt} error={error} />}
@@ -747,12 +787,11 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
             </select>
           </div>
         </div>
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving} className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-blue-400">{saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}</button>
+        <div className="flex justify-end gap-3 px-4 sm:px-6 py-3.5 border-t border-gray-200 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button onClick={onClose} className={BtnSecondary}>Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} className={BtnPrimary}>{saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}</button>
         </div>
-      </div>
-    </div>
+    </ModalSheet>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Globe, DollarSign } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
+import { ResponsiveCards } from '../components/ui';
 
 interface Lang { id: string; code: string; name: string; nativeName: string; isRightToLeft: boolean; isDefault: boolean; status: number; displayOrder: number; }
 interface Curr { id: string; code: string; name: string; symbol: string; decimalPlaces: number; isDefault: boolean; status: number; displayOrder: number; }
@@ -44,7 +45,7 @@ export default function Localization() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           {tab === 'languages' ? (
             <table className="w-full">
@@ -123,6 +124,39 @@ export default function Localization() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data as whichever tab is active */}
+      {tab === 'languages' ? (
+        <ResponsiveCards
+          items={langs?.items ?? []}
+          loading={loading}
+          empty="No languages found"
+          keyOf={l => l.id}
+          title={l => l.name}
+          subtitle={l => <code className="font-mono text-[13px]">{l.code}</code>}
+          statusChip={l => statusBadge(l.status)}
+          primary={l => [
+            { label: 'Native name', value: l.nativeName },
+            { label: 'RTL', value: l.isRightToLeft ? 'Yes' : 'No' },
+          ]}
+          details={l => l.isDefault ? <div className="pt-2"><span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Default</span></div> : undefined}
+        />
+      ) : (
+        <ResponsiveCards
+          items={currencies?.items ?? []}
+          loading={loading}
+          empty="No currencies found"
+          keyOf={c => c.id}
+          title={c => `${c.code} ${c.symbol}`}
+          subtitle={c => c.name}
+          statusChip={c => statusBadge(c.status)}
+          primary={c => [
+            { label: 'Symbol', value: c.symbol },
+            { label: 'Decimals', value: String(c.decimalPlaces) },
+          ]}
+          details={c => c.isDefault ? <div className="pt-2"><span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Default</span></div> : undefined}
+        />
+      )}
     </div>
   );
 }

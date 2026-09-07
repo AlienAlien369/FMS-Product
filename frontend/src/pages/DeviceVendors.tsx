@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api, { type DeviceVendor } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { Plus, Edit, Trash2, X, Cpu, RefreshCw } from 'lucide-react';
+import { ResponsiveCards, DetailField } from '../components/ui';
 
 const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500';
 const LABEL = 'block text-sm font-medium text-gray-700 mb-1';
@@ -98,7 +99,7 @@ export default function DeviceVendors() {
       {loadError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{loadError}</div>}
 
       {/* Vendors table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -171,6 +172,52 @@ export default function DeviceVendors() {
           </table>
         </div>
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={vendors}
+        loading={loading}
+        empty="No vendors yet — add your first device vendor."
+        keyOf={v => v.id}
+        title={v => (
+          <span className="flex items-center gap-1.5"><Cpu className="w-4 h-4 text-blue-500 shrink-0" /> {v.name}</span>
+        )}
+        subtitle={v => <code className="font-mono text-[13px]">{v.code}</code>}
+        statusChip={v => (
+          <button
+            disabled={!canEdit}
+            onClick={async () => {
+              try {
+                await api.put(`/admin/device-vendors/${v.id}`, { status: v.status === 0 ? 1 : 0 });
+                flash(v.status === 0 ? `Vendor "${v.name}" deactivated — hidden from the device form dropdown` : `Vendor "${v.name}" activated`);
+                fetchData();
+              } catch (e: any) {
+                flash(e.response?.data?.message || 'Failed to toggle vendor status');
+              }
+            }}
+            className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-colors ${STATUS_BADGE[v.status] || 'bg-gray-100 text-gray-700'} ${canEdit ? 'cursor-pointer' : 'cursor-default opacity-70'}`}>
+            {v.status === 0 ? 'Active' : 'Inactive'}
+          </button>
+        )}
+        primary={v => [
+          { label: 'Protocol', value: PROTOCOL_LABEL[v.protocolType] || String(v.protocolType) },
+          { label: 'Devices', value: String(v.deviceCount ?? 0) },
+          { label: 'Payload', value: v.payloadFormat || '—' },
+          { label: 'Adapter', value: v.adapterVersion || '—' },
+        ]}
+        details={v => (
+          <div className="pt-2">
+            {v.description && <DetailField label="Description" value={v.description} />}
+          </div>
+        )}
+        actions={v => [
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: v }) }] : []),
+          ...(canDelete ? [{
+            key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true,
+            onClick: () => { setDeleteError(''); setDeleteConfirm(v); },
+          }] : []),
+        ]}
+      />
 
       {/* Create / edit modal */}
       {modal.open && <VendorModal edit={modal.edit} onClose={() => setModal({ open: false })} onSaved={() => { setModal({ open: false }); fetchData(); }} />}

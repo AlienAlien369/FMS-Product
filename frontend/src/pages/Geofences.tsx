@@ -6,6 +6,7 @@ import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
 import GeofenceMapPane from '../components/GeofenceMapPane';
 import GeofenceImportTab from '../components/GeofenceImportTab';
+import { ResponsiveCards, Pager } from '../components/ui';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -183,7 +184,7 @@ export default function GeofencesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -286,6 +287,43 @@ export default function GeofencesPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile stacked cards — same data, same permission gates as the table */}
+      <ResponsiveCards
+        items={sorted}
+        loading={loading}
+        empty="No geofences found"
+        keyOf={g => g.id}
+        title={g => g.name}
+        subtitle={g => g.description || undefined}
+        statusChip={g => (
+          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${(STATUS_MAP[g.status] ?? STATUS_MAP[0]).color}`}>
+            {(STATUS_MAP[g.status] ?? STATUS_MAP[0]).label}
+          </span>
+        )}
+        primary={g => [
+          { label: 'Type', value: (TYPE_MAP[g.type] ?? TYPE_MAP[0]).label },
+          { label: 'Location', value: g.centerLatitude != null && g.centerLongitude != null ? `${g.centerLatitude.toFixed(3)}, ${g.centerLongitude.toFixed(3)}${g.radius ? ` (R: ${g.radius}m)` : ''}` : '—' },
+          { label: 'Vehicles', value: String(g.assignedVehicleCount) },
+          {
+            label: 'Alerts',
+            value: [g.alertOnEntry && 'Entry', g.alertOnExit && 'Exit', g.alertOnDwell && 'Dwell'].filter(Boolean).join(' / ') || '—',
+          },
+        ]}
+        details={g => (
+          <div className="pt-2 space-y-2">
+            <div className="text-sm text-gray-600">{g.description || 'No description'}</div>
+            {g.violationCount > 0 && <div className="text-xs font-medium text-red-600">{g.violationCount} violation(s)</div>}
+          </div>
+        )}
+        actions={g => [
+          { key: 'view', label: 'View', icon: <Eye className="w-4 h-4" />, onClick: () => setModal({ open: true, view: g }) },
+          ...(canEdit ? [{ key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: () => setModal({ open: true, edit: g }) }] : []),
+          ...(canDelete ? [{ key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => setDeleteConfirm(g) }] : []),
+        ]}
+        footer={data && data.totalCount > 10 ? <Pager page={page} totalPages={Math.ceil(data.totalCount / 10)} hasPrev={page > 1} hasNext={page * 10 < data.totalCount}
+          onChange={setPage} label={`${((page - 1) * 10) + 1}–${Math.min(page * 10, data.totalCount)} of ${data.totalCount}`} /> : undefined}
+      />
 
       {/* Delete Confirmation */}
       {deleteConfirm && (

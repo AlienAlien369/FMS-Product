@@ -1,1 +1,49 @@
 @import "tailwindcss";
+
+/* ── Mobile responsive baseline (shared by every page) ─────────────────────
+   Applied below the md breakpoint (768px) unless noted:
+   - form controls are ≥16px so iOS Safari never auto-zooms on focus
+   - icon-only buttons (title-bearing) get ≥44px touch targets
+   - the base body font never drops below 14px (micro-badges may stay small) */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+  button {
+    -webkit-tap-highlight-color: transparent;
+    /* Every button gets a ≥44px touch target below md — including icon-only
+       buttons without title/aria-label, which a class-based rule would miss. */
+    min-height: 44px;
+  }
+  button[title], button[aria-label] {
+    min-width: 44px;
+  }
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Every grid inside a dialog collapses to a single stacked column below
+     md — form field layouts never sit side-by-side on phones. */
+  [role="dialog"] .grid,
+  div.fixed.inset-0 > div.bg-white .grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Universal modal treatment: every fixed overlay whose panel is a white
+     rounded card becomes a full-screen sheet below md. Covers the app's many
+     hand-rolled modals (add/edit forms, view dialogs, delete confirms) with
+     one rule so none of them can drift from the mobile pattern. */
+  div.fixed.inset-0 {
+    align-items: stretch;
+    padding: 0;
+  }
+  div.fixed.inset-0 > div.bg-white {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    margin: 0 !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

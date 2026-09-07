@@ -497,6 +497,8 @@ public static class SchemaBootstrap
             "DeletionReason" text NULL,
             "Version" integer NOT NULL DEFAULT 0
         );
+        -- Column added after the table shipped — existing deployments get it via ALTER.
+        ALTER TABLE "ProofOfDeliveries" ADD COLUMN IF NOT EXISTS "OtpFailedAttempts" integer NOT NULL DEFAULT 0;
         CREATE INDEX IF NOT EXISTS "IX_ProofOfDeliveries_TripId" ON "ProofOfDeliveries" ("TripId");
         CREATE INDEX IF NOT EXISTS "IX_ProofOfDeliveries_WaypointId" ON "ProofOfDeliveries" ("WaypointId");
         CREATE UNIQUE INDEX IF NOT EXISTS "UX_ProofOfDeliveries_Waypoint_Type_Active"

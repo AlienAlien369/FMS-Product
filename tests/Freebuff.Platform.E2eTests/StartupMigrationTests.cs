@@ -88,6 +88,26 @@ public sealed class StartupMigrationTests : IClassFixture<E2eFixture>
     }
 
     [Fact]
+    public async Task DroppedPodColumn_IsReAddedOnReboot()
+    {
+        // Simulate the real production gap this caught: an existing deployment's
+        // ProofOfDeliveries table predates the OtpFailedAttempts column (the
+        // brute-force-protection counter). CREATE TABLE IF NOT EXISTS never adds
+        // it — only the ALTER path repairs existing DBs. Without it, the OTP
+        // endpoints 500 on production while every E2E (fresh DB) stayed green.
+        await _db.ExecuteAsync("ALTER TABLE \"ProofOfDeliveries\" DROP COLUMN IF EXISTS \"OtpFailedAttempts\"");
+        var gone = await _db.ScalarAsync(
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'ProofOfDeliveries' AND column_name = 'OtpFailedAttempts'");
+        Assert.Equal("0", gone);
+
+        await _db.RebootAsync(); // SchemaBootstrap's ALTER ADD COLUMN IF NOT EXISTS must repair
+
+        var restored = await _db.ScalarAsync(
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'ProofOfDeliveries' AND column_name = 'OtpFailedAttempts'");
+        Assert.Equal("1", restored);
+    }
+
+    [Fact]
     public async Task DanglingCompanyPackageId_IsReHomedOnReboot()
     {
         // Simulate the legacy drift that locked a company out: its PackageId points

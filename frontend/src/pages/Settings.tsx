@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings as SettingsIcon, Building2, Clock, Globe, DollarSign, MapPin, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Building2, Clock, Globe, DollarSign, MapPin, CreditCard, Sliders } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { useLocalizationOptions } from '../hooks/useLocalizationOptions';
 import { SUBSCRIPTION_STATUS } from '../lib/constants';
@@ -25,6 +25,8 @@ export default function Settings() {
   const canEdit = can('settings.update');
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [fleetPolicies, setFleetPolicies] = useState({ speedPolicyMaxKmh: '', tyrePressureMinBar: '', tyrePressureMaxBar: '' });
+  const [policiesMessage, setPoliciesMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -35,11 +37,31 @@ export default function Settings() {
     Promise.all([
       api.get('/tenant/company').catch(() => null),
       api.get('/tenant/subscription').catch(() => null),
-    ]).then(([companyRes, subRes]) => {
+      api.get('/tenant/fleet-policies').catch(() => null),
+    ]).then(([companyRes, subRes, policiesRes]) => {
       if (companyRes?.data?.data) setCompany(companyRes.data.data);
       if (subRes?.data?.data) setSubscription(subRes.data.data);
+      const p = policiesRes?.data?.data;
+      if (p) setFleetPolicies({
+        speedPolicyMaxKmh: p.speedPolicyMaxKmh != null ? String(p.speedPolicyMaxKmh) : '',
+        tyrePressureMinBar: p.tyrePressureMinBar != null ? String(p.tyrePressureMinBar) : '',
+        tyrePressureMaxBar: p.tyrePressureMaxBar != null ? String(p.tyrePressureMaxBar) : '',
+      });
     }).finally(() => setLoading(false));
   }, [user?.companyId]);
+
+  const saveFleetPolicies = async () => {
+    setPoliciesMessage('');
+    try {
+      await api.put('/tenant/fleet-policies', {
+        speedPolicyMaxKmh: fleetPolicies.speedPolicyMaxKmh ? parseFloat(fleetPolicies.speedPolicyMaxKmh) : 0,
+        tyrePressureMinBar: fleetPolicies.tyrePressureMinBar ? parseFloat(fleetPolicies.tyrePressureMinBar) : 0,
+        tyrePressureMaxBar: fleetPolicies.tyrePressureMaxBar ? parseFloat(fleetPolicies.tyrePressureMaxBar) : 0,
+      });
+      setPoliciesMessage("Fleet policies saved — they apply to every vehicle that doesn't override them.");
+      setTimeout(() => setPoliciesMessage(''), 5000);
+    } catch (e: any) { setPoliciesMessage(e.response?.data?.message || 'Failed to save fleet policies'); }
+  };
 
   const handleSave = async () => {
     if (!company) return;
@@ -207,6 +229,47 @@ export default function Settings() {
             <input className={input} value={company.timeFormat || 'HH:mm'} onChange={e => setCompany({ ...company, timeFormat: e.target.value })} />
           </div>
         </div>
+      </div>
+
+      {/* Fleet Policies */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+            <Sliders className="w-5 h-5" /> Fleet Policies
+          </div>
+          {canEdit && (
+            <button onClick={saveFleetPolicies} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition-colors">
+              Save Fleet Policies
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-500">Company-wide sensor policy defaults. Individual vehicles can override these on the vehicle form; empty here means the sensor isn't policed (no alerts).</p>
+        {policiesMessage && (
+          <div className={`p-2 rounded-lg text-xs ${policiesMessage.includes('saved') ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+            {policiesMessage}
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className={label}>Speed Policy Max (km/h)</label>
+            <input className={input} type="number" step="1" min="0" value={fleetPolicies.speedPolicyMaxKmh}
+              onChange={e => setFleetPolicies({ ...fleetPolicies, speedPolicyMaxKmh: e.target.value })}
+              placeholder="e.g. 60" />
+          </div>
+          <div>
+            <label className={label}>Tyre Pressure Min (bar)</label>
+            <input className={input} type="number" step="0.1" min="0" value={fleetPolicies.tyrePressureMinBar}
+              onChange={e => setFleetPolicies({ ...fleetPolicies, tyrePressureMinBar: e.target.value })}
+              placeholder="e.g. 5.0" />
+          </div>
+          <div>
+            <label className={label}>Tyre Pressure Max (bar)</label>
+            <input className={input} type="number" step="0.1" min="0" value={fleetPolicies.tyrePressureMaxBar}
+              onChange={e => setFleetPolicies({ ...fleetPolicies, tyrePressureMaxBar: e.target.value })}
+              placeholder="e.g. 7.0" />
+          </div>
+        </div>
+        <p className="text-[10px] text-gray-400">Tyre severity tiers: warning at 10% outside the range, critical at 20%+ or a rapid drop of 25% within 5 minutes. Blank a field to stop policing that sensor.</p>
       </div>
 
       {/* Subscription */}

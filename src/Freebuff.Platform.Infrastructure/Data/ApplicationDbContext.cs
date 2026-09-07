@@ -61,6 +61,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<FuelRecord> FuelRecords => Set<FuelRecord>();
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<ProofOfDelivery> ProofOfDeliveries => Set<ProofOfDelivery>();
 
     // Localization
     public DbSet<Language> Languages => Set<Language>();
@@ -74,6 +75,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TelemetryEvent> TelemetryEvents => Set<TelemetryEvent>();
     public DbSet<TelemetryState> TelemetryStates => Set<TelemetryState>();
     public DbSet<RawPayload> RawPayloads => Set<RawPayload>();
+    public DbSet<DriverBehaviorEvent> DriverBehaviorEvents => Set<DriverBehaviorEvent>();
+    public DbSet<TyrePressureReading> TyrePressureReadings => Set<TyrePressureReading>();
+    public DbSet<TelemetryRollupHourly> TelemetryRollupsHourly => Set<TelemetryRollupHourly>();
 
     // Audit
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

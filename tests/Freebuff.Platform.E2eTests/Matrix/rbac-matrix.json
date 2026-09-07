@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T05:14:22.5975913Z",
+  "generatedAt": "2026-09-07T02:14:21.8782523Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -117,6 +117,12 @@
         "platform.import",
         "platform.update",
         "platform.view",
+        "pod.create",
+        "pod.delete",
+        "pod.export",
+        "pod.import",
+        "pod.update",
+        "pod.view",
         "report.create",
         "report.delete",
         "report.export",
@@ -497,6 +503,54 @@
         },
         {
           "page": "trip",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -1420,7 +1474,7 @@
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
+      "companyId": "b00c9e98-7ea5-401d-998b-fbfe15eee5c1",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -1476,6 +1530,12 @@
         "notification.import",
         "notification.update",
         "notification.view",
+        "pod.create",
+        "pod.delete",
+        "pod.export",
+        "pod.import",
+        "pod.update",
+        "pod.view",
         "role.create",
         "role.delete",
         "role.export",
@@ -1850,6 +1910,54 @@
         },
         {
           "page": "trip",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -2773,7 +2881,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
+      "companyId": "b00c9e98-7ea5-401d-998b-fbfe15eee5c1",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -3151,6 +3259,54 @@
           "page": "trip",
           "action": "import",
           "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "import",
+          "expected": false,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -4072,7 +4228,7 @@
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
+      "companyId": "b00c9e98-7ea5-401d-998b-fbfe15eee5c1",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4423,6 +4579,54 @@
         },
         {
           "page": "trip",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -5346,7 +5550,7 @@
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "b507b4ab-07f5-4186-848b-0f0d007091cf",
+      "companyId": "b00c9e98-7ea5-401d-998b-fbfe15eee5c1",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -5719,6 +5923,54 @@
           "page": "trip",
           "action": "import",
           "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "import",
+          "expected": false,
           "coveredByPermMatrix": true,
           "hasHttpEndpoint": false,
           "httpTested": false
@@ -6640,7 +6892,7 @@
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "748b2a30-36eb-4988-8ff2-b71c2dd21488",
+      "companyId": "8b70c76c-7cd5-404a-9a43-902f78f15a0d",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -6671,6 +6923,12 @@
         "geofence.import",
         "geofence.update",
         "geofence.view",
+        "pod.create",
+        "pod.delete",
+        "pod.export",
+        "pod.import",
+        "pod.update",
+        "pod.view",
         "route.create",
         "route.delete",
         "route.export",
@@ -7021,6 +7279,54 @@
         },
         {
           "page": "trip",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -7944,7 +8250,7 @@
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "748b2a30-36eb-4988-8ff2-b71c2dd21488",
+      "companyId": "8b70c76c-7cd5-404a-9a43-902f78f15a0d",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -8289,6 +8595,54 @@
         },
         {
           "page": "trip",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "pod",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -9237,8 +9591,8 @@
     }
   ],
   "coverage": {
-    "totalCells": 1092,
-    "cellsCoveredByPermMatrix": 1092,
+    "totalCells": 1134,
+    "cellsCoveredByPermMatrix": 1134,
     "cellsWithHttpEndpointTest": 217
   }
 }

@@ -4,11 +4,13 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
+import SeverityChip from '../components/SeverityChip';
+import { safetyEventLabel, type SafetyEventLite as SafetyEvent } from '../lib/safety';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   Eye, X, Users, MapPin, Shield, Activity, Award, FileText, Truck, Mail, Phone,
-  CreditCard, Calendar, Building2, Star,
+  CreditCard, Calendar, Building2, Star, AlertTriangle, ExternalLink,
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────
@@ -35,6 +37,7 @@ const STATUS_MAP: Record<number, { label: string; color: string }> = {
   3: { label: 'Off Duty', color: 'bg-yellow-100 text-yellow-700' },
   4: { label: 'Suspended', color: 'bg-red-100 text-red-700' },
 };
+
 
 const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500';
 const LABEL = 'block text-sm font-medium text-gray-700 mb-1';
@@ -67,6 +70,7 @@ export default function Drivers() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [sort, setSort] = useState<SortState>({ field: 'fullName', desc: false });
+
   const [modal, setModal] = useState<{ open: boolean; edit?: DriverDetail; view?: DriverDetail }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<DriverDetail | null>(null);
 
@@ -297,9 +301,11 @@ export default function Drivers() {
 
 // ── View Detail Modal (Tabbed) ──────────────────────────
 function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: () => void }) {
-  type Tab = 'overview' | 'license' | 'scores' | 'assignment' | 'audit';
+  type Tab = 'overview' | 'license' | 'scores' | 'safety' | 'assignment' | 'audit';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [safetyEvents, setSafetyEvents] = useState<SafetyEvent[]>([]);
+  const [safetyLoading, setSafetyLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'audit') {
@@ -307,10 +313,20 @@ function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: (
     }
   }, [activeTab, driver.id]);
 
+  useEffect(() => {
+    if (activeTab !== 'safety') return;
+    setSafetyLoading(true);
+    api.get(`/drivers/${driver.id}/safety-events?limit=50`)
+      .then(r => setSafetyEvents(r.data.data || []))
+      .catch(() => setSafetyEvents([]))
+      .finally(() => setSafetyLoading(false));
+  }, [activeTab, driver.id]);
+
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: 'overview', label: 'Overview', icon: Users },
     { key: 'license', label: 'License', icon: CreditCard },
     { key: 'scores', label: 'Scores', icon: Award },
+    { key: 'safety', label: 'Safety Events', icon: AlertTriangle },
     { key: 'assignment', label: 'Assignment', icon: Truck },
     { key: 'audit', label: 'Audit Log', icon: Shield },
   ];
@@ -430,6 +446,48 @@ function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: (
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'safety' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-gray-900 font-semibold"><AlertTriangle className="w-4 h-4" /> Safety Events</div>
+                <span className="text-xs text-gray-400">DMS camera · driver behavior</span>
+              </div>
+              {safetyLoading ? (
+                <div className="text-sm text-gray-400 py-6 text-center">Loading safety events...</div>
+              ) : safetyEvents.length === 0 ? (
+                <div className="text-sm text-gray-400 py-6 text-center">No driver-behavior events recorded yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {safetyEvents.map(ev => (
+                    <div key={ev.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <SeverityChip severity={ev.severity} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">{safetyEventLabel(ev.eventType, ev.eventTypeName)}</span>
+                          {ev.vehicleName && <span className="text-[10px] font-medium text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{ev.vehicleName}</span>}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <span>{new Date(ev.eventTimeUtc).toLocaleString()}</span>
+                          {ev.confidence < 1 && <span>confidence {Math.round(ev.confidence * 100)}%</span>}
+                          {ev.speedKmh != null && <span>{ev.speedKmh.toFixed(0)} km/h</span>}
+                          {ev.latitude != null && ev.longitude != null && (
+                            <span className="font-mono">{ev.latitude.toFixed(5)}, {ev.longitude.toFixed(5)}</span>
+                          )}
+                        </div>
+                        {ev.mediaUrl && (
+                          <a href={ev.mediaUrl} target="_blank" rel="noreferrer"
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                            <ExternalLink className="w-3 h-3" /> Dashcam clip
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

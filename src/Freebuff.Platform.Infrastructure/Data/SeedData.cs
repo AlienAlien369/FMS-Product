@@ -311,28 +311,41 @@ public static class SeedData
         // Idempotent: only inserts rows that don't yet exist by Code.
         var existingAlertCodes = (await db.AlertTypes
             .Where(a => !a.IsDeleted).Select(a => a.Code).ToListAsync()).ToHashSet();
-        var defaultAlertTypes = new (string Code, string Name, string? Desc, string Cat, int Sev, int Ord)[]
+        var defaultAlertTypes = new (string Code, string Name, string? Desc, string Cat, int Sev, int Ord, bool NonMutable)[]
         {
-            ("geofence.entry",                    "Geofence Entry",                    "Vehicle entered a geofence zone",                          "Geofence", 1, 1),
-            ("geofence.exit",                     "Geofence Exit",                     "Vehicle exited a geofence zone",                           "Geofence", 1, 2),
-            ("geofence.dwell",                    "Geofence Dwell",                    "Vehicle remained inside a geofence beyond dwell threshold", "Geofence", 2, 3),
-            ("route.restricted_zone_violation",   "Route Restricted Zone Violation",   "Vehicle entered a restricted zone on its assigned route",  "Route",    3, 10),
-            ("route.checkpoint_missed",           "Route Checkpoint Missed",           "Trip completed without visiting a linked checkpoint",      "Route",    2, 11),
-            ("route.corridor_deviation",          "Route Corridor Deviation",          "Vehicle traveled outside the route corridor buffer",       "Route",    2, 12),
-            ("trip.delayed",                      "Trip Delayed",                      "Trip missed an expected arrival time",                     "Trip",     2, 20),
-            ("trip.completed",                    "Trip Completed",                    "Trip reached its final destination",                       "Trip",     0, 21),
-            ("vehicle.maintenance_due",           "Vehicle Maintenance Due",           "Vehicle is due for scheduled maintenance",                 "Vehicle",  2, 30),
-            ("device.offline",                    "Device Offline",                    "Tracking device stopped reporting telemetry",              "Device",   2, 40),
-            ("driver.license_expiring",           "Driver License Expiring",           "Driver license expires within 30 days",                    "Driver",   1, 50),
+            ("geofence.entry",                    "Geofence Entry",                    "Vehicle entered a geofence zone",                          "Geofence", 1, 1, false),
+            ("geofence.exit",                     "Geofence Exit",                     "Vehicle exited a geofence zone",                           "Geofence", 1, 2, false),
+            ("geofence.dwell",                    "Geofence Dwell",                    "Vehicle remained inside a geofence beyond dwell threshold", "Geofence", 2, 3, false),
+            ("route.restricted_zone_violation",   "Route Restricted Zone Violation",   "Vehicle entered a restricted zone on its assigned route",  "Route",    3, 10, false),
+            ("route.checkpoint_missed",           "Route Checkpoint Missed",           "Trip completed without visiting a linked checkpoint",      "Route",    2, 11, false),
+            ("route.corridor_deviation",          "Route Corridor Deviation",          "Vehicle traveled outside the route corridor buffer",       "Route",    2, 12, false),
+            ("trip.delayed",                      "Trip Delayed",                      "Trip missed an expected arrival time",                     "Trip",     2, 20, false),
+            ("trip.completed",                    "Trip Completed",                    "Trip reached its final destination",                       "Trip",     0, 21, false),
+            ("vehicle.maintenance_due",           "Vehicle Maintenance Due",           "Vehicle is due for scheduled maintenance",                 "Vehicle",  2, 30, false),
+            ("device.offline",                    "Device Offline",                    "Tracking device stopped reporting telemetry",              "Device",   2, 40, false),
+            ("driver.license_expiring",           "Driver License Expiring",           "Driver license expires within 30 days",                    "Driver",   1, 50, false),
+            // ── Driver Safety Monitoring (DMS) alert types ──────────────────
+            ("driver.harsh_braking",              "Harsh Braking",                     "DMS detected harsh braking",                               "Driver",   2, 51, false),
+            ("driver.harsh_acceleration",         "Harsh Acceleration",                "DMS detected harsh acceleration",                          "Driver",   2, 52, false),
+            ("driver.harsh_cornering",            "Harsh Cornering",                   "DMS detected harsh cornering",                             "Driver",   2, 53, false),
+            ("driver.excessive_idling",           "Excessive Idling",                  "DMS detected excessive idling",                            "Driver",   1, 54, false),
+            ("driver.drowsiness",                 "Drowsiness Detected",               "AI-based drowsiness detection from the DMS camera",        "Driver",   3, 55, false),
+            ("driver.distraction",                "Driver Distracted",                 "AI-based distraction detection from the DMS camera",       "Driver",   3, 56, false),
+            ("driver.phone_usage",                "Phone Usage While Driving",         "DMS detected phone usage while driving",                   "Driver",   2, 57, false),
+            ("driver.panic_button",               "Panic Button (SOS)",                "Driver pressed the SOS/panic button — Critical, delivered regardless of notification preferences", "Driver", 4, 58, true),
+            // ── Speed Governor + TPMS (threshold-based sensor alerts) ────────
+            ("vehicle.speed_limit_exceeded",      "Speed Limit Exceeded",              "Vehicle speed above the fleet/vehicle speed policy limit",  "Vehicle", 3, 59, false),
+            ("vehicle.tyre_pressure_anomaly",     "Tyre Pressure Anomaly",             "Tyre pressure outside the policy range, or rapid pressure loss", "Vehicle", 2, 60, false),
         };
         var newAlertTypes = new List<AlertType>();
-        foreach (var (code, name, desc, cat, sev, ord) in defaultAlertTypes)
+        foreach (var (code, name, desc, cat, sev, ord, nonMutable) in defaultAlertTypes)
         {
             if (existingAlertCodes.Contains(code)) continue;
             newAlertTypes.Add(new AlertType
             {
                 Id = Guid.NewGuid(), Code = code, Name = name, Description = desc,
                 Category = cat, DefaultSeverity = sev, DisplayOrder = ord,
+                NonMutablePriority = nonMutable,
                 Status = EntityStatus.Active
             });
         }

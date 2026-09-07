@@ -42,6 +42,14 @@ public class Trip : BaseEntity
     /// <summary>True once the TripCorridorDeviation alert has been raised for the current deviation episode.</summary>
     public bool CorridorAlerted { get; set; }
 
+    /// <summary>
+    /// Proof-of-delivery policy for this trip's delivery waypoints (nullable =
+    /// follow the company default from Configuration "fleet.require_pod_for_delivery").
+    /// When true, a Delivery-type waypoint cannot be marked arrived until
+    /// verified POD evidence exists for it.
+    /// </summary>
+    public bool? RequirePodForDelivery { get; set; }
+
     public TripType Type { get; set; } = TripType.Single;
 
     /// <summary>Denormalized legacy column (predates Type) — kept mapped and
@@ -138,8 +146,15 @@ public class TripWaypoint : BaseEntity
     /// <summary>Optional geofence this waypoint corresponds to (a geofence-defined stop).</summary>
     public Guid? LinkedGeofenceId { get; set; }
 
+    /// <summary>Customer contact for OTP delivery at this stop (SMS/email) — required for OTP capture.</summary>
+    public string? CustomerPhone { get; set; }
+    public string? CustomerEmail { get; set; }
+
     /// <summary>Proof-of-completion evidence (photo URL / signature ref / OTP) — reserved, nullable.</summary>
     public string? ProofOfCompletion { get; set; }
+
+    // Navigation — ProofOfDelivery records captured at this stop.
+    public ICollection<ProofOfDelivery> ProofOfDeliveries { get; set; } = new List<ProofOfDelivery>();
 }
 
 /// <summary>

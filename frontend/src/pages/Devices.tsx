@@ -15,8 +15,10 @@ const LABEL = 'block text-sm font-medium text-gray-700 mb-1';
 const DEVICE_TYPE_OPTIONS = [
   { value: 0, label: 'GPS Tracker' }, { value: 1, label: 'Dashcam' }, { value: 2, label: 'ADAS' },
   { value: 3, label: 'Fuel Sensor' }, { value: 4, label: 'Temperature Sensor' }, { value: 5, label: 'Dual Camera' },
-  { value: 99, label: 'Other' },
+  { value: 6, label: 'DMS Camera' }, { value: 99, label: 'Other' },
 ];
+// Index-aligned with DeviceType enum — index 6 = DMS Camera, 99 = Other.
+const DEVICE_TYPE_LABELS = ['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', 'DMS Camera', '', 'Other'];
 const IDENTITY_TYPE_OPTIONS = [
   { value: 0, label: 'IMEI' }, { value: 1, label: 'Serial' }, { value: 2, label: 'MAC' }, { value: 3, label: 'Phone Number' },
 ];
@@ -148,7 +150,7 @@ export default function Devices() {
                     </div>
                     <div className="text-xs text-gray-400">{d.identityType === 0 ? 'IMEI' : d.identityType === 1 ? 'Serial' : d.identityType === 2 ? 'MAC' : 'Phone'}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{d.deviceTypeOverride || ['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][d.deviceType] || 'Other'}</td>
+                  <td className="px-4 py-3 text-gray-700">{d.deviceTypeOverride || DEVICE_TYPE_LABELS[d.deviceType] || 'Other'}</td>
                   <td className="px-4 py-3">
                     {d.vendorCode
                       ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">{d.vendorName || d.vendorCode}</span>

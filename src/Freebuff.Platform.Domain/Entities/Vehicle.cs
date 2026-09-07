@@ -50,6 +50,13 @@ public class Vehicle : BaseEntity
     public DateTime? LastLocationUpdate { get; set; }
     public bool? IgnitionStatus { get; set; }
 
+    // Sensor policies — per-vehicle overrides of the company fleet defaults
+    // (Configuration fleet.speed_policy_max_kmh / fleet.tyre_pressure_min_bar /
+    // fleet.tyre_pressure_max_bar). Null = follow the fleet default.
+    public double? SpeedPolicyMaxKmh { get; set; }
+    public double? TyrePressureMinBar { get; set; }
+    public double? TyrePressureMaxBar { get; set; }
+
     // Metadata
     public long? OdometerReading { get; set; }
     public long? EngineHours { get; set; }

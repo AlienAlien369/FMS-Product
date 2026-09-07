@@ -46,6 +46,15 @@ public class TripDto
     /// <summary>True once the distinct corridor-deviation alert has fired for the current episode.</summary>
     public bool CorridorAlerted { get; set; }
 
+    /// <summary>
+    /// Per-trip override of the company's require-POD default (null = follow the
+    /// company default from Configuration fleet.require_pod_for_delivery).
+    /// </summary>
+    public bool? RequirePodForDelivery { get; set; }
+
+    /// <summary>Resolved require-POD policy for this trip (company default honored).</summary>
+    public bool PodRequired { get; set; }
+
     public int WaypointCount { get; set; }
     public int GeofenceCount { get; set; }
     public int CheckpointCount { get; set; }
@@ -73,6 +82,10 @@ public class TripWaypointDto
     public DateTime? ExpectedArrival { get; set; }
     public DateTime? ActualArrival { get; set; }
     public Guid? LinkedGeofenceId { get; set; }
+
+    /// <summary>Customer contact for OTP delivery at this stop (SMS/email).</summary>
+    public string? CustomerPhone { get; set; }
+    public string? CustomerEmail { get; set; }
 }
 
 public class TripGeofenceDto
@@ -149,6 +162,9 @@ public class CreateTripDto
     [Range(1, 60)]
     public int? DeviationThresholdMinutes { get; set; }
 
+    /// <summary>Per-trip require-POD override (null = company default).</summary>
+    public bool? RequirePodForDelivery { get; set; }
+
     public List<TripGeofenceLinkDto>? GeofenceLinks { get; set; }
 }
 
@@ -179,6 +195,9 @@ public class UpdateTripDto
 
     [Range(1, 60)]
     public int? DeviationThresholdMinutes { get; set; }
+
+    /// <summary>Per-trip require-POD override (null = company default).</summary>
+    public bool? RequirePodForDelivery { get; set; }
 }
 
 /// <summary>One zone event from the geofence/telemetry pipeline: entry/exit of a linked geofence.</summary>
@@ -225,4 +244,11 @@ public class TripLivePositionDto
     public double? SpeedKmh { get; set; }
     public double? HeadingDeg { get; set; }
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Latest driver-behavior events for the vehicle (real-time safety indicator
+    /// on the live-tracking view). Populated from the DriverBehaviorEvents
+    /// stream; empty when the vehicle has no DMS device or nothing fired yet.
+    /// </summary>
+    public List<DriverBehaviorEventDto>? RecentSafetyEvents { get; set; }
 }

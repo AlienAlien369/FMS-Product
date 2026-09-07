@@ -24,7 +24,8 @@ public class TripsController : ControllerBase
     private readonly TargetCompanyResolver _targetCompany;
     private readonly TripLifecycleService _lifecycle;
 
-    public TripsController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany, TripLifecycleService lifecycle)
+    public TripsController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany,
+        TripLifecycleService lifecycle)
     {
         _db = db;
         _tenant = tenant;
@@ -94,6 +95,7 @@ public class TripsController : ControllerBase
                 CorridorEnabled = t.CorridorEnabled, CorridorBufferMeters = t.CorridorBufferMeters,
                 DeviationThresholdMinutes = t.DeviationThresholdMinutes,
                 DeviatedSince = t.DeviatedSince, CorridorAlerted = t.CorridorAlerted,
+                RequirePodForDelivery = t.RequirePodForDelivery,
                 WaypointCount = t.TripWaypoints.Count,
                 GeofenceCount = t.TripGeofences.Count(),
                 CheckpointCount = t.TripGeofences.Count(x => x.Role == TripGeofenceRole.Checkpoint),
@@ -151,7 +153,23 @@ public class TripsController : ControllerBase
             .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted && (isSuperAdmin || t.CompanyId == tenantId));
         if (t == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Trip not found." });
 
-        return Ok(new ApiResponse<TripDto> { Success = true, Data = ToDto(t) });
+        var dto = ToDto(t);
+        dto.PodRequired = await ResolvePodRequiredAsync(t.CompanyId, t.RequirePodForDelivery);
+        return Ok(new ApiResponse<TripDto> { Success = true, Data = dto });
+    }
+
+    /// <summary>
+    /// Resolved require-POD policy: per-trip override wins; else the company's
+    /// Configuration row (fleet.require_pod_for_delivery); default false.
+    /// </summary>
+    private async Task<bool> ResolvePodRequiredAsync(Guid companyId, bool? tripOverride)
+    {
+        if (tripOverride.HasValue) return tripOverride.Value;
+        var cfg = await _db.Configurations.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Key == "fleet.require_pod_for_delivery"
+                && c.Scope == ConfigurationScope.Company && !c.IsDeleted
+                && (c.ScopeEntityId == companyId || c.CompanyId == companyId));
+        return cfg != null && string.Equals(cfg.Value, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Create ──────────────────────────────────────────────────────────────
@@ -249,6 +267,7 @@ public class TripsController : ControllerBase
             CorridorEnabled = dto.CorridorEnabled ?? route?.CorridorEnabled ?? false,
             CorridorBufferMeters = dto.CorridorBufferMeters ?? route?.CorridorBufferMeters,
             DeviationThresholdMinutes = dto.DeviationThresholdMinutes ?? route?.DeviationThresholdMinutes,
+            RequirePodForDelivery = dto.RequirePodForDelivery,
             PlannedDistance = 0
         };
         _db.Trips.Add(trip);
@@ -312,6 +331,7 @@ public class TripsController : ControllerBase
         if (dto.CorridorEnabled.HasValue) t.CorridorEnabled = dto.CorridorEnabled.Value;
         if (dto.CorridorBufferMeters.HasValue) t.CorridorBufferMeters = dto.CorridorBufferMeters.Value;
         if (dto.DeviationThresholdMinutes.HasValue) t.DeviationThresholdMinutes = dto.DeviationThresholdMinutes.Value;
+        if (dto.RequirePodForDelivery.HasValue) t.RequirePodForDelivery = dto.RequirePodForDelivery.Value;
 
         // Assignment changes re-validate ownership + double-booking (excluding self).
         if (dto.VehicleId.HasValue || dto.DriverId.HasValue)
@@ -426,7 +446,12 @@ public class TripsController : ControllerBase
         });
     }
 
-    /// <summary>Manual waypoint arrival (also the hook a geofence/telemetry event pipeline would call).</summary>
+    /// <summary>
+    /// Manual waypoint arrival (also the hook a geofence/telemetry event pipeline
+    /// would call). Delivery-type waypoints optionally require verified POD
+    /// evidence first (company default with per-trip override) — a blocked
+    /// waypoint returns 400 with a clear message; nothing is recorded.
+    /// </summary>
     [HttpPost("{id:guid}/waypoints/{waypointId:guid}/arrive")]
     [RequirePermission("trip.update")]
     public async Task<IActionResult> ArriveAtWaypoint(Guid id, Guid waypointId, [FromBody] ArriveWaypointDto? dto)
@@ -437,11 +462,18 @@ public class TripsController : ControllerBase
             .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted && (isSuperAdmin || t.CompanyId == tenantId));
         if (t == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Trip not found." });
 
-        var ok = await _lifecycle.RecordWaypointArrivalAsync(id, waypointId, dto?.ArrivedAt);
-        if (!ok) return NotFound(new ApiResponse<object> { Success = false, Message = "Waypoint not found on this trip." });
+        var result = await _lifecycle.RecordWaypointArrivalAsync(id, waypointId, dto?.ArrivedAt);
+        if (!result.Found) return NotFound(new ApiResponse<object> { Success = false, Message = "Waypoint not found on this trip." });
+        if (result.PodRequired)
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "This delivery waypoint requires proof of delivery (signature, photo or OTP) before it can be marked complete."
+            });
         await _db.SaveChangesAsync();
         return Ok(new ApiResponse<object> { Success = true, Message = "Waypoint arrival recorded." });
     }
+
 
     // ── Zone events (geofence/telemetry pipeline → auto lifecycle) ────────
 
@@ -569,6 +601,32 @@ public class TripsController : ControllerBase
         if (state == null)
             return Ok(new ApiResponse<TripLivePositionDto> { Success = true, Data = new TripLivePositionDto() });
 
+        // Real-time safety indicator: the latest behavior events for the vehicle
+        // (last 15 minutes), so the live-tracking view can surface a badge when
+        // a DMS event fires during an active trip.
+        var safetyEvents = await _db.DriverBehaviorEvents.AsNoTracking()
+            .Where(e => e.VehicleId == t.VehicleId && e.EventTimeUtc >= DateTime.UtcNow.AddMinutes(-15))
+            .OrderByDescending(e => e.EventTimeUtc)
+            .Take(5)
+            .Select(e => new DriverBehaviorEventDto
+            {
+                Id = e.Id,
+                CompanyId = e.TenantId,
+                VehicleId = e.VehicleId,
+                VehicleName = e.Vehicle != null ? e.Vehicle.RegistrationNumber : null,
+                DriverId = e.DriverId,
+                EventType = DriverBehaviorCatalog.Spec(e.EventType).CanonicalCode,
+                EventTypeName = DriverBehaviorCatalog.Spec(e.EventType).AlertName,
+                Confidence = e.Confidence,
+                Severity = (int)DriverBehaviorCatalog.Spec(e.EventType).Severity,
+                EventTimeUtc = e.EventTimeUtc,
+                Latitude = e.Latitude,
+                Longitude = e.Longitude,
+                SpeedKmh = e.SpeedKmh,
+                MediaUrl = e.MediaUrl
+            })
+            .ToListAsync();
+
         return Ok(new ApiResponse<TripLivePositionDto>
         {
             Success = true,
@@ -576,7 +634,8 @@ public class TripsController : ControllerBase
             {
                 Latitude = state.Latitude, Longitude = state.Longitude,
                 SpeedKmh = state.SpeedKmh, HeadingDeg = state.HeadingDeg,
-                UpdatedAt = state.UpdatedAt
+                UpdatedAt = state.UpdatedAt,
+                RecentSafetyEvents = safetyEvents
             }
         });
     }
@@ -648,7 +707,9 @@ public class TripsController : ControllerBase
                 Longitude = w.Longitude,
                 Address = w.Address,
                 ExpectedArrival = w.ExpectedArrival,
-                LinkedGeofenceId = w.LinkedGeofenceId
+                LinkedGeofenceId = w.LinkedGeofenceId,
+                CustomerPhone = w.CustomerPhone,
+                CustomerEmail = w.CustomerEmail
             }).ToList();
     }
 
@@ -712,6 +773,7 @@ public class TripsController : ControllerBase
             CorridorEnabled = t.CorridorEnabled, CorridorBufferMeters = t.CorridorBufferMeters,
             DeviationThresholdMinutes = t.DeviationThresholdMinutes,
             DeviatedSince = t.DeviatedSince, CorridorAlerted = t.CorridorAlerted,
+            RequirePodForDelivery = t.RequirePodForDelivery,
             WaypointCount = t.TripWaypoints.Count,
             GeofenceCount = t.TripGeofences.Count,
             CheckpointCount = t.TripGeofences.Count(x => x.Role == TripGeofenceRole.Checkpoint),
@@ -724,7 +786,8 @@ public class TripsController : ControllerBase
                 WaypointType = (int)w.WaypointType, WaypointTypeName = w.WaypointType.ToString(),
                 Name = w.Name, Latitude = w.Latitude, Longitude = w.Longitude,
                 Address = w.Address, ExpectedArrival = w.ExpectedArrival, ActualArrival = w.ActualArrival,
-                LinkedGeofenceId = w.LinkedGeofenceId
+                LinkedGeofenceId = w.LinkedGeofenceId,
+                CustomerPhone = w.CustomerPhone, CustomerEmail = w.CustomerEmail
             }).ToList(),
             TripGeofences = t.TripGeofences.Select(g => new TripGeofenceDto
             {

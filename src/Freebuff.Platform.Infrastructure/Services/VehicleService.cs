@@ -159,6 +159,9 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
             DeviceImei = dto.DeviceImei,
             DeviceType = dto.DeviceType,
             DeviceSerialNumber = dto.DeviceSerialNumber,
+            SpeedPolicyMaxKmh = dto.SpeedPolicyMaxKmh,
+            TyrePressureMinBar = dto.TyrePressureMinBar,
+            TyrePressureMaxBar = dto.TyrePressureMaxBar,
             CompanyId = companyId,
             Status = VehicleStatus.Active
         };
@@ -201,6 +204,11 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         if (dto.Status != null) vehicle.Status = (VehicleStatus)dto.Status.Value;
         if (dto.OdometerReading != null) vehicle.OdometerReading = dto.OdometerReading;
         if (dto.EngineHours != null) vehicle.EngineHours = dto.EngineHours;
+
+        // Policy overrides: null = no change, 0 = clear (revert to fleet default).
+        if (dto.SpeedPolicyMaxKmh.HasValue) vehicle.SpeedPolicyMaxKmh = dto.SpeedPolicyMaxKmh.Value > 0 ? dto.SpeedPolicyMaxKmh : null;
+        if (dto.TyrePressureMinBar.HasValue) vehicle.TyrePressureMinBar = dto.TyrePressureMinBar.Value > 0 ? dto.TyrePressureMinBar : null;
+        if (dto.TyrePressureMaxBar.HasValue) vehicle.TyrePressureMaxBar = dto.TyrePressureMaxBar.Value > 0 ? dto.TyrePressureMaxBar : null;
 
         await _db.SaveChangesAsync();
         return MapToDto(vehicle);
@@ -291,6 +299,9 @@ public class VehicleService : ICrudService<VehicleDto, CreateVehicleDto, UpdateV
         LastHeading = v.LastHeading,
         LastLocationUpdate = v.LastLocationUpdate,
         IgnitionStatus = v.IgnitionStatus,
+        SpeedPolicyMaxKmh = v.SpeedPolicyMaxKmh,
+        TyrePressureMinBar = v.TyrePressureMinBar,
+        TyrePressureMaxBar = v.TyrePressureMaxBar,
         OdometerReading = v.OdometerReading,
         EngineHours = v.EngineHours,
         CreatedAt = v.CreatedAt

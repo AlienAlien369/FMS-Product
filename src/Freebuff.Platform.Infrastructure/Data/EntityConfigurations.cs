@@ -288,6 +288,7 @@ public class AlertTypeConfiguration : IEntityTypeConfiguration<AlertType>
     {
         b.HasIndex(a => a.Code).IsUnique();
         b.HasQueryFilter(a => !a.IsDeleted);
+        b.Property(a => a.NonMutablePriority).HasDefaultValue(false);
     }
 }
 

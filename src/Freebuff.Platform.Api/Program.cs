@@ -92,6 +92,11 @@ builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<DriverService>();
 builder.Services.AddScoped<TripLifecycleService>();
 builder.Services.AddScoped<TripGeofenceEventProducer>();
+builder.Services.AddScoped<DriverBehaviorAlertProducer>();
+builder.Services.AddScoped<ProofOfDeliveryService>();
+builder.Services.AddScoped<FleetPolicyService>();
+builder.Services.AddScoped<SensorPolicyAlertProducer>();
+builder.Services.AddHostedService<SensorRetentionService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // ── Device abstraction layer ─────────────────────────────

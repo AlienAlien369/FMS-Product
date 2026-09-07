@@ -25,6 +25,16 @@ public class AlertType : BaseEntity
     /// <summary>Default severity when this alert fires (overridable per-alert-instance).</summary>
     public int DefaultSeverity { get; set; } = 2; // AlertSeverity.Medium
 
+    /// <summary>
+    /// Emergency-signal flag (e.g. driver.panic_button). When true the alert
+    /// pipeline MUST bypass the normal alert-visibility narrowing: role
+    /// visibility and per-user notification preferences cannot suppress it,
+    /// and the alert always fires at Critical severity. Set by Super Admin in
+    /// the registry — an emergency signal should never be mutable by personal
+    /// notification settings.
+    /// </summary>
+    public bool NonMutablePriority { get; set; }
+
     /// <summary>Display order within category.</summary>
     public int DisplayOrder { get; set; }
 

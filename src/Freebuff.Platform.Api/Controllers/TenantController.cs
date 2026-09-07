@@ -20,9 +20,53 @@ namespace Freebuff.Platform.Api.Controllers;
 public class TenantController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public TenantController(ApplicationDbContext db) => _db = db;
+    private readonly Freebuff.Platform.Infrastructure.Services.FleetPolicyService _fleetPolicies;
+    public TenantController(ApplicationDbContext db,
+        Freebuff.Platform.Infrastructure.Services.FleetPolicyService fleetPolicies)
+    {
+        _db = db;
+        _fleetPolicies = fleetPolicies;
+    }
 
     private Guid GetTenantId() => User.GetTenantId();
+
+    /// <summary>Fleet-wide sensor policy defaults (Settings → Fleet Policies).</summary>
+    [HttpGet("fleet-policies")]
+    [RequirePermission("settings.view")]
+    public async Task<ActionResult<ApiResponse<object>>> GetFleetPolicies()
+    {
+        var cid = GetTenantId();
+        async Task<double?> CompanyValueAsync(string key)
+        {
+            var raw = await _db.Configurations.AsNoTracking()
+                .Where(c => c.Key == key && c.Scope == Domain.Enums.ConfigurationScope.Company && !c.IsDeleted
+                    && (c.ScopeEntityId == cid || c.CompanyId == cid))
+                .Select(c => c.Value)
+                .FirstOrDefaultAsync();
+            return double.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+        }
+
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            speedPolicyMaxKmh = await CompanyValueAsync(Freebuff.Platform.Infrastructure.Services.FleetPolicyService.SpeedPolicyKey),
+            tyrePressureMinBar = await CompanyValueAsync(Freebuff.Platform.Infrastructure.Services.FleetPolicyService.TyreMinPolicyKey),
+            tyrePressureMaxBar = await CompanyValueAsync(Freebuff.Platform.Infrastructure.Services.FleetPolicyService.TyreMaxPolicyKey)
+        }));
+    }
+
+    /// <summary>Save fleet-wide sensor policy defaults (null/0 clears a value back to unconfigured).</summary>
+    [HttpPut("fleet-policies")]
+    [RequirePermission("settings.update")]
+    public async Task<ActionResult<ApiResponse>> UpdateFleetPolicies([FromBody] FleetPoliciesDto dto)
+    {
+        var cid = GetTenantId();
+        double? Normalize(double? v) => v is > 0 ? v : null;
+        await _fleetPolicies.SetCompanyValueAsync(cid, Freebuff.Platform.Infrastructure.Services.FleetPolicyService.SpeedPolicyKey, Normalize(dto.SpeedPolicyMaxKmh));
+        await _fleetPolicies.SetCompanyValueAsync(cid, Freebuff.Platform.Infrastructure.Services.FleetPolicyService.TyreMinPolicyKey, Normalize(dto.TyrePressureMinBar));
+        await _fleetPolicies.SetCompanyValueAsync(cid, Freebuff.Platform.Infrastructure.Services.FleetPolicyService.TyreMaxPolicyKey, Normalize(dto.TyrePressureMaxBar));
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok("Fleet sensor policies saved"));
+    }
 
     [HttpGet("drivers")]
     public async Task<ActionResult<ApiResponse<object>>> GetDrivers()

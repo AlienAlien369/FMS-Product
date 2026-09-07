@@ -39,6 +39,19 @@ public interface INotificationService
         int severity, string? relatedEntityType = null, Guid? relatedEntityId = null, string? actionUrl = null);
 
     /// <summary>
+    /// EMERGENCY path (panic button / SOS): delivered to every user with any
+    /// visibility into the vehicle — roles whose RoleAlertVisibility shows the
+    /// given alert type, plus Company Admins — and BYPASSES per-user
+    /// NotificationPreference mutes entirely. An emergency signal must never be
+    /// suppressed by a personal notification setting. When no role-visibility
+    /// rows exist for the alert type (unconfigured company), every active user
+    /// of the company receives it — an SOS over-delivers rather than misses.
+    /// </summary>
+    Task<int> NotifyPanicAsync(Guid companyId, Guid vehicleId, string alertTypeCode, string eventType,
+        string title, string message, int severity, string? relatedEntityType = null,
+        Guid? relatedEntityId = null, string? actionUrl = null);
+
+    /// <summary>
     /// Send to users of the role whose own EFFECTIVE permission set actually
     /// changed (all their roles' grants ∩ company package modules, before vs
     /// after the edit). The diff is per-user total-effective, NOT just the edited
@@ -96,6 +109,64 @@ public class NotificationService : INotificationService
             .Distinct()
             .ToListAsync();
         return await DispatchAsync(userIds, companyId, eventType, title, message, severity, relatedEntityType, relatedEntityId, actionUrl);
+    }
+
+    public async Task<int> NotifyPanicAsync(Guid companyId, Guid vehicleId, string alertTypeCode, string eventType,
+        string title, string message, int severity, string? relatedEntityType = null,
+        Guid? relatedEntityId = null, string? actionUrl = null)
+    {
+        var recipients = await ResolvePanicRecipientsAsync(companyId, vehicleId, alertTypeCode);
+        if (recipients.Count == 0) return 0;
+        // Emergency: no per-user preference filtering, ever.
+        return await DispatchAsync(recipients, companyId, eventType, title, message, severity,
+            relatedEntityType, relatedEntityId, actionUrl, bypassPreferences: true);
+    }
+
+    /// <summary>
+    /// Users with any visibility into the vehicle for the given alert type:
+    /// role-visibility rows that show it, union Company Admins (an emergency
+    /// always reaches management), falling back to ALL active users when the
+    /// company never configured role visibility for this alert type.
+    /// </summary>
+    private async Task<List<Guid>> ResolvePanicRecipientsAsync(Guid companyId, Guid vehicleId, string alertTypeCode)
+    {
+        var alertTypeId = await _db.AlertTypes.AsNoTracking()
+            .Where(a => a.Code == alertTypeCode && !a.IsDeleted)
+            .Select(a => a.Id)
+            .FirstOrDefaultAsync();
+
+        // Users whose role can see this alert type (RoleAlertVisibility.Visible).
+        var visibleRoleIds = await _db.RoleAlertVisibilities.AsNoTracking()
+            .Where(rv => rv.CompanyId == companyId && rv.AlertTypeId == alertTypeId && rv.Visible && !rv.IsDeleted)
+            .Select(rv => rv.RoleId)
+            .ToListAsync();
+        var visibleUserIds = visibleRoleIds.Count == 0
+            ? new List<Guid>()
+            : await _db.UserRoles.AsNoTracking()
+                .Where(ur => visibleRoleIds.Contains(ur.RoleId) && !ur.Role.IsDeleted
+                    && !ur.User.IsDeleted && ur.User.Status == EntityStatus.Active)
+                .Select(ur => ur.UserId)
+                .Distinct()
+                .ToListAsync();
+
+        // Company Admins always receive an emergency signal.
+        var adminUserIds = await _db.UserRoles.AsNoTracking()
+            .Where(ur => ur.Role.CompanyId == companyId && ur.Role.Name == "Company Admin"
+                && ur.Role.IsSystemRole && !ur.Role.IsDeleted
+                && !ur.User.IsDeleted && ur.User.Status == EntityStatus.Active)
+            .Select(ur => ur.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        var recipients = visibleUserIds.Union(adminUserIds).ToList();
+        if (recipients.Count > 0) return recipients;
+
+        // No role-visibility rows for this alert type → unconfigured company:
+        // emergency over-delivers to every active user rather than missing.
+        return await _db.Users.AsNoTracking()
+            .Where(u => u.CompanyId == companyId && !u.IsDeleted && u.Status == EntityStatus.Active)
+            .Select(u => u.Id)
+            .ToListAsync();
     }
 
     public async Task<int> NotifyUsersWhoseEffectivePermissionsChangedAsync(Guid companyId, Guid roleId,
@@ -159,17 +230,23 @@ public class NotificationService : INotificationService
     }
 
     private async Task<int> DispatchAsync(IReadOnlyList<Guid> userIds, Guid companyId, string eventType,
-        string title, string message, int severity, string? relatedEntityType, Guid? relatedEntityId, string? actionUrl)
+        string title, string message, int severity, string? relatedEntityType, Guid? relatedEntityId, string? actionUrl,
+        bool bypassPreferences = false)
     {
         if (userIds.Count == 0) return 0;
 
-        // Apply per-user mute filters in one query, then insert the rest.
-        var prefs = await _db.NotificationPreferences.AsNoTracking()
-            .Where(p => userIds.Contains(p.UserId) && p.EventType == eventType && !p.IsDeleted)
-            .Select(p => new { p.UserId, p.Enabled })
-            .ToListAsync();
-        var muted = prefs.Where(p => !p.Enabled).Select(p => p.UserId).ToHashSet();
-        var recipients = userIds.Where(u => !muted.Contains(u)).ToList();
+        // Apply per-user mute filters in one query, then insert the rest — unless
+        // this is an emergency dispatch (panic button), which must never be muted.
+        var recipients = userIds.ToList();
+        if (!bypassPreferences)
+        {
+            var prefs = await _db.NotificationPreferences.AsNoTracking()
+                .Where(p => userIds.Contains(p.UserId) && p.EventType == eventType && !p.IsDeleted)
+                .Select(p => new { p.UserId, p.Enabled })
+                .ToListAsync();
+            var muted = prefs.Where(p => !p.Enabled).Select(p => p.UserId).ToHashSet();
+            recipients = userIds.Where(u => !muted.Contains(u)).ToList();
+        }
         if (recipients.Count == 0) return 0;
 
         var now = DateTime.UtcNow;

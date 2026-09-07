@@ -5,6 +5,8 @@ import { useCompanyScope } from '../contexts/CompanyScopeContext';
 import { useTargetCompany } from '../hooks/useTargetCompany';
 import TargetCompanyField from '../components/TargetCompanyField';
 import RouteMapPane from '../components/RouteMapPane';
+import WaypointPodPanel from '../components/WaypointPodPanel';
+import { safetyEventLabel, type SafetyEventLite } from '../lib/safety';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
@@ -27,6 +29,8 @@ interface TripWaypoint {
   expectedArrival?: string | null;
   actualArrival?: string | null;
   linkedGeofenceId?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
 }
 
 interface TripGeofenceRow {
@@ -56,6 +60,7 @@ interface TripDetail {
   routeGeometry?: string | null;
   corridorEnabled: boolean; corridorBufferMeters?: number | null; deviationThresholdMinutes?: number | null;
   deviatedSince?: string | null; corridorAlerted?: boolean;
+  requirePodForDelivery?: boolean | null; podRequired: boolean;
   waypointCount: number; geofenceCount: number; checkpointCount: number; restrictedZoneCount: number; boundaryZoneCount: number;
   waypoints?: TripWaypoint[];
   tripGeofences?: TripGeofenceRow[];
@@ -73,7 +78,11 @@ interface TripStats {
   delayed: number; cancelled: number; totalDistance: number;
 }
 
-interface LivePosition { latitude?: number | null; longitude?: number | null; speedKmh?: number | null; headingDeg?: number | null; updatedAt?: string | null; }
+interface LivePosition {
+  latitude?: number | null; longitude?: number | null; speedKmh?: number | null; headingDeg?: number | null; updatedAt?: string | null;
+  /** Latest driver-behavior events for the vehicle (real-time safety indicator). */
+  recentSafetyEvents?: SafetyEventLite[];
+}
 interface ReplayPoint { eventTimeUtc: string; latitude?: number | null; longitude?: number | null; speedKmh?: number | null; headingDeg?: number | null; ignition?: boolean | null; }
 
 // ── Constants ────────────────────────────────────────────
@@ -364,6 +373,9 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
 }) {
   const tgt = useTargetCompany();
   const { isCrossTenant, needsPick, targetCompanyId } = tgt;
+  const { can } = usePermissions();
+  const podView = can('pod.view');
+  const podCreate = can('pod.create');
   const [form, setForm] = useState({
     name: trip?.name ?? '', description: trip?.description ?? '',
     type: trip?.type ?? 0, vehicleId: trip?.vehicleId ?? '', driverId: trip?.driverId ?? '',
@@ -371,6 +383,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
     corridorEnabled: trip?.corridorEnabled ?? false,
     corridorBufferMeters: trip?.corridorBufferMeters ?? 500,
     deviationThresholdMinutes: trip?.deviationThresholdMinutes ?? 10,
+    requirePodForDelivery: trip?.requirePodForDelivery == null ? '' : String(trip.requirePodForDelivery),
   });
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -386,6 +399,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
   // View-only extras
   const [live, setLive] = useState<LivePosition | null>(null);
   const [replay, setReplay] = useState<ReplayPoint[] | null>(null);
+  const [podTick, setPodTick] = useState(0); // bumped on every view refresh → panels re-fetch evidence
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const [reasonPrompt, setReasonPrompt] = useState<{ target: number; label: string } | null>(null);
   const [reasonText, setReasonText] = useState('');
@@ -417,7 +431,17 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
     if (!trip) return;
     api.get(`/trips/${trip.id}`).then(r => setDetail(r.data.data)).catch(() => {});
     api.get(`/trips/${trip.id}/live`).then(r => setLive(r.data.data)).catch(() => {});
+    // WaypointPodPanels re-fetch their own evidence on this tick.
+    setPodTick(t => t + 1);
   }, [trip]);
+
+  // Poll live position + safety events while the modal is open in view mode so
+  // the live-tracking surface (and its safety indicator) stays current.
+  useEffect(() => {
+    if (!isView || !trip) return;
+    const timer = setInterval(() => refreshViewData(), 15000);
+    return () => clearInterval(timer);
+  }, [isView, trip, refreshViewData]);
 
   // ── Waypoint editor ────────────────────────────────────
   const updateWaypoints = (next: TripWaypoint[]) => {
@@ -483,6 +507,8 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
       name: w.name, latitude: w.latitude, longitude: w.longitude, address: w.address ?? null,
       expectedArrival: w.expectedArrival ? new Date(w.expectedArrival).toISOString() : null,
       linkedGeofenceId: w.linkedGeofenceId ?? null,
+      customerPhone: w.customerPhone ?? null,
+      customerEmail: w.customerEmail ?? null,
     }));
     const payload: Record<string, unknown> = {
       name: form.name.trim(), description: form.description || null,
@@ -492,6 +518,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
       corridorEnabled: form.corridorEnabled,
       corridorBufferMeters: form.corridorEnabled ? form.corridorBufferMeters : null,
       deviationThresholdMinutes: form.corridorEnabled ? form.deviationThresholdMinutes : null,
+      requirePodForDelivery: form.requirePodForDelivery === '' ? null : form.requirePodForDelivery === 'true',
     };
     try {
       let id = trip?.id;
@@ -629,7 +656,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
               </div>
             )}
 
-            {/* Live tracking */}
+            {/* Live tracking + real-time safety indicator */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5"><Radio className="w-4 h-4 text-gray-500" /> Live Position</h4>
               {live?.latitude != null && live.longitude != null ? (
@@ -640,6 +667,29 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
                   <div><p className="text-gray-500">Updated</p><p className="font-medium">{fmtDate(live.updatedAt)}</p></div>
                 </div>
               ) : <p className="text-xs text-gray-400">No live telemetry for this vehicle yet.</p>}
+
+              {/* Safety event indicator — a DMS behavior event fired recently */}
+              {live?.recentSafetyEvents && live.recentSafetyEvents.length > 0 && (() => {
+                const latest = live.recentSafetyEvents[0];
+                const isPanic = latest.eventType === 'sos_triggered';
+                if (isPanic) {
+                  return (
+                    <div className="mt-3 flex items-center gap-2 bg-red-600 text-white rounded-lg px-3 py-2 text-xs font-semibold animate-pulse">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>PANIC BUTTON pressed · {fmtDate(latest.eventTimeUtc)}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg px-3 py-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span className="font-medium">{safetyEventLabel(latest.eventType)}</span>
+                    <span className="text-orange-700">· {fmtDate(latest.eventTimeUtc)}
+                      {latest.speedKmh != null ? ` · ${latest.speedKmh.toFixed(0)} km/h` : ''}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Map */}
@@ -655,28 +705,38 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
               {(d.waypoints ?? []).length === 0 ? <p className="text-xs text-gray-400">No waypoints.</p> : (
                 <ul className="space-y-1.5">
                   {(d.waypoints ?? []).map(w => (
-                    <li key={w.id ?? w.sequenceOrder} className="flex items-center gap-3 bg-white rounded-lg border px-3 py-2">
-                      <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">{w.sequenceOrder}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-800 truncate">{w.name}</p>
-                          {d.type === 1 && (
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${LEG_COLORS[w.legType]}`}>{LEG_LABELS[w.legType]}</span>
-                          )}
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">{WAYPOINT_TYPE_LABELS[w.waypointType] ?? 'Other'}</span>
+                    <li key={w.id ?? w.sequenceOrder} className="bg-white rounded-lg border px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">{w.sequenceOrder}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-gray-800 truncate">{w.name}</p>
+                            {d.type === 1 && (
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${LEG_COLORS[w.legType]}`}>{LEG_LABELS[w.legType]}</span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">{WAYPOINT_TYPE_LABELS[w.waypointType] ?? 'Other'}</span>
+                            {d.podRequired && w.waypointType === 1 && !w.actualArrival && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">POD required</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400">
+                            {w.latitude.toFixed(4)}, {w.longitude.toFixed(4)}
+                            {w.expectedArrival ? ` · ETA ${fmtDate(w.expectedArrival)}` : ''}
+                            {w.actualArrival ? ` · arrived ${fmtDate(w.actualArrival)}` : ''}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-gray-400">
-                          {w.latitude.toFixed(4)}, {w.longitude.toFixed(4)}
-                          {w.expectedArrival ? ` · ETA ${fmtDate(w.expectedArrival)}` : ''}
-                          {w.actualArrival ? ` · arrived ${fmtDate(w.actualArrival)}` : ''}
-                        </p>
+                        {d.status === 2 && !w.actualArrival && w.id && (
+                          <button onClick={() => markArrived(w)} className="px-2 py-1 text-[10px] font-medium bg-green-100 text-green-700 rounded hover:bg-green-200 shrink-0">
+                            Mark arrived
+                          </button>
+                        )}
+                        {w.actualArrival && <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />}
                       </div>
-                      {d.status === 2 && !w.actualArrival && w.id && (
-                        <button onClick={() => markArrived(w)} className="px-2 py-1 text-[10px] font-medium bg-green-100 text-green-700 rounded hover:bg-green-200">
-                          Mark arrived
-                        </button>
+                      {w.id && trip && (
+                        <WaypointPodPanel tripId={trip.id} waypointId={w.id} waypointName={w.name}
+                          waypointType={w.waypointType} tripStatus={d.status} arrived={!!w.actualArrival}
+                          canView={podView} canCreate={podCreate} refreshTick={podTick} />
                       )}
-                      {w.actualArrival && <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />}
                     </li>
                   ))}
                 </ul>
@@ -792,7 +852,8 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
               {waypoints.length === 0 ? <p className="text-[11px] text-gray-400">Add at least an origin and a destination waypoint.</p> : (
                 <div className="space-y-1.5">
                   {waypoints.map((w, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-white rounded-lg border px-2 py-1.5">
+                    <div key={i} className="bg-white rounded-lg border px-2 py-1.5">
+                      <div className="flex items-center gap-2">
                       <span className="w-5 text-[10px] font-bold text-gray-400 text-center">{w.sequenceOrder}</span>
                       <input className="flex-1 min-w-[90px] px-2 py-1 border border-gray-300 rounded text-xs" placeholder="Name" value={w.name}
                         onChange={e => patchWaypoint(i, { name: e.target.value })} />
@@ -817,6 +878,16 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
                         className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"><ArrowDown className="w-3.5 h-3.5" /></button>
                       <button type="button" onClick={() => updateWaypoints(waypoints.filter((_, j) => j !== i))}
                         className="p-1 text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                      {w.waypointType === 1 && (
+                        <div className="flex items-center gap-2 mt-1.5 pl-7">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-medium w-28 shrink-0">Customer (OTP)</span>
+                          <input className="w-40 px-2 py-1 border border-gray-300 rounded text-xs" placeholder="Phone" value={w.customerPhone ?? ''}
+                            onChange={e => patchWaypoint(i, { customerPhone: e.target.value || null })} />
+                          <input className="w-48 px-2 py-1 border border-gray-300 rounded text-xs" placeholder="Email" value={w.customerEmail ?? ''}
+                            onChange={e => patchWaypoint(i, { customerEmail: e.target.value || null })} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -881,6 +952,17 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
               <input type="checkbox" checked={form.corridorEnabled} onChange={e => set('corridorEnabled', e.target.checked)} className="rounded" />
               <label className="text-sm text-gray-700">Corridor deviation alerts</label>
             </div>
+
+            {/* Proof of delivery policy — per-trip override of the company default */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-700 whitespace-nowrap">Proof of delivery policy</label>
+              <select className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs" value={form.requirePodForDelivery}
+                onChange={e => set('requirePodForDelivery', e.target.value)}>
+                <option value="">Follow company default</option>
+                <option value="true">Required — block delivery stops until captured</option>
+                <option value="false">Not required</option>
+              </select>
+            </div>
             {form.corridorEnabled && (
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Corridor buffer (m)</label>
@@ -921,6 +1003,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
           </div>
         </div>
       )}
+
     </div>
   );
 }

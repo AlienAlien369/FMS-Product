@@ -11,8 +11,17 @@ namespace Freebuff.Platform.Ingestion.Adapters;
 ///   "lat": 28.6139, "lon": 77.2090, "speed": 42.5, "heading": 90,
 ///   "ignition": true, "engine": true, "fuelPercent": 65.0,
 ///   "odometerKm": 123456.0, "engineHours": 2345.5, "driverId": "D-123",
-///   "alerts": ["overspeed"], "sensors": { "temp1": 24.5 } }
+///   "alerts": ["overspeed"], "sensors": { "temp1": 24.5 },
+///   "behaviorEvents": [ { "type": "harsh_braking", "confidence": 0.92,
+///                          "mediaUrl": "https://cdn.example.com/clips/ab1.mp4" } ] }
 /// </code>
+/// The optional <c>behaviorEvents</c> array carries driver-behavior/DMS events
+/// in CANONICAL codes (harsh_braking, drowsiness, sos_triggered, …) — the
+/// reference adapter does no vendor translation; vendor-specific adapters map
+/// their own vocabularies onto the same codes.
+/// Optional <c>governorLimit</c> (km/h) and <c>tyrePressures</c> (array of
+/// {{position, pressureBar, temperatureC?}}) exercise the sensor schema — the
+/// reference vendor supports both; camera vendors report neither.
 /// Only lat/lon/imei are mandatory; every other field is optional and null when
 /// absent (not all vendors/devices send all fields).
 /// </summary>
@@ -98,6 +107,23 @@ public sealed class SampleJsonVendorAdapter : IVendorAdapter
                 if (item.ValueKind == JsonValueKind.String) alerts.Add(item.GetString()!);
         }
 
+        var behaviorEvents = new List<NormalizedBehaviorEvent>();
+        if (root.TryGetProperty("behaviorEvents", out var behaviorEl) && behaviorEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in behaviorEl.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var type = GetString(item, "type");
+                if (string.IsNullOrWhiteSpace(type)) continue;
+                behaviorEvents.Add(new NormalizedBehaviorEvent
+                {
+                    EventType = type,
+                    Confidence = GetDouble(item, "confidence") ?? 1.0,
+                    MediaUrl = GetString(item, "mediaUrl")
+                });
+            }
+        }
+
         // NOTE: use the nullable helpers — out-var locals default to 0 when a
         // field is absent, which would fabricate a position at (0,0).
         var lat = GetDouble(root, "lat");
@@ -106,18 +132,48 @@ public sealed class SampleJsonVendorAdapter : IVendorAdapter
         var heading = GetDouble(root, "heading");
         int? sats = TryGetInt(root, "satellites", out var satValue) ? satValue : null;
 
+        // Optional hardware speed-governor limit (the reference vendor exposes
+        // it; alerting still uses the vehicle's policy, never this value).
+        var governorLimit = GetDouble(root, "governorLimit");
+
+        // Optional TPMS: array of { position, pressureBar, temperatureC? }.
+        // The reference vendor reports all four positions + spare when fitted;
+        // absent payload → empty list → UI shows "not supported by this device".
+        var tyrePressures = new List<NormalizedTyrePressure>();
+        if (root.TryGetProperty("tyrePressures", out var tyresEl) && tyresEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in tyresEl.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var position = GetString(item, "position");
+                if (string.IsNullOrWhiteSpace(position)) continue;
+                var pressure = GetDouble(item, "pressureBar");
+                if (!pressure.HasValue) continue;
+                tyrePressures.Add(new NormalizedTyrePressure
+                {
+                    Position = position,
+                    PressureBar = pressure.Value,
+                    TemperatureC = GetDouble(item, "temperatureC"),
+                    TimestampUtc = TryGetDateTime(item, "ts")
+                });
+            }
+        }
+
         var telemetry = new NormalizedTelemetry
         {
             Device = identity,
             EventTimeUtc = TryGetDateTime(root, "ts") ?? receivedAtUtc,
             Latitude = lat, Longitude = lon, SpeedKmh = speed, HeadingDeg = heading, Satellites = sats,
             AltitudeM = GetDouble(root, "alt"), Hdop = GetDouble(root, "hdop"),
+            SpeedGovernorLimitKmh = governorLimit,
+            TyrePressures = tyrePressures,
             Ignition = GetBool(root, "ignition"), EngineOn = GetBool(root, "engine"),
             FuelLevelPercent = GetDouble(root, "fuelPercent"), FuelLevelLiters = GetDouble(root, "fuelLiters"),
             OdometerKm = GetDouble(root, "odometerKm"), EngineHours = GetDouble(root, "engineHours"),
             BatteryVoltage = GetDouble(root, "batteryVoltage"),
             DriverCardId = GetString(root, "driverId"),
-            Alerts = alerts, Sensors = sensors
+            Alerts = alerts, Sensors = sensors,
+            BehaviorEvents = behaviorEvents
         };
         return new ParseOk(telemetry);
     }

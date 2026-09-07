@@ -26,11 +26,12 @@ public class AdapterTests
         Assert.NotNull(registry.Get("sample-json"));
         Assert.NotNull(registry.Get("pictor"));
         Assert.NotNull(registry.Get("itriangle"));
+        Assert.NotNull(registry.Get("streamax"));
         Assert.Null(registry.Get("no-such-vendor"));
         Assert.Null(registry.Get(""));
 
         var codes = registry.All.Select(a => a.VendorCode).OrderBy(c => c).ToArray();
-        Assert.Equal(new[] { "itriangle", "pictor", "sample-json" }, codes);
+        Assert.Equal(new[] { "itriangle", "pictor", "sample-json", "streamax" }, codes);
     }
 
     [Fact]
@@ -38,8 +39,8 @@ public class AdapterTests
     {
         var registry = VendorAdapterRegistry.CreateBuiltIn();
         var http = registry.ForTransport("http").Select(a => a.VendorCode).OrderBy(c => c).ToArray();
-        Assert.Equal(new[] { "itriangle", "sample-json" }, http);
-        Assert.Single(registry.ForTransport("tcp"));
+        Assert.Equal(new[] { "itriangle", "pictor", "sample-json", "streamax" }, http);
+        Assert.Empty(registry.ForTransport("tcp"));
         Assert.Empty(registry.ForTransport("mqtt"));
     }
 
@@ -186,23 +187,136 @@ public class AdapterTests
         Assert.True(empty.IsEmpty);
     }
 
-    // ── Placeholder adapters — registered, graceful, marked ──
+    // ── Driver-behavior / DMS normalization ───────────────────
 
     [Fact]
-    public void PlaceholderAdapters_AreRegistered_AndRejectGracefully()
+    public void SampleJson_BehaviorEvents_NormalizeToCanonicalCodes()
     {
-        foreach (var adapter in new IVendorAdapter[] { new PictorTcpPlaceholderAdapter(), new ItriangleHttpPlaceholderAdapter() })
-        {
-            Assert.False(adapter.Validate(new byte[] { 0x01, 0x02 }, out var error));
-            Assert.Contains("PLACEHOLDER", error, StringComparison.OrdinalIgnoreCase);
+        var adapter = new SampleJsonVendorAdapter();
+        var payload = Encoding.UTF8.GetBytes(
+            """
+            {"imei":"860123456789012","ts":"2026-09-06T08:00:00Z","lat":23.1,"lon":72.6,
+             "behaviorEvents":[
+               {"type":"harsh_braking","confidence":0.92,"mediaUrl":"https://cdn.example.com/clips/ab1.mp4"},
+               {"type":"drowsiness","confidence":0.87},
+               {"type":"sos_triggered"},
+               {"type":"not_a_real_code"}
+             ]}
+            """);
 
-            Assert.False(adapter.TryExtractDeviceId(new byte[] { 0x01, 0x02 }, out var identity));
-            Assert.True(identity.IsEmpty);
+        var ok = Assert.IsType<ParseOk>(adapter.Parse(payload, Received));
+        var events = ok.Telemetry.BehaviorEvents;
 
-            var result = adapter.Parse(new byte[] { 0x01, 0x02 }, Received);
-            var rejected = Assert.IsType<ParseRejected>(result);
-            Assert.Contains("PLACEHOLDER", rejected.Reason, StringComparison.OrdinalIgnoreCase);
-        }
+        // Unknown canonical codes survive the adapter (the alert pipeline drops
+        // them) — the reference adapter does no vocabulary translation.
+        Assert.Equal(4, events.Count);
+        Assert.Equal("harsh_braking", events[0].EventType);
+        Assert.Equal(0.92, events[0].Confidence);
+        Assert.Equal("https://cdn.example.com/clips/ab1.mp4", events[0].MediaUrl);
+        Assert.Equal("drowsiness", events[1].EventType);
+        Assert.Equal(0.87, events[1].Confidence);
+        Assert.Null(events[1].MediaUrl);
+        Assert.Equal("sos_triggered", events[2].EventType);
+        Assert.Equal(1.0, events[2].Confidence); // discrete event → default confidence
+    }
+
+    /// <summary>Every canonical event type through the sample adapter — the full DriverBehaviorCatalog vocabulary.</summary>
+    [Theory]
+    [InlineData("harsh_braking")]
+    [InlineData("harsh_acceleration")]
+    [InlineData("harsh_cornering")]
+    [InlineData("excessive_idling")]
+    [InlineData("drowsiness")]
+    [InlineData("distraction")]
+    [InlineData("phone_usage")]
+    [InlineData("sos_triggered")]
+    public void SampleJson_EveryCanonicalEventType_IsCarriedThrough(string code)
+    {
+        var adapter = new SampleJsonVendorAdapter();
+        var payload = Encoding.UTF8.GetBytes($"{{\"imei\":\"860123456789012\",\"behaviorEvents\":[{{\"type\":\"{code}\"}}]}}");
+        var ok = Assert.IsType<ParseOk>(adapter.Parse(payload, Received));
+        var ev = Assert.Single(ok.Telemetry.BehaviorEvents);
+        Assert.Equal(code, ev.EventType);
+    }
+
+    [Fact]
+    public void PictorDms_VendorEventCodes_MapToCanonical()
+    {
+        var adapter = new PictorDmsJsonAdapter();
+        var payload = Encoding.UTF8.GetBytes(
+            """
+            {"imei":"860123456789012","ts":"2026-09-06T08:00:00Z","lat":23.1,"lon":72.6,"speed":54.2,
+             "dms":[
+               {"event":"hb","conf":0.93,"clip":"https://cdn.pictor.example/clips/1.mp4"},
+               {"event":"drowsy","conf":0.81},
+               {"event":"sos"},
+               {"event":"no-such-code"}
+             ]}
+            """);
+
+        var ok = Assert.IsType<ParseOk>(adapter.Parse(payload, Received));
+        var events = ok.Telemetry.BehaviorEvents;
+
+        Assert.Equal(3, events.Count); // vendor-only code dropped at the adapter
+        Assert.Equal("harsh_braking", events[0].EventType);
+        Assert.Equal(0.93, events[0].Confidence);
+        Assert.Equal("https://cdn.pictor.example/clips/1.mp4", events[0].MediaUrl);
+        Assert.Equal("drowsiness", events[1].EventType);
+        Assert.Equal(0.81, events[1].Confidence);
+        Assert.Equal("sos_triggered", events[2].EventType);
+        Assert.Equal(23.1, ok.Telemetry.Latitude);
+        Assert.Equal(54.2, ok.Telemetry.SpeedKmh);
+    }
+
+    [Fact]
+    public void ItriangleDms_VendorEventCodes_MapToCanonical()
+    {
+        var adapter = new ItriangleDmsJsonAdapter();
+        var payload = Encoding.UTF8.GetBytes(
+            """
+            {"imei":"860123456789012","timestamp":"2026-09-06T08:01:00Z","latitude":23.1,"longitude":72.6,"speed":41.0,
+             "events":[
+               {"type":"HARSH_BRAKE"},
+               {"type":"SHARP_TURN","confidence":0.7,"mediaUrl":"https://cdn.itriangle.example/snap/2.jpg"},
+               {"type":"PANIC","confidence":0.99}
+             ]}
+            """);
+
+        var ok = Assert.IsType<ParseOk>(adapter.Parse(payload, Received));
+        var events = ok.Telemetry.BehaviorEvents;
+
+        Assert.Equal(3, events.Count);
+        Assert.Equal("harsh_braking", events[0].EventType);
+        Assert.Equal(1.0, events[0].Confidence);
+        Assert.Equal("harsh_cornering", events[1].EventType);
+        Assert.Equal(0.7, events[1].Confidence);
+        Assert.Equal("https://cdn.itriangle.example/snap/2.jpg", events[1].MediaUrl);
+        Assert.Equal("sos_triggered", events[2].EventType);
+        Assert.Equal(23.1, ok.Telemetry.Latitude);
+    }
+
+    [Fact]
+    public void StreamaxDms_NumericAlarmCodes_MapToCanonical()
+    {
+        var adapter = new StreamaxDmsJsonAdapter();
+        var payload = Encoding.UTF8.GetBytes(
+            """
+            {"imei":"860123456789012","time":"2026-09-06T08:02:00Z","lat":23.15,"lng":72.65,"spd":38.7,
+             "media":"https://cdn.streamax.example/snap/9.jpg",
+             "alarms":[{"code":1,"confidence":0.91},{"code":8},{"code":99}]}
+            """);
+
+        var ok = Assert.IsType<ParseOk>(adapter.Parse(payload, Received));
+        var events = ok.Telemetry.BehaviorEvents;
+
+        Assert.Equal(2, events.Count); // alarm 99 unknown → dropped
+        Assert.Equal("drowsiness", events[0].EventType);
+        Assert.Equal(0.91, events[0].Confidence);
+        Assert.Equal("https://cdn.streamax.example/snap/9.jpg", events[0].MediaUrl); // root media applies
+        Assert.Equal("sos_triggered", events[1].EventType);
+        Assert.Equal(1.0, events[1].Confidence);
+        Assert.Equal("https://cdn.streamax.example/snap/9.jpg", events[1].MediaUrl);
+        Assert.Equal(38.7, ok.Telemetry.SpeedKmh);
     }
 
     // ── Vendor isolation ──────────────────────────────────────

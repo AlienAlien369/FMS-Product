@@ -11,6 +11,7 @@ import {
   Eye, X, Truck, MapPin, Wrench, User, Settings, Activity, Shield, Sliders, Radio, CreditCard, Link2,
 } from 'lucide-react';
 import { VEHICLE_STATUS, FUEL_TYPE } from '../lib/constants';
+import { TYRE_POSITIONS, TYRE_STATUS_STYLE, SPEED_STATUS_STYLE } from '../lib/sensors';
 
 // ── Types ────────────────────────────────────────────────
 interface VehicleDetail {
@@ -19,6 +20,7 @@ interface VehicleDetail {
   engineNumber?: string; chassisNumber?: string; vinNumber?: string;
   companyId: string; companyName?: string; driverId?: string; driverName?: string; clientId?: string; clientName?: string;
   status: number; deviceImei?: string; deviceType?: string; deviceSerialNumber?: string; deviceCount?: number;
+  speedPolicyMaxKmh?: number | null; tyrePressureMinBar?: number | null; tyrePressureMaxBar?: number | null;
   lastLatitude?: number; lastLongitude?: number; lastSpeed?: number; lastHeading?: number;
   lastLocationUpdate?: string; ignitionStatus?: boolean;
   odometerReading?: number; engineHours?: number; customAttributes?: string; createdAt: string;
@@ -309,10 +311,11 @@ export default function Vehicles() {
 
 // ── View Detail Modal (Tabbed) ──────────────────────────
 function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClose: () => void }) {
-  type Tab = 'overview' | 'tracking' | 'assignment' | 'device' | 'audit';
+  type Tab = 'overview' | 'tracking' | 'assignment' | 'device' | 'sensors' | 'audit';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [deviceAssignments, setDeviceAssignments] = useState<VehicleDeviceAssignment[]>([]);
+  const [sensors, setSensors] = useState<any>(null);
 
   useEffect(() => {
     if (activeTab === 'audit') {
@@ -321,6 +324,9 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
     if (activeTab === 'device') {
       api.get(`/vehicles/${vehicle.id}/devices`).then(r => setDeviceAssignments(r.data.data || [])).catch(() => {});
     }
+    if (activeTab === 'sensors') {
+      api.get(`/vehicles/${vehicle.id}/sensors`).then(r => setSensors(r.data.data || null)).catch(() => {});
+    }
   }, [activeTab, vehicle.id]);
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
@@ -328,6 +334,7 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
     { key: 'tracking', label: 'Tracking', icon: MapPin },
     { key: 'assignment', label: 'Assignment', icon: User },
     { key: 'device', label: 'Device', icon: Wrench },
+    { key: 'sensors', label: 'Sensors', icon: Activity },
     { key: 'audit', label: 'Audit Log', icon: Shield },
   ];
 
@@ -464,7 +471,7 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
                       <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">{a.roleName}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">
-                      {a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][a.deviceType] || 'Other'}
+                      {a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', 'DMS Camera', '', 'Other'][a.deviceType] || 'Other'}
                       {a.sims.length > 0 && <> · <CreditCard className="inline w-3 h-3" /> {a.sims.length} SIM{a.sims.length > 1 ? 's' : ''}</>}
                     </div>
                   </div>
@@ -474,6 +481,10 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
                 </div>
               ))}
             </div>
+          )}
+
+          {activeTab === 'sensors' && (
+            <SensorPanel sensors={sensors} />
           )}
 
           {activeTab === 'audit' && (
@@ -519,6 +530,9 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
     engineNumber: vehicle?.engineNumber || '', chassisNumber: vehicle?.chassisNumber || '', vinNumber: vehicle?.vinNumber || '',
     driverId: vehicle?.driverId || '', clientId: vehicle?.clientId || '',
     status: vehicle?.status ?? 0, odometerReading: vehicle?.odometerReading?.toString() || '', engineHours: vehicle?.engineHours?.toString() || '',
+    speedPolicyMaxKmh: vehicle?.speedPolicyMaxKmh?.toString() || '',
+    tyrePressureMinBar: vehicle?.tyrePressureMinBar?.toString() || '',
+    tyrePressureMaxBar: vehicle?.tyrePressureMaxBar?.toString() || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -578,6 +592,10 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
       status: form.status,
       odometerReading: form.odometerReading ? parseInt(form.odometerReading) : null,
       engineHours: form.engineHours ? parseInt(form.engineHours) : null,
+      // Policy overrides: empty → 0 → clear the override (revert to fleet default) on edit; null on create.
+      speedPolicyMaxKmh: form.speedPolicyMaxKmh ? parseFloat(form.speedPolicyMaxKmh) : (isEdit ? 0 : null),
+      tyrePressureMinBar: form.tyrePressureMinBar ? parseFloat(form.tyrePressureMinBar) : (isEdit ? 0 : null),
+      tyrePressureMaxBar: form.tyrePressureMaxBar ? parseFloat(form.tyrePressureMaxBar) : (isEdit ? 0 : null),
     };
     if (!isEdit && isCrossTenant) payload.companyId = targetCompanyId;
     try {
@@ -633,6 +651,21 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
             </div>
           </Section>
 
+          <Section icon={Sliders} title="Sensor Policies">
+            <div className="grid grid-cols-3 gap-4">
+              <div><label className={LABEL}>Speed Policy Max (km/h)</label>
+                <input className={INPUT} type="number" step="1" min="0" value={form.speedPolicyMaxKmh}
+                  onChange={e => setForm({ ...form, speedPolicyMaxKmh: e.target.value })} placeholder="Fleet default" /></div>
+              <div><label className={LABEL}>Tyre Pressure Min (bar)</label>
+                <input className={INPUT} type="number" step="0.1" min="0" value={form.tyrePressureMinBar}
+                  onChange={e => setForm({ ...form, tyrePressureMinBar: e.target.value })} placeholder="Fleet default" /></div>
+              <div><label className={LABEL}>Tyre Pressure Max (bar)</label>
+                <input className={INPUT} type="number" step="0.1" min="0" value={form.tyrePressureMaxBar}
+                  onChange={e => setForm({ ...form, tyrePressureMaxBar: e.target.value })} placeholder="Fleet default" /></div>
+            </div>
+            <p className="text-[10px] text-gray-400">Per-vehicle overrides of the fleet defaults (Settings → Fleet Policies). Leave empty to follow the fleet default; clearing an override reverts to it.</p>
+          </Section>
+
           <Section icon={User} title="Assignment">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -670,7 +703,7 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
                         <div className="text-sm font-medium text-gray-800 truncate">{a.identityValue}
                           <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">{a.roleName}</span>
                         </div>
-                        <div className="text-xs text-gray-500 truncate">{a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', '', 'Other'][a.deviceType] || 'Other'}{a.sims.length > 0 ? ` · ${a.sims.length} SIM${a.sims.length > 1 ? 's' : ''}` : ''}</div>
+                        <div className="text-xs text-gray-500 truncate">{a.vendorName || 'No vendor'} · {['GPS Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Dual Camera', 'DMS Camera', '', 'Other'][a.deviceType] || 'Other'}{a.sims.length > 0 ? ` · ${a.sims.length} SIM${a.sims.length > 1 ? 's' : ''}` : ''}</div>
                       </div>
                     </div>
                     <button onClick={() => unassignDevice(a.id)} className="text-xs text-red-500 hover:text-red-600 font-medium shrink-0 ml-2">Remove</button>
@@ -690,7 +723,7 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
                     <div>
                       <label className={LABEL}>Role</label>
                       <select className={INPUT} value={selectedRole} onChange={e => setSelectedRole(Number(e.target.value))}>
-                        {['Primary Tracker', 'Secondary Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Spare'].map((r, i) => <option key={i} value={i}>{r}</option>)}
+                        {['Primary Tracker', 'Secondary Tracker', 'Dashcam', 'ADAS', 'Fuel Sensor', 'Temperature Sensor', 'Spare', 'DMS Camera'].map((r, i) => <option key={i} value={i}>{r}</option>)}
                       </select>
                     </div>
                     <button onClick={assignDevice} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Assign</button>
@@ -718,6 +751,63 @@ function VehicleFormModal({ vehicle, drivers, clients, onClose, onSaved }: { veh
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
           <button onClick={handleSubmit} disabled={saving} className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-blue-400">{saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sensors panel (speed vs policy + tyre diagram) ──────
+function SensorPanel({ sensors }: { sensors: any }) {
+  if (!sensors) return <div className="text-sm text-gray-400 py-4">Loading sensor data…</div>;
+  const sp = SPEED_STATUS_STYLE[sensors.speedStatus] ?? SPEED_STATUS_STYLE.noData;
+  return (
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-gray-900 font-semibold"><Sliders className="w-4 h-4" /> Speed</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div><div className="text-xs text-gray-500">Current Speed</div>
+            <div className="text-sm font-bold text-gray-900">{sensors.speedKmh != null ? `${sensors.speedKmh.toFixed(0)} km/h` : '—'}</div></div>
+          <div><div className="text-xs text-gray-500">Policy Limit</div>
+            <div className="text-sm font-bold text-gray-900">{sensors.policySpeedMaxKmh != null ? `${sensors.policySpeedMaxKmh.toFixed(0)} km/h` : '—'}</div></div>
+          <div><div className="text-xs text-gray-500">Governor Limit (hardware)</div>
+            <div className="text-sm font-bold text-gray-900">{sensors.governorSupported ? `${sensors.speedGovernorLimitKmh?.toFixed(0)} km/h` : 'Not supported by this device'}</div></div>
+          <div><div className="text-xs text-gray-500">Status</div>
+            <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${sp.chip}`}>{sp.label}</span></div>
+        </div>
+        {sensors.speedStatus === 'over' && (
+          <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            Speed exceeds the policy limit — alert raised for this vehicle.
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-gray-900 font-semibold"><Activity className="w-4 h-4" /> Tyre Pressure</div>
+        {!sensors.tyresSupported ? (
+          <div className="text-sm text-gray-400 py-2">
+            TPMS not supported by this device — no tyre pressure data is reported.
+            <span className="block text-xs text-gray-400 mt-1">Camera/GPS-only vendors (Pictor, iTriangle, Streamax) don't expose tyre sensors; the value is absent, not zero.</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {TYRE_POSITIONS.map(tp => {
+              const tyre = sensors.tyres?.find((t: any) => t.position === tp.position);
+              const st = TYRE_STATUS_STYLE[tyre?.status ?? 'notSupported'] ?? TYRE_STATUS_STYLE.notSupported;
+              return (
+                <div key={tp.position} className={`rounded-xl border-2 ${st.ring} ${st.bg} p-3 text-center`}>
+                  <div className={`text-[10px] uppercase tracking-wide font-medium ${st.text}`}>{tp.label}</div>
+                  <div className={`text-lg font-bold mt-1 ${st.text}`}>{tyre?.pressureBar != null ? `${tyre.pressureBar.toFixed(2)} bar` : '—'}</div>
+                  {tyre?.temperatureC != null && <div className={`text-[10px] ${st.text}`}>{tyre.temperatureC.toFixed(0)}°C</div>}
+                  <div className={`text-[10px] font-medium mt-1 ${st.text}`}>{st.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {sensors.tyresSupported && sensors.tyreMinBar != null && sensors.tyreMaxBar != null && (
+          <p className="text-[10px] text-gray-400">Policy range {sensors.tyreMinBar.toFixed(1)}–{sensors.tyreMaxBar.toFixed(1)} bar · warning at 10% outside, critical at 20%+ or rapid loss</p>
+        )}
+        {sensors.lastUpdate && <p className="text-[10px] text-gray-400">Last sensor update {new Date(sensors.lastUpdate).toLocaleString()}</p>}
       </div>
     </div>
   );

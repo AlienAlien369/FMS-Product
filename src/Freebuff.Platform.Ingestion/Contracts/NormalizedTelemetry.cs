@@ -20,6 +20,12 @@ public sealed class NormalizedTelemetry
     public int? Satellites { get; init; }
     public double? Hdop { get; init; }
 
+    /// <summary>Hardware speed-governor limit reported by the device (null when the device doesn't expose it).</summary>
+    public double? SpeedGovernorLimitKmh { get; init; }
+
+    /// <summary>Per-tyre pressure readings in this snapshot (empty when the device/vendor has no TPMS).</summary>
+    public IReadOnlyList<NormalizedTyrePressure> TyrePressures { get; init; } = Array.Empty<NormalizedTyrePressure>();
+
     public bool? Ignition { get; init; }
     public bool? EngineOn { get; init; }
     public double? FuelLevelPercent { get; init; }
@@ -31,6 +37,13 @@ public sealed class NormalizedTelemetry
 
     /// <summary>Canonical alert codes ONLY (e.g. "overspeed", "geofence-exit") — the adapter normalizes vendor alerts.</summary>
     public IReadOnlyList<string> Alerts { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Driver-behavior / DMS events carried by this payload (harsh braking,
+    /// drowsiness, distraction, SOS, …) — normalized to canonical codes by the
+    /// adapter. Empty when the vendor/payload has no DMS content.
+    /// </summary>
+    public IReadOnlyList<NormalizedBehaviorEvent> BehaviorEvents { get; init; } = Array.Empty<NormalizedBehaviorEvent>();
 
     /// <summary>Per-channel sensor readings not in the common schema (e.g. temperature channels, aux inputs).</summary>
     public IReadOnlyDictionary<string, double> Sensors { get; init; } = new Dictionary<string, double>();

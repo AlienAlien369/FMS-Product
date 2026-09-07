@@ -19,14 +19,20 @@ namespace Freebuff.Platform.Infrastructure.Data;
 /// </summary>
 public static class DeviceDataMigration
 {
-    private static readonly (string Code, string Name, string Protocol, string? Format, string? Description)[] Vendors =
+    private static readonly (string Code, string Name, string Protocol, string? Format, string? Description, string? Capabilities)[] Vendors =
     {
         ("sample-json", "Sample JSON (webhook)", "http", "json-webhook",
-            "Reference JSON-webhook vendor that proves the ingestion pipeline end-to-end. Active."),
-        ("pictor", "Pictor", "tcp", "pictor-binary-v2",
-            "Pictor tracking. PLACEHOLDER — protocol spec not available yet; adapter registered but vendor row inactive until integration is documented."),
+            "Reference JSON-webhook vendor that proves the ingestion pipeline end-to-end. Active.",
+            "[\"gps\",\"speed\",\"heading\",\"ignition\",\"engine\",\"fuel\",\"odometer\",\"engineHours\",\"battery\",\"driverId\",\"sensors\",\"alerts\",\"behaviorEvents\"]"),
+        ("pictor", "Pictor", "http", "pictor-json-v1",
+            "Pictor tracking + DMS. JSON-webhook adapter (documented mock format) with driver-behavior event codes (hb/accel/corner/idle/drowsy/distracted/phone/sos). Active.",
+            "[\"gps\",\"speed\",\"dms\"]"),
         ("itriangle", "iTriangle", "http", "itriangle-json-v1",
-            "iTriangle tracking. PLACEHOLDER — protocol spec not available yet; adapter registered but vendor row inactive until integration is documented.")
+            "iTriangle tracking + DMS. JSON-webhook adapter (documented mock format) with driver-behavior event codes (HARSH_BRAKE/RAPID_ACCEL/SHARP_TURN/IDLING/DROWSY/DISTRACTED/PHONE_USE/PANIC). Active.",
+            "[\"gps\",\"speed\",\"dms\"]"),
+        ("streamax", "Streamax", "http", "streamax-json-v1",
+            "Streamax tracking + DMS. JSON-webhook adapter (documented mock format) with numeric ADAS alarm codes (1=drowsiness … 8=SOS). Active.",
+            "[\"gps\",\"speed\",\"dms\"]")
     };
 
     public static async Task EnsureAsync(ApplicationDbContext db, ILogger logger)
@@ -38,39 +44,54 @@ public static class DeviceDataMigration
     private static async Task SeedVendorsAsync(ApplicationDbContext db, ILogger logger)
     {
         var seeded = 0;
-        foreach (var (code, name, protocol, format, description) in Vendors)
+        var reactivated = 0;
+        foreach (var (code, name, protocol, format, description, capabilities) in Vendors)
         {
-            var exists = await db.DeviceVendors.AnyAsync(v => v.Code == code && !v.IsDeleted);
-            if (exists) continue;
-
-            db.DeviceVendors.Add(new DeviceVendor
+            var existing = await db.DeviceVendors.FirstOrDefaultAsync(v => v.Code == code && !v.IsDeleted);
+            if (existing == null)
             {
-                Id = Guid.NewGuid(),
-                Code = code,
-                Name = name,
-                Description = description,
-                AdapterVersion = "1.0.0",
-                ProtocolType = ParseProtocol(protocol),
-                PayloadFormat = format,
-                // Pictor/iTriangle have registered placeholder adapters that reject
-                // everything gracefully; keep the row INACTIVE until real parsing exists.
-                Status = code == "sample-json" ? DeviceStatus.Active : DeviceStatus.Inactive,
-                ListenerConfig = code == "sample-json" ? "{\"path\":\"api/v1/ingest/sample-json\"}" : null,
-                Capabilities = code == "sample-json"
-                    ? "[\"gps\",\"speed\",\"heading\",\"ignition\",\"engine\",\"fuel\",\"odometer\",\"engineHours\",\"battery\",\"driverId\",\"sensors\",\"alerts\"]"
-                    : null,
-                Metadata = code == "sample-json" ? "{\"archiveRaw\":false}" : "{\"archiveRaw\":false}",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                CreatedBy = "system:migration"
-            });
-            seeded++;
+                db.DeviceVendors.Add(new DeviceVendor
+                {
+                    Id = Guid.NewGuid(),
+                    Code = code,
+                    Name = name,
+                    Description = description,
+                    AdapterVersion = "1.1.0",
+                    ProtocolType = ParseProtocol(protocol),
+                    PayloadFormat = format,
+                    // All four registered adapters are real parsers now — active.
+                    Status = DeviceStatus.Active,
+                    ListenerConfig = code == "sample-json" ? "{\"path\":\"api/v1/ingest/sample-json\"}" : null,
+                    Capabilities = capabilities,
+                    Metadata = "{\"archiveRaw\":false}",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    CreatedBy = "system:migration"
+                });
+                seeded++;
+                continue;
+            }
+
+            // Re-activate rows created by the old placeholder migration now that
+            // real DMS-capable adapters exist (pictor/itriangle were seeded Inactive).
+            if (existing.Status != DeviceStatus.Active || existing.AdapterVersion != "1.1.0")
+            {
+                existing.Status = DeviceStatus.Active;
+                existing.AdapterVersion = "1.1.0";
+                existing.PayloadFormat = format;
+                existing.Description = description;
+                existing.Capabilities = capabilities;
+                existing.ProtocolType = ParseProtocol(protocol);
+                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedBy = "system:migration";
+                reactivated++;
+            }
         }
 
-        if (seeded > 0)
+        if (seeded + reactivated > 0)
         {
             await db.SaveChangesAsync();
-            logger.LogInformation("DeviceDataMigration: seeded {Count} vendor row(s)", seeded);
+            logger.LogInformation("DeviceDataMigration: seeded {Count} vendor row(s), reactivated {Reactivated}", seeded, reactivated);
         }
     }
 

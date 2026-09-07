@@ -37,6 +37,11 @@ public class VehicleDto
     public long? OdometerReading { get; set; }
     public long? EngineHours { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Sensor policies — per-vehicle overrides of the company fleet defaults (null = follow default)
+    public double? SpeedPolicyMaxKmh { get; set; }
+    public double? TyrePressureMinBar { get; set; }
+    public double? TyrePressureMaxBar { get; set; }
 }
 
 public class CreateVehicleDto
@@ -61,6 +66,9 @@ public class CreateVehicleDto
     public string? DeviceImei { get; set; }
     public string? DeviceType { get; set; }
     public string? DeviceSerialNumber { get; set; }
+    public double? SpeedPolicyMaxKmh { get; set; }
+    public double? TyrePressureMinBar { get; set; }
+    public double? TyrePressureMaxBar { get; set; }
 }
 
 public class UpdateVehicleDto
@@ -85,6 +93,51 @@ public class UpdateVehicleDto
     public int? Status { get; set; }
     public long? OdometerReading { get; set; }
     public long? EngineHours { get; set; }
+
+    /// <summary>Per-vehicle policy overrides. Null = don't touch; 0 = clear the
+    /// override and revert to the fleet default (0 is not a valid policy value).</summary>
+    public double? SpeedPolicyMaxKmh { get; set; }
+    public double? TyrePressureMinBar { get; set; }
+    public double? TyrePressureMaxBar { get; set; }
+}
+
+/// <summary>Live sensor snapshot for one vehicle (speed vs policy + per-tyre pressure).</summary>
+public class VehicleSensorsDto
+{
+    public double? SpeedKmh { get; set; }
+
+    /// <summary>Hardware governor limit the device reports (null when the device/vendor doesn't expose it).</summary>
+    public double? SpeedGovernorLimitKmh { get; set; }
+
+    /// <summary>Resolved speed policy for this vehicle (override ?? fleet default); null = no policy configured.</summary>
+    public double? PolicySpeedMaxKmh { get; set; }
+
+    /// <summary>ok | over | noPolicy | noData</summary>
+    public string SpeedStatus { get; set; } = "noData";
+
+    /// <summary>True when the device reported a governor limit; false → "not supported by this device".</summary>
+    public bool GovernorSupported { get; set; }
+
+    /// <summary>True when any tyre reading exists; false → TPMS not supported by this device.</summary>
+    public bool TyresSupported { get; set; }
+
+    /// <summary>Resolved tyre policy range (override ?? fleet default); null = no policy configured.</summary>
+    public double? TyrePolicyMinBar { get; set; }
+    public double? TyrePolicyMaxBar { get; set; }
+
+    public List<TyreSensorDto> Tyres { get; set; } = new();
+    public DateTime? LastUpdate { get; set; }
+}
+
+public class TyreSensorDto
+{
+    public int Position { get; set; }
+    public string PositionName { get; set; } = string.Empty;
+    public double? PressureBar { get; set; }
+    public double? TemperatureC { get; set; }
+
+    /// <summary>ok | warning | critical | notSupported</summary>
+    public string Status { get; set; } = "notSupported";
 }
 
 public class DriverDto

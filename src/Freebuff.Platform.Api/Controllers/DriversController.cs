@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
+using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
@@ -119,5 +121,50 @@ public class DriversController : ControllerBase
     {
         var result = await _driverService.GetAuditHistoryAsync(id);
         return Ok(ApiResponse<List<AuditEntryDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// Recent driver-behavior / DMS events for the driver (Safety Events tab).
+    /// Scorecard groundwork: the rows are indexed by (DriverId, EventTimeUtc) at
+    /// write time, so filtering by driver + date range is a plain range query.
+    /// </summary>
+    [HttpGet("{id:guid}/safety-events")]
+    [RequirePermission("driver.view")]
+    public async Task<ActionResult<ApiResponse<List<DriverBehaviorEventDto>>>> GetSafetyEvents(Guid id,
+        [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null, [FromQuery] int limit = 50)
+    {
+        var tenantId = Guid.Parse(User.FindFirstValue("tenant_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var isSuperAdmin = User.IsInRole("SuperAdmin") || User.Claims.Any(c => c.Type == "is_super_admin" && c.Value == "true");
+        var owned = await _db.Drivers.AsNoTracking()
+            .AnyAsync(d => d.Id == id && !d.IsDeleted && (isSuperAdmin || d.CompanyId == tenantId));
+        if (!owned) return NotFound(ApiResponse<object>.Fail("NOT_FOUND", "Driver not found"));
+
+        var query = _db.DriverBehaviorEvents.AsNoTracking()
+            .Where(e => e.DriverId == id && (isSuperAdmin || e.TenantId == tenantId));
+        if (from.HasValue) query = query.Where(e => e.EventTimeUtc >= from.Value);
+        if (to.HasValue) query = query.Where(e => e.EventTimeUtc <= to.Value);
+
+        var events = await query.OrderByDescending(e => e.EventTimeUtc)
+            .Take(Math.Clamp(limit, 1, 200))
+            .Select(e => new DriverBehaviorEventDto
+            {
+                Id = e.Id,
+                CompanyId = e.TenantId,
+                VehicleId = e.VehicleId,
+                VehicleName = e.VehicleId != null ? e.Vehicle!.RegistrationNumber : null,
+                DriverId = e.DriverId,
+                EventType = DriverBehaviorCatalog.Spec(e.EventType).CanonicalCode,
+                EventTypeName = DriverBehaviorCatalog.Spec(e.EventType).AlertName,
+                Confidence = e.Confidence,
+                Severity = (int)DriverBehaviorCatalog.Spec(e.EventType).Severity,
+                EventTimeUtc = e.EventTimeUtc,
+                Latitude = e.Latitude,
+                Longitude = e.Longitude,
+                SpeedKmh = e.SpeedKmh,
+                MediaUrl = e.MediaUrl
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<List<DriverBehaviorEventDto>>.Ok(events));
     }
 }

@@ -1,12 +1,12 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
+_Generated 2026-09-07 02:14:21Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 
 ## Coverage
-- Total (role × page × action) cells: **1092**
-- Covered by the effective-permission matrix test: **1092**
+- Total (role × page × action) cells: **1134**
+- Covered by the effective-permission matrix test: **1134**
 - Cells with an HTTP endpoint test: **217**
 - Uncovered cells: **0** (every (role × page × action) cell is asserted by `RbacMatrixTests.Matrix_EffectivePermissions_Exhaustive`)
 
@@ -30,6 +30,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Fuel (`fuel`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Maintenance (`maintenance`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
@@ -64,6 +65,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -98,6 +100,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -132,6 +135,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -166,6 +170,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -200,6 +205,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -234,6 +240,7 @@ _Generated 2026-09-06 05:14:22Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Maintenance (`maintenance`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |

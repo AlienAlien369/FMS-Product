@@ -18,6 +18,8 @@ public enum DeviceType
     FuelSensor = 3,
     TemperatureSensor = 4,
     DualCamera = 5,
+    /// <summary>AI driver-monitoring camera (drowsiness/distraction/phone detection + dashcam capture).</summary>
+    DmsCamera = 6,
     Other = 99
 }
 
@@ -57,7 +59,26 @@ public enum VehicleDeviceRole
     Adas = 3,
     FuelSensor = 4,
     TemperatureSensor = 5,
-    Spare = 6
+    Spare = 6,
+    /// <summary>AI driver-monitoring camera (DMS) — one per vehicle alongside the primary tracker.</summary>
+    DmsCamera = 7
+}
+
+/// <summary>
+/// Canonical driver-behavior / DMS event type. The ADAPTER maps vendor-specific
+/// codes onto these; nothing downstream ever branches on a vendor's vocabulary.
+/// Stored as int on <c>DriverBehaviorEvent.EventType</c>.
+/// </summary>
+public enum DriverBehaviorEventType
+{
+    HarshBraking = 0,
+    HarshAcceleration = 1,
+    HarshCornering = 2,
+    ExcessiveIdling = 3,
+    Drowsiness = 4,
+    Distraction = 5,
+    PhoneUsage = 6,
+    SosTriggered = 7
 }
 
 public enum TelemetryParseStatus

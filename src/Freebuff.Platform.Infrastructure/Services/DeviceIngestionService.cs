@@ -28,14 +28,19 @@ public class DeviceIngestionService
     private readonly IVendorAdapterRegistry _registry;
     private readonly ILogger<DeviceIngestionService> _logger;
     private readonly TripGeofenceEventProducer _zoneEvents;
+    private readonly DriverBehaviorAlertProducer _behaviorEvents;
+    private readonly SensorPolicyAlertProducer _sensorPolicies;
 
     public DeviceIngestionService(ApplicationDbContext db, IVendorAdapterRegistry registry,
-        ILogger<DeviceIngestionService> logger, TripGeofenceEventProducer zoneEvents)
+        ILogger<DeviceIngestionService> logger, TripGeofenceEventProducer zoneEvents,
+        DriverBehaviorAlertProducer behaviorEvents, SensorPolicyAlertProducer sensorPolicies)
     {
         _db = db;
         _registry = registry;
         _logger = logger;
         _zoneEvents = zoneEvents;
+        _behaviorEvents = behaviorEvents;
+        _sensorPolicies = sensorPolicies;
     }
 
     public async Task<IngestResult> IngestAsync(string vendorCode, string channel, byte[] payload, string? contentType, string? ingestKey)
@@ -132,11 +137,32 @@ public class DeviceIngestionService
             EngineHours = telemetry.EngineHours,
             BatteryVoltage = telemetry.BatteryVoltage,
             DriverCardId = telemetry.DriverCardId,
+            SpeedGovernorLimitKmh = telemetry.SpeedGovernorLimitKmh,
             AlertsJson = telemetry.Alerts.Count > 0 ? JsonSerializer.Serialize(telemetry.Alerts) : null,
             SensorsJson = telemetry.Sensors.Count > 0 ? JsonSerializer.Serialize(telemetry.Sensors) : null,
             ExtrasJson = telemetry.Extras.Count > 0 ? JsonSerializer.Serialize(telemetry.Extras) : null
         };
         _db.TelemetryEvents.Add(telemetryEvent);
+
+        // Per-tyre pressure readings (one-to-many child of the snapshot).
+        if (telemetry.TyrePressures.Count > 0 && assignment != null)
+        {
+            foreach (var tyre in telemetry.TyrePressures)
+            {
+                if (!SensorPolicyAlertProducer.TryParsePosition(tyre.Position, out var position)) continue;
+                telemetryEvent.TyrePressureReadings.Add(new TyrePressureReading
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = device.CompanyId,
+                    TelemetryEventId = telemetryEvent.Id,
+                    VehicleId = assignment.VehicleId,
+                    Position = position,
+                    PressureBar = tyre.PressureBar,
+                    TemperatureC = tyre.TemperatureC,
+                    EventTimeUtc = tyre.TimestampUtc ?? eventTime
+                });
+            }
+        }
 
         if (assignment != null)
         {
@@ -173,6 +199,34 @@ public class DeviceIngestionService
         if (assignment != null && telemetry.Latitude.HasValue && telemetry.Longitude.HasValue)
             await _zoneEvents.ProcessPositionAsync(assignment.VehicleId, telemetry.Latitude.Value, telemetry.Longitude.Value, eventTime);
 
+        // Driver-behavior / DMS events (harsh braking, drowsiness, SOS, …):
+        // persisted driver-resolved for the future scorecard, and alerted via
+        // the registry (entitlement-gated, panic bypassing everything).
+        if (telemetry.BehaviorEvents.Count > 0)
+        {
+            Guid? driverId = null;
+            if (assignment != null)
+            {
+                // Scorecard groundwork: resolve the driver from the vehicle's
+                // active in-progress trip at write time so raw events are
+                // queryable by driver without a backfill.
+                driverId = await _db.Trips.AsNoTracking()
+                    .Where(t => !t.IsDeleted && t.VehicleId == assignment.VehicleId && t.Status == TripStatus.InProgress)
+                    .Select(t => (Guid?)t.DriverId)
+                    .FirstOrDefaultAsync();
+            }
+            await _behaviorEvents.ProcessBehaviorEventsAsync(device.CompanyId, device.Id,
+                assignment?.VehicleId, driverId, telemetry.BehaviorEvents,
+                telemetry.Latitude, telemetry.Longitude, telemetry.SpeedKmh, telemetryEvent.Id, eventTime);
+        }
+
+        // Sensor policies (speed vs policy limit, per-tyre pressure): threshold
+        // alerting on continuous data, entitlement-gated + throttled. The
+        // readings themselves were persisted above; this stages any alerts.
+        await _sensorPolicies.ProcessSnapshotAsync(device.CompanyId, assignment?.VehicleId,
+            telemetry.SpeedKmh, telemetry.TyrePressures,
+            telemetry.Latitude, telemetry.Longitude, eventTime);
+
         await _db.SaveChangesAsync();
         return IngestResult.Ok(device.Id.ToString(), assignment?.VehicleId.ToString());
     }
@@ -208,6 +262,7 @@ public class DeviceIngestionService
         if (t.Longitude != null) state.Longitude = t.Longitude;
         if (t.AltitudeM != null) state.AltitudeM = t.AltitudeM;
         if (t.SpeedKmh != null) state.SpeedKmh = t.SpeedKmh;
+        if (t.SpeedGovernorLimitKmh != null) state.SpeedGovernorLimitKmh = t.SpeedGovernorLimitKmh;
         if (t.HeadingDeg != null) state.HeadingDeg = t.HeadingDeg;
         if (t.Satellites != null) state.Satellites = t.Satellites;
         if (t.Ignition != null) state.Ignition = t.Ignition;

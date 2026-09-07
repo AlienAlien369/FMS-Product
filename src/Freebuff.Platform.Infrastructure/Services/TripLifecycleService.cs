@@ -431,11 +431,39 @@ public class TripLifecycleService
         return result;
     }
 
-    /// <summary>Marks a waypoint actually-arrived (geofence event / manual). Returns false when the waypoint is unknown.</summary>
-    public async Task<bool> RecordWaypointArrivalAsync(Guid tripId, Guid waypointId, DateTime? at = null)
+    /// <summary>Outcome of marking a waypoint arrived — distinguishes "unknown waypoint" from "POD required before completion".</summary>
+    public class WaypointArrivalResult
+    {
+        public bool Found { get; set; }
+        public bool PodRequired { get; set; }
+    }
+
+    /// <summary>
+    /// Marks a waypoint actually-arrived (geofence event / manual). Delivery-type
+    /// waypoints OPTIONALLY require verified proof-of-delivery evidence before
+    /// completion — the policy is a company-level default
+    /// (Configuration "fleet.require_pod_for_delivery") with a per-trip override
+    /// (Trip.RequirePodForDelivery). The gate only reports; it never changes the
+    /// waypoint when evidence is missing.
+    /// </summary>
+    public async Task<WaypointArrivalResult> RecordWaypointArrivalAsync(Guid tripId, Guid waypointId, DateTime? at = null)
     {
         var wp = await _db.TripWaypoints.FirstOrDefaultAsync(w => w.Id == waypointId && w.TripId == tripId && !w.IsDeleted);
-        if (wp == null) return false;
+        if (wp == null) return new WaypointArrivalResult { Found = false };
+
+        if (wp.WaypointType == TripWaypointType.Delivery)
+        {
+            var trip = await _db.Trips.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tripId && !t.IsDeleted);
+            if (trip != null && await ResolveRequirePodAsync(trip.CompanyId, trip.RequirePodForDelivery))
+            {
+                var hasPod = await _db.ProofOfDeliveries.AsNoTracking()
+                    .Where(p => !p.IsDeleted && p.TripId == tripId && p.WaypointId == waypointId)
+                    .AnyAsync(ProofOfDelivery.HasVerifiedEvidenceExpr);
+                if (!hasPod)
+                    return new WaypointArrivalResult { Found = true, PodRequired = true };
+            }
+        }
+
         wp.ActualArrival = at ?? DateTime.UtcNow;
 
         // A geofence-linked waypoint also marks its trip-geofence checkpoint visited.
@@ -448,7 +476,22 @@ public class TripLifecycleService
                 link.VisitedAt = wp.ActualArrival;
             }
         }
-        return true;
+        return new WaypointArrivalResult { Found = true };
+    }
+
+    /// <summary>
+    /// Resolves the require-POD policy: per-trip override wins; otherwise the
+    /// company-level Configuration row (Scope=Company, Key=fleet.require_pod_for_delivery);
+    /// defaults to false (POD optional) when unconfigured.
+    /// </summary>
+    private async Task<bool> ResolveRequirePodAsync(Guid companyId, bool? tripOverride)
+    {
+        if (tripOverride.HasValue) return tripOverride.Value;
+        var cfg = await _db.Configurations.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Key == "fleet.require_pod_for_delivery"
+                && c.Scope == ConfigurationScope.Company && !c.IsDeleted
+                && (c.ScopeEntityId == companyId || c.CompanyId == companyId));
+        return cfg != null && string.Equals(cfg.Value, "true", StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Completion metrics (telemetry-derived) ─────────────────────────────

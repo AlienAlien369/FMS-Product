@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompanyScope } from '../contexts/CompanyScopeContext';
-import { Truck, Users, Route, Map, Zap, Wrench, Clock } from 'lucide-react';
+import { Truck, Users, Route, Map, Zap, Wrench, Clock, Gauge, CircleDot } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#6366f1'];
@@ -22,28 +22,42 @@ export default function Dashboard() {
   const [vehicleStatus, setVehicleStatus] = useState<{ Status: string; Count: number }[]>([]);
   const [fuelTypes, setFuelTypes] = useState<{ FuelType: string; Count: number }[]>([]);
   const [driverStatus, setDriverStatus] = useState<{ Status: string; Count: number }[]>([]);
-  const [topDrivers, setTopDrivers] = useState<{ Name: string; SafetyScore: number; BehaviourScore: number }[]>([]);
+  const [topDrivers, setTopDrivers] = useState<{ Name: string; SafetyScore: number; BehaviourScore?: number | null }[]>([]);
+  const [safetyScoreSource, setSafetyScoreSource] = useState<'events' | 'profile'>('profile');
   const [recentVehicles, setRecentVehicles] = useState<any[]>([]);
+  const [fleetHealth, setFleetHealth] = useState<{ overSpeedCount: number; tyreAnomalyCount: number; withSpeedPolicy: number; withTyrePolicy: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [s, vs, ft, ds, td, rv] = await Promise.all([
+        const [s, vs, ft, ds, td, ss, rv, fh] = await Promise.all([
           api.get('/dashboard/stats'),
           api.get('/dashboard/vehicles/by-status'),
           api.get('/dashboard/vehicles/by-fuel-type'),
           api.get('/dashboard/drivers/by-status'),
           api.get('/dashboard/drivers/top-safety'),
+          api.get('/dashboard/drivers/safety-scores'),
           api.get('/dashboard/vehicles/recent'),
+          api.get('/dashboard/fleet-health'),
         ]);
         setStats(s.data.data);
         // API returns camelCase rows; normalize to the shape the render code consumes.
         setVehicleStatus((vs.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
         setFuelTypes((ft.data.data || []).map((x: any) => ({ FuelType: x.fuelType, Count: x.count })));
         setDriverStatus((ds.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
-        setTopDrivers((td.data.data || []).map((x: any) => ({ Name: x.name, SafetyScore: x.safetyScore, BehaviourScore: x.behaviourScore })));
+        // Driver Safety Scores widget: prefer REAL event-derived scores from the
+        // driver-behavior pipeline; fall back to the static profile scores.
+        const safetyRows = (ss.data.data || []) as { name: string; score: number }[];
+        if (safetyRows.length > 0) {
+          setTopDrivers(safetyRows.map((x: any) => ({ Name: x.name, SafetyScore: x.score, BehaviourScore: null })));
+          setSafetyScoreSource('events');
+        } else {
+          setTopDrivers((td.data.data || []).map((x: any) => ({ Name: x.name, SafetyScore: x.safetyScore, BehaviourScore: x.behaviourScore })));
+          setSafetyScoreSource('profile');
+        }
         setRecentVehicles(rv.data.data || []);
+        setFleetHealth(fh.data.data || null);
       } catch (err) { console.error(err); }
       setLoading(false);
     };
@@ -87,6 +101,32 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Fleet Health (speed policy + tyre pressure) */}
+      {fleetHealth && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${fleetHealth.overSpeedCount > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+              <Gauge className={`w-6 h-6 ${fleetHealth.overSpeedCount > 0 ? 'text-red-600' : 'text-green-600'}`} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{fleetHealth.overSpeedCount}</p>
+              <p className="text-xs text-gray-500">vehicles over speed policy</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{fleetHealth.withSpeedPolicy} vehicles have a speed policy configured</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${fleetHealth.tyreAnomalyCount > 0 ? 'bg-amber-50' : 'bg-green-50'}`}>
+              <CircleDot className={`w-6 h-6 ${fleetHealth.tyreAnomalyCount > 0 ? 'text-amber-600' : 'text-green-600'}`} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{fleetHealth.tyreAnomalyCount}</p>
+              <p className="text-xs text-gray-500">vehicles with tyre pressure anomaly</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{fleetHealth.withTyrePolicy} vehicles have a tyre policy configured</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -171,7 +211,14 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Safety Drivers - Radar */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Driver Safety Scores</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900">Driver Safety Scores</h3>
+            {safetyScoreSource === 'events' && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700" title="Derived from live driver-behavior events (DMS)">
+                live events
+              </span>
+            )}
+          </div>
           {topDrivers.length === 0 ? (
             <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No driver scores available</div>
           ) : (
@@ -183,7 +230,9 @@ export default function Dashboard() {
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="SafetyScore" fill="#3b82f6" name="Safety" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="BehaviourScore" fill="#10b981" name="Behaviour" radius={[0, 4, 4, 0]} />
+                {safetyScoreSource === 'profile' && (
+                  <Bar dataKey="BehaviourScore" fill="#10b981" name="Behaviour" radius={[0, 4, 4, 0]} />
+                )}
               </BarChart>
             </ResponsiveContainer>
           )}

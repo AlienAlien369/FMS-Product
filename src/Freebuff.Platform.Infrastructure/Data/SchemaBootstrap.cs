@@ -300,6 +300,27 @@ public static class SchemaBootstrap
         CREATE INDEX IF NOT EXISTS "IX_TelemetryEvents_DeviceId" ON "TelemetryEvents" ("DeviceId");
         CREATE INDEX IF NOT EXISTS "IX_TelemetryEvents_Vehicle_Time" ON "TelemetryEvents" ("VehicleId", "EventTimeUtc");
 
+        CREATE TABLE IF NOT EXISTS "DriverBehaviorEvents" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NOT NULL,
+            "DeviceId" uuid NOT NULL,
+            "VehicleId" uuid NULL,
+            "DriverId" uuid NULL,
+            "EventType" integer NOT NULL,
+            "Confidence" double precision NOT NULL DEFAULT 1,
+            "EventTimeUtc" timestamp with time zone NOT NULL,
+            "Latitude" double precision NULL,
+            "Longitude" double precision NULL,
+            "SpeedKmh" double precision NULL,
+            "MediaUrl" text NULL,
+            "TelemetryEventId" uuid NULL,
+            CONSTRAINT "PK_DriverBehaviorEvents" PRIMARY KEY ("Id")
+        );
+        -- Scorecard groundwork: raw events are queryable by driver + date range
+        -- without a backfill (see DriverBehaviorEvent docs).
+        CREATE INDEX IF NOT EXISTS "IX_DriverBehaviorEvents_Driver_Time" ON "DriverBehaviorEvents" ("DriverId", "EventTimeUtc");
+        CREATE INDEX IF NOT EXISTS "IX_DriverBehaviorEvents_Vehicle_Time" ON "DriverBehaviorEvents" ("VehicleId", "EventTimeUtc");
+
         CREATE TABLE IF NOT EXISTS "TelemetryStates" (
             "Id" uuid NOT NULL,
             "TenantId" uuid NOT NULL,
@@ -440,6 +461,85 @@ public static class SchemaBootstrap
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "DeviationThresholdMinutes" integer NULL;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "FuelUsedLiters" numeric NULL;
         ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "IdleMinutes" integer NULL;
+        -- Proof-of-delivery policy: nullable per-trip override of the company default.
+        ALTER TABLE "Trips" ADD COLUMN IF NOT EXISTS "RequirePodForDelivery" boolean NULL;
+        -- Waypoint customer contact (OTP delivery at the stop) + POD evidence.
+        ALTER TABLE "TripWaypoints" ADD COLUMN IF NOT EXISTS "CustomerPhone" text NULL;
+        ALTER TABLE "TripWaypoints" ADD COLUMN IF NOT EXISTS "CustomerEmail" text NULL;
+
+        -- ── Proof of Delivery ────────────────────────────────────────────
+        CREATE TABLE IF NOT EXISTS "ProofOfDeliveries" (
+            "Id" uuid PRIMARY KEY,
+            "TenantId" uuid NULL,
+            "TripId" uuid NOT NULL REFERENCES "Trips"("Id"),
+            "WaypointId" uuid NOT NULL REFERENCES "TripWaypoints"("Id"),
+            "CompanyId" uuid NOT NULL REFERENCES "Companies"("Id"),
+            "Type" integer NOT NULL,
+            "SignatureSvg" text NULL,
+            "ImageUrl" text NULL,
+            "OtpCodeHash" text NULL,
+            "OtpVerifiedAt" timestamp with time zone NULL,
+            "CapturedBy" text NOT NULL,
+            "CapturedAt" timestamp with time zone NOT NULL,
+            "Latitude" double precision NULL,
+            "Longitude" double precision NULL,
+            "LocationMismatch" boolean NULL,
+            "LocationMismatchDetail" text NULL,
+            "Notes" text NULL,
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "UpdatedBy" text NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS "IX_ProofOfDeliveries_TripId" ON "ProofOfDeliveries" ("TripId");
+        CREATE INDEX IF NOT EXISTS "IX_ProofOfDeliveries_WaypointId" ON "ProofOfDeliveries" ("WaypointId");
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_ProofOfDeliveries_Waypoint_Type_Active"
+            ON "ProofOfDeliveries" ("WaypointId", "Type") WHERE "IsDeleted" = false;
+
+        -- ── Sensor telemetry: speed governor + TPMS ────────────────────────
+        ALTER TABLE "TelemetryEvents" ADD COLUMN IF NOT EXISTS "SpeedGovernorLimitKmh" double precision NULL;
+        ALTER TABLE "TelemetryStates" ADD COLUMN IF NOT EXISTS "SpeedGovernorLimitKmh" double precision NULL;
+        -- Per-vehicle sensor policy overrides (null = follow company fleet default).
+        ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "SpeedPolicyMaxKmh" double precision NULL;
+        ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "TyrePressureMinBar" double precision NULL;
+        ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "TyrePressureMaxBar" double precision NULL;
+
+        -- Per-tyre pressure readings, child of a telemetry snapshot (one-to-many).
+        CREATE TABLE IF NOT EXISTS "TyrePressureReadings" (
+            "Id" uuid PRIMARY KEY,
+            "TenantId" uuid NOT NULL,
+            "TelemetryEventId" uuid NOT NULL REFERENCES "TelemetryEvents"("Id") ON DELETE CASCADE,
+            "VehicleId" uuid NOT NULL,
+            "Position" integer NOT NULL,
+            "PressureBar" double precision NOT NULL,
+            "TemperatureC" double precision NULL,
+            "EventTimeUtc" timestamp with time zone NOT NULL,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS "IX_TyrePressureReadings_Vehicle_Time" ON "TyrePressureReadings" ("VehicleId", "EventTimeUtc");
+
+        -- Hourly min/max/avg rollup of raw sensor readings (retention path: raw
+        -- ~30 days → folded into one row per vehicle+sensor+hour → kept 12 months).
+        CREATE TABLE IF NOT EXISTS "TelemetryRollupsHourly" (
+            "Id" uuid PRIMARY KEY,
+            "TenantId" uuid NOT NULL,
+            "VehicleId" uuid NOT NULL,
+            "SensorType" text NOT NULL,
+            "TyrePosition" integer NULL,
+            "HourBucketUtc" timestamp with time zone NOT NULL,
+            "MinValue" double precision NOT NULL,
+            "MaxValue" double precision NOT NULL,
+            "AvgValue" double precision NOT NULL,
+            "ReadingCount" integer NOT NULL DEFAULT 0,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_TelemetryRollups_Vehicle_Sensor_Hour"
+            ON "TelemetryRollupsHourly" ("VehicleId", "SensorType", "TyrePosition", "HourBucketUtc");
 
         -- Registry data migration: the trip page shipped in this release
         -- (PageRegistry now marks it live with a real route). Flip the DB row
@@ -463,6 +563,7 @@ public static class SchemaBootstrap
             "DefaultSeverity" integer NOT NULL DEFAULT 2,
             "DisplayOrder" integer NOT NULL DEFAULT 0,
             "Status" integer NOT NULL DEFAULT 0,
+            "NonMutablePriority" boolean NOT NULL DEFAULT false,
             "IsDeleted" boolean NOT NULL DEFAULT false,
             "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
             "UpdatedAt" timestamp with time zone NULL
@@ -511,6 +612,9 @@ public static class SchemaBootstrap
         ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
         ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
         ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+        -- Emergency-signal flag (driver.panic_button): when true the pipeline
+        -- bypasses role-visibility narrowing and per-user notification preferences.
+        ALTER TABLE "AlertTypes" ADD COLUMN IF NOT EXISTS "NonMutablePriority" boolean NOT NULL DEFAULT false;
         ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "TenantId" uuid NULL;
         ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "CreatedBy" text NULL;
         ALTER TABLE "CompanyAlertSubscriptions" ADD COLUMN IF NOT EXISTS "UpdatedBy" text NULL;

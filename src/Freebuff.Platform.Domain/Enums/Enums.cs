@@ -169,6 +169,28 @@ public enum TripWaypointType
     Other = 5
 }
 
+/// <summary>
+/// Kind of proof-of-delivery evidence captured at a waypoint. Signature and
+/// photo are verified at capture time (evidence exists); OTP is a two-phase
+/// record — generated (hash stored) then verified (code match + timestamp).
+/// </summary>
+public enum ProofOfDeliveryType
+{
+    Signature = 0,
+    Photo = 1,
+    OtpCode = 2
+}
+
+/// <summary>Canonical tyre position on the vehicle (matches TPMS sensor labels).</summary>
+public enum TyrePosition
+{
+    FrontLeft = 0,
+    FrontRight = 1,
+    RearLeft = 2,
+    RearRight = 3,
+    Spare = 4
+}
+
 /// <summary>Semantic role of a geofence linked directly to a trip (same values as RouteGeofenceRole).</summary>
 public enum TripGeofenceRole
 {

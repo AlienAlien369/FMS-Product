@@ -1,6 +1,6 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-07 04:05:20Z from the live seed + PageRegistry._
+_Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 

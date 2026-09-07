@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Freebuff.Platform.Infrastructure.Services;
 
 /// <summary>Outcome of an OTP verification attempt.</summary>
-public sealed record OtpVerifyResult(bool Ok, string? Error, ProofOfDelivery? Record);
+public sealed record OtpVerifyResult(bool Ok, string? Error, ProofOfDelivery? Record, int OtpAttemptsRemaining = 0);
 
 /// <summary>
 /// Proof-of-delivery capture rules. One active record per (waypoint, type) —
@@ -30,6 +30,10 @@ public sealed record OtpVerifyResult(bool Ok, string? Error, ProofOfDelivery? Re
 public class ProofOfDeliveryService
 {
     private static readonly TimeSpan OtpLifetime = TimeSpan.FromMinutes(10);
+
+    /// <summary>Max wrong OTP guesses before the code is locked — a 6-digit code
+    /// must not be brute-forceable through the verify endpoint.</summary>
+    public const int MaxOtpAttempts = 5;
 
     private readonly ApplicationDbContext _db;
 
@@ -67,7 +71,7 @@ public class ProofOfDeliveryService
             WaypointId = waypointId,
             CompanyId = await GetCompanyIdAsync(tripId),
             Type = ProofOfDeliveryType.Signature,
-            SignatureSvg = signatureSvg,
+            SignatureSvg = SanitizeSignatureSvg(signatureSvg),
             CapturedBy = capturedBy,
             CapturedAt = DateTime.UtcNow,
             Latitude = latitude,
@@ -125,7 +129,8 @@ public class ProofOfDeliveryService
             Type = ProofOfDeliveryType.OtpCode,
             OtpCodeHash = HashCode(otp),
             CapturedBy = capturedBy,
-            CapturedAt = DateTime.UtcNow
+            CapturedAt = DateTime.UtcNow,
+            OtpFailedAttempts = 0 // a fresh code starts with the full guess budget
         };
         _db.ProofOfDeliveries.Add(record);
         await _db.SaveChangesAsync();
@@ -140,12 +145,25 @@ public class ProofOfDeliveryService
             .FirstOrDefaultAsync(p => p.TripId == tripId && p.WaypointId == waypointId
                 && p.Type == ProofOfDeliveryType.OtpCode && !p.IsDeleted);
         if (pending == null || string.IsNullOrEmpty(pending.OtpCodeHash))
-            return new OtpVerifyResult(false, "No OTP has been issued for this waypoint — send one first.", null);
+            return new OtpVerifyResult(false, "No OTP has been issued for this waypoint — send one first.", null, MaxOtpAttempts);
+
+        var attemptsRemaining = MaxOtpAttempts - pending.OtpFailedAttempts;
+
+        // Locked: exhausted the guess budget — even the correct code is refused
+        // until a fresh OTP is issued (re-issue replaces the record).
+        if (pending.OtpFailedAttempts >= MaxOtpAttempts)
+            return new OtpVerifyResult(false,
+                $"This OTP is locked after {MaxOtpAttempts} failed attempts — request a new one.", pending, 0);
         if (DateTime.UtcNow - pending.CapturedAt > OtpLifetime)
-            return new OtpVerifyResult(false, "This OTP has expired — request a new one.", pending);
+            return new OtpVerifyResult(false, "This OTP has expired — request a new one.", pending, attemptsRemaining);
 
         if (!string.Equals(pending.OtpCodeHash, HashCode(code), StringComparison.Ordinal))
-            return new OtpVerifyResult(false, "Incorrect OTP code.", pending);
+        {
+            pending.OtpFailedAttempts++;
+            await _db.SaveChangesAsync();
+            return new OtpVerifyResult(false, "Incorrect OTP code.", pending,
+                Math.Max(0, MaxOtpAttempts - pending.OtpFailedAttempts));
+        }
 
         pending.OtpVerifiedAt = DateTime.UtcNow;
         pending.CapturedBy = capturedBy;
@@ -155,10 +173,125 @@ public class ProofOfDeliveryService
         pending.LocationMismatch = mismatch;
         pending.LocationMismatchDetail = detail;
         await _db.SaveChangesAsync();
-        return new OtpVerifyResult(true, null, pending);
+        return new OtpVerifyResult(true, null, pending, attemptsRemaining);
     }
 
     // ── Internals ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Allowlist-based sanitization of captured signature SVG so user-controlled
+    /// markup can never reach the DOM as active content. Only the minimal
+    /// self-contained drawing surface survives: the svg root, path elements, and
+    /// the stroke/fill/viewBox/d geometry attributes the signature pad emits.
+    /// Everything else — script, foreignObject, on* event handlers, style — is
+    /// stripped. Applied at capture time (defense in depth; the viewer also
+    /// escapes on render).
+    /// </summary>
+    internal static string SanitizeSignatureSvg(string svg)
+    {
+        if (string.IsNullOrWhiteSpace(svg)) return svg;
+
+        var allowedAttrs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "d", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+            "fill", "fill-rule", "fill-opacity", "stroke-opacity", "viewbox", "xmlns", "width", "height",
+            "x", "y"
+        };
+        var allowedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "svg", "path", "g", "line", "polyline", "circle", "rect" };
+
+        var result = new StringBuilder(svg.Length);
+        var i = 0;
+        var n = svg.Length;
+        while (i < n)
+        {
+            var lt = svg.IndexOf('<', i);
+            if (lt < 0) { result.Append(svg, i, n - i); break; }
+            result.Append(svg, i, lt - i); // text before the tag (e.g. whitespace)
+            var gt = svg.IndexOf('>', lt);
+            if (gt < 0) { result.Append(svg, lt, n - lt); break; } // unterminated tag — drop the rest safely
+
+            var tagText = svg.Substring(lt, gt - lt + 1);
+            result.Append(SanitizeTag(tagText, allowedTags, allowedAttrs));
+            i = gt + 1;
+        }
+        return result.ToString();
+    }
+
+    private static string SanitizeTag(string tag, HashSet<string> allowedTags, HashSet<string> allowedAttrs)
+    {
+        var inner = tag.Substring(1, tag.Length - 2).Trim();
+        if (inner.Length == 0) return string.Empty;
+        var closing = inner.StartsWith("/");
+        var selfClosing = !closing && inner.EndsWith("/");
+        var trimmed = selfClosing ? inner.Substring(0, inner.Length - 1).TrimEnd() : inner;
+        var tagNameEnd = closing ? trimmed.IndexOfAny(new[] { ' ', '\t', '\n', '>' }) : trimmed.IndexOfAny(new[] { ' ', '\t', '\n' });
+        var name = (tagNameEnd < 0 ? trimmed : trimmed.Substring(0, tagNameEnd));
+        if (name.StartsWith("/")) name = name.Substring(1);
+        name = name.Trim();
+        if (!allowedTags.Contains(name)) return string.Empty; // drop disallowed elements entirely
+
+        // Rebuild a clean tag from allowed attributes only.
+        var builder = new StringBuilder();
+        if (closing)
+        {
+            builder.Append('<').Append('/').Append(name).Append('>');
+        }
+        else
+        {
+            builder.Append('<').Append(name);
+            var attrStart = tagNameEnd < 0 ? trimmed.Length : tagNameEnd;
+            foreach (var attr in ParseAttrs(trimmed.Substring(attrStart)))
+            {
+                if (!allowedAttrs.Contains(attr.Name)) continue;       // on* , href, style?, etc. stripped
+                if (attr.Name.StartsWith("on", StringComparison.OrdinalIgnoreCase)) continue;
+                builder.Append(' ').Append(attr.Name).Append('=').Append('\"').Append(attr.Value).Append('\"');
+            }
+            builder.Append(selfClosing ? "/>" : ">");
+        }
+        return builder.ToString();
+    }
+
+    private static IEnumerable<(string Name, string Value)> ParseAttrs(string segment)
+    {
+        var i = 0;
+        var n = segment.Length;
+        while (i < n)
+        {
+            // Skip whitespace
+            while (i < n && (segment[i] == ' ' || segment[i] == '\t' || segment[i] == '\n')) i++;
+            if (i >= n) yield break;
+            var nameStart = i;
+            while (i < n && segment[i] != '=' && segment[i] != ' ' && segment[i] != '\t' && segment[i] != '\n') i++;
+            var name = segment.Substring(nameStart, i - nameStart);
+            while (i < n && (segment[i] == ' ' || segment[i] == '\t')) i++;
+            if (i >= n || segment[i] != '=')
+            {
+                if (name.Length > 0) yield return (name, string.Empty);
+                continue;
+            }
+            i++; // skip '='
+            while (i < n && (segment[i] == ' ' || segment[i] == '\t')) i++;
+            if (i >= n) { yield return (name, string.Empty); break; }
+            var quote = segment[i] == '\"' || segment[i] == '\'';
+            string value;
+            if (quote)
+            {
+                var q = segment[i];
+                i++;
+                var vs = i;
+                while (i < n && segment[i] != q) i++;
+                value = segment.Substring(vs, i - vs);
+                if (i < n) i++; // skip closing quote
+            }
+            else
+            {
+                var vs = i;
+                while (i < n && segment[i] != ' ' && segment[i] != '\t' && segment[i] != '\n') i++;
+                value = segment.Substring(vs, i - vs);
+            }
+            yield return (name, value);
+        }
+    }
 
     private async Task EnsureWaypointOnTripAsync(Guid tripId, Guid waypointId)
     {

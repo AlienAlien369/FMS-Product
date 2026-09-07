@@ -147,6 +147,7 @@ public class ProofOfDeliveryConfiguration : IEntityTypeConfiguration<ProofOfDeli
             .HasDatabaseName("UX_ProofOfDeliveries_Waypoint_Type_Active")
             .HasFilter("\"IsDeleted\" = false");
         b.Property(p => p.Type).HasConversion<int>();
+        b.Property(p => p.OtpFailedAttempts).HasDefaultValue(0);
         b.HasOne(p => p.Trip).WithMany().HasForeignKey(p => p.TripId).OnDelete(DeleteBehavior.Cascade);
         b.HasOne(p => p.Waypoint).WithMany(w => w.ProofOfDeliveries).HasForeignKey(p => p.WaypointId).OnDelete(DeleteBehavior.Cascade);
         b.HasQueryFilter(p => !p.IsDeleted);

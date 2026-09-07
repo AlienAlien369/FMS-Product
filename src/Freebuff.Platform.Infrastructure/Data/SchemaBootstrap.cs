@@ -479,6 +479,7 @@ public static class SchemaBootstrap
             "ImageUrl" text NULL,
             "OtpCodeHash" text NULL,
             "OtpVerifiedAt" timestamp with time zone NULL,
+            "OtpFailedAttempts" integer NOT NULL DEFAULT 0,
             "CapturedBy" text NOT NULL,
             "CapturedAt" timestamp with time zone NOT NULL,
             "Latitude" double precision NULL,

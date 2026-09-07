@@ -190,6 +190,8 @@ public class TripLifecycleService
                     errors.Add("A trip can only be completed from InProgress or Scheduled.");
                     return errors;
                 }
+                await RequirePodBeforeCompleteAsync(trip, errors);
+                if (errors.Count > 0) return errors;
                 trip.ActualEndTime ??= at ?? DateTime.UtcNow;
                 trip.ActualStartTime ??= trip.ActualEndTime;
                 await AggregateMetricsAsync(trip);
@@ -492,6 +494,34 @@ public class TripLifecycleService
                 && c.Scope == ConfigurationScope.Company && !c.IsDeleted
                 && (c.ScopeEntityId == companyId || c.CompanyId == companyId));
         return cfg != null && string.Equals(cfg.Value, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Completion gate: a delivery waypoint that is required to carry verified
+    /// POD evidence (company default or per-trip override) must have it before
+    /// the trip can be completed. Uses the same resolution as the arrival gate
+    /// and the single HasVerifiedEvidenceExpr rule, so a trip can no longer be
+    /// closed while a required delivery stop is unproven. Adds one error naming
+    /// each missing waypoint; the transition aborts when any are present.
+    /// </summary>
+    private async Task RequirePodBeforeCompleteAsync(Trip trip, List<string> errors)
+    {
+        if (!await ResolveRequirePodAsync(trip.CompanyId, trip.RequirePodForDelivery)) return;
+
+        var deliveryWaypoints = trip.TripWaypoints.Count > 0
+            ? trip.TripWaypoints.Where(w => w.WaypointType == TripWaypointType.Delivery && !w.IsDeleted).ToList()
+            : await _db.TripWaypoints.AsNoTracking()
+                .Where(w => w.TripId == trip.Id && w.WaypointType == TripWaypointType.Delivery && !w.IsDeleted)
+                .ToListAsync();
+
+        foreach (var wp in deliveryWaypoints)
+        {
+            var hasPod = await _db.ProofOfDeliveries.AsNoTracking()
+                .Where(p => !p.IsDeleted && p.TripId == trip.Id && p.WaypointId == wp.Id)
+                .AnyAsync(ProofOfDelivery.HasVerifiedEvidenceExpr);
+            if (!hasPod)
+                errors.Add($"Cannot complete — waypoint '{wp.Name}' requires proof of delivery before the trip can be completed.");
+        }
     }
 
     // ── Completion metrics (telemetry-derived) ─────────────────────────────

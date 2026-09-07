@@ -248,4 +248,126 @@ public sealed class ProofOfDeliveryE2eTests : IClassFixture<E2eFixture>, IAsyncL
         Assert.Equal(403, g2);
         _output.WriteLine("PASS  fleet manager (no pod.* grants) → 403 on evidence view + capture");
     }
+
+    // ── Hardening: OTP brute-force lock ───────────────────────────────────
+
+    [Fact]
+    public async Task Otp_FiveWrongGuesses_LocksCode_EvenCorrectCodeRefused()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (tripId, wpId) = await NewInProgressDeliveryTripAsync(token, suffix);
+
+        var (otpS, otpData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp", null, token);
+        Assert.True(otpS == 200, $"otp issue status={otpS}");
+        var otp = otpData!.Value.GetProperty("otp").GetString()!;
+        var wrong = otp == "000000" ? "111111" : "000000";
+
+        // 5 wrong guesses — each rejected, attempts-remaining counted down.
+        for (var i = 0; i < 5; i++)
+        {
+            var (badS, badRoot) = await ApiJson.SendRawAsync(_db.Client, HttpMethod.Post,
+                $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp/verify", new { code = wrong }, token);
+            Assert.Equal(400, badS);
+            Assert.Contains("Incorrect", badRoot.GetProperty("message").GetString());
+            Assert.Equal(4 - i, badRoot.GetProperty("data").GetProperty("otpAttemptsRemaining").GetInt32());
+        }
+
+        // The 6th attempt with the CORRECT code is refused — code is locked.
+        var (lockS, lockRoot) = await ApiJson.SendRawAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp/verify", new { code = otp }, token);
+        Assert.Equal(400, lockS);
+        Assert.Contains("locked", lockRoot.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, lockRoot.GetProperty("data").GetProperty("otpAttemptsRemaining").GetInt32());
+
+        // The evidence list reflects the exhausted budget.
+        var (listS, listData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod", null, token);
+        Assert.Equal(200, listS);
+        var otpRecord = listData!.Value.EnumerateArray().First(r => r.GetProperty("type").GetInt32() == 2);
+        Assert.Equal(0, otpRecord.GetProperty("otpAttemptsRemaining").GetInt32());
+        Assert.False(otpRecord.GetProperty("verified").GetBoolean());
+        _output.WriteLine("PASS  OTP locked after 5 wrong guesses — correct code refused, attempts=0 surfaced");
+    }
+
+    [Fact]
+    public async Task Otp_WrongThenCorrect_WithinLimit_Verifies()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (tripId, wpId) = await NewInProgressDeliveryTripAsync(token, suffix);
+
+        var (otpS, otpData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp", null, token);
+        var otp = otpData!.Value.GetProperty("otp").GetString()!;
+        var wrong = otp == "000000" ? "111111" : "000000";
+
+        // 2 wrong guesses then the correct code verifies.
+        for (var i = 0; i < 2; i++)
+            await ApiJson.SendRawAsync(_db.Client, HttpMethod.Post,
+                $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp/verify", new { code = wrong }, token);
+
+        var (okS, okData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp/verify", new { code = otp, latitude = 23.05, longitude = 72.62 }, token);
+        Assert.True(okS == 200, $"verify after wrong-guesses status={okS} body={okData?.GetRawText()}");
+        Assert.True(okData!.Value.GetProperty("otpVerified").GetBoolean());
+        _output.WriteLine("PASS  correct OTP after 2 wrong guesses still verifies (budget not exhausted)");
+    }
+
+    // ── Hardening: trip completion requires POD when configured ───────────
+
+    [Fact]
+    public async Task CompleteTrip_RequiresPod_BlockedUntilEvidence()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (tripId, wpId) = await NewInProgressDeliveryTripAsync(token, suffix, requirePod: true);
+
+        // Complete while POD missing → 400 naming the waypoint, trip stays in progress.
+        var (c1, c1root) = await ApiJson.SendRawAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/status", new { status = 3 }, token);
+        Assert.Equal(400, c1);
+        Assert.Contains("Customer A", c1root.GetProperty("message").GetString());
+        Assert.Contains("proof of delivery", c1root.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
+        var (g1, g1data) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, $"/api/v1/trips/{tripId}", null, token);
+        Assert.Equal(2, g1data!.Value.GetProperty("status").GetInt32()); // still InProgress
+        _output.WriteLine("PASS  trip completion blocked while required POD missing → 400 naming waypoint");
+
+        // Capture signature → complete succeeds.
+        var (sigS, _) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/signature",
+            new { signatureSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 40\"><path d=\"M 5 35 L 25 15\" stroke=\"#000\"/></svg>" }, token);
+        Assert.True(sigS == 200, $"signature status={sigS}");
+
+        var (c2, c2root) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/status", new { status = 3 }, token);
+        Assert.True(c2 == 200, $"complete after evidence status={c2} body={c2root?.GetRawText()}");
+        Assert.Equal("Completed", c2root!.Value.GetProperty("statusName").GetString());
+        _output.WriteLine("PASS  trip completes once POD evidence captured");
+    }
+
+    // ── Hardening: SVG XSS neutralized on capture ─────────────────────────
+
+    [Fact]
+    public async Task SignatureCapture_NeutralizesScriptAndEventAttributes()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (tripId, wpId) = await NewInProgressDeliveryTripAsync(token, suffix);
+
+        var evil = "<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"><script>steal()</script>"
+            + "<path d=\"M 10 30 L 30 10\" stroke=\"#000\" onclick=\"fetch('/steal')\"/></svg>";
+        var (sigS, sigData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
+            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/signature", new { signatureSvg = evil }, token);
+        Assert.True(sigS == 200, $"signature status={sigS} body={sigData?.GetRawText()}");
+
+        var stored = sigData!.Value.GetProperty("signatureSvg").GetString();
+        Assert.DoesNotContain("script", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onload", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<path", stored, StringComparison.OrdinalIgnoreCase);   // drawing survives
+        Assert.Contains("stroke=\"#000\"", stored, StringComparison.OrdinalIgnoreCase);
+        _output.WriteLine("PASS  malicious SVG neutralized at capture — script/on* stripped, drawing kept");
+    }
 }

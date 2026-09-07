@@ -167,7 +167,12 @@ public class ProofOfDeliveryController : ControllerBase
 
         var result = await _podService.VerifyOtpAsync(id, waypointId, User.GetUserIdString(), dto.Code, dto.Latitude, dto.Longitude);
         if (!result.Ok)
-            return BadRequest(new ApiResponse<object> { Success = false, Message = result.Error });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = result.Error,
+                Data = new { result.OtpAttemptsRemaining }
+            });
         var name = await _db.TripWaypoints.AsNoTracking()
             .Where(w => w.Id == waypointId).Select(w => w.Name).FirstOrDefaultAsync() ?? waypointId.ToString();
         return Ok(new ApiResponse<ProofOfDeliveryDto>
@@ -190,6 +195,7 @@ public class ProofOfDeliveryController : ControllerBase
         ImageUrl = p.ImageUrl,
         OtpVerified = p.OtpVerifiedAt.HasValue,
         OtpVerifiedAt = p.OtpVerifiedAt,
+        OtpAttemptsRemaining = Math.Max(0, ProofOfDeliveryService.MaxOtpAttempts - p.OtpFailedAttempts),
         Verified = p.IsVerified,
         CapturedBy = p.CapturedBy,
         CapturedAt = p.CapturedAt,

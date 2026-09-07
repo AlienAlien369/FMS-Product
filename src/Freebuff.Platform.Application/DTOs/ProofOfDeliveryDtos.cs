@@ -21,6 +21,9 @@ public class ProofOfDeliveryDto
     public bool OtpVerified { get; set; }
     public DateTime? OtpVerifiedAt { get; set; }
 
+    /// <summary>Wrong OTP guesses remaining before the code locks (Type = otp_code).</summary>
+    public int OtpAttemptsRemaining { get; set; }
+
     /// <summary>Whether the evidence is complete for its type (signature/photo captured, OTP verified).</summary>
     public bool Verified { get; set; }
 

@@ -11,8 +11,19 @@ import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   Eye, X, Navigation, Zap, MapPin, ArrowUp, ArrowDown, Layers, Flag, Ban, Play, CheckCircle2,
-  Clock, Radio, History, Calendar, Route as RouteIcon, AlertTriangle,
+  Clock, Radio, History, Calendar, Route as RouteIcon, AlertTriangle, Link2, Copy, RefreshCw, ShieldOff,
 } from 'lucide-react';
+
+interface ShareLinkRow {
+  id: string;
+  tripId: string;
+  token: string;
+  shareUrl: string;
+  expiresAt?: string | null;
+  isRevoked: boolean;
+  createdBy: string;
+  createdAt: string;
+}
 
 // ── Types (mirror TripDtos.cs) ────────────────────────────
 interface TripWaypoint {
@@ -403,6 +414,13 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const [reasonPrompt, setReasonPrompt] = useState<{ target: number; label: string } | null>(null);
   const [reasonText, setReasonText] = useState('');
+  // Share Tracking Link (public customer view)
+  const [shareLinks, setShareLinks] = useState<ShareLinkRow[]>([]);
+  const [shareExpiryDays, setShareExpiryDays] = useState('');
+  const [shareError, setShareError] = useState('');
+  const [shareBusy, setShareBusy] = useState(false);
+  // user id → display name, for the "who generated it" audit column
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
   const readonly = isView || !canEdit;
@@ -423,6 +441,13 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
       api.get(`/trips/${trip.id}`).then(r => { if (alive) setDetail(r.data.data); }).catch(() => {});
       api.get(`/trips/${trip.id}/geofences`).then(r => { if (alive) { setLinks(r.data.data ?? []); setLinksLoaded(true); } }).catch(() => setLinksLoaded(true));
       api.get(`/trips/${trip.id}/live`).then(r => { if (alive) setLive(r.data.data); }).catch(() => {});
+      api.get(`/trips/${trip.id}/share-links`).then(r => { if (alive) setShareLinks(r.data.data ?? []); }).catch(() => {});
+      api.get('/users?pageSize=500').then(r => {
+        if (!alive) return;
+        const map: Record<string, string> = {};
+        (r.data.data?.items ?? []).forEach((u: any) => { map[u.id] = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim(); });
+        setUserNames(map);
+      }).catch(() => {});
     } else setLinksLoaded(true);
     return () => { alive = false; };
   }, [trip?.id]);
@@ -431,6 +456,7 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
     if (!trip) return;
     api.get(`/trips/${trip.id}`).then(r => setDetail(r.data.data)).catch(() => {});
     api.get(`/trips/${trip.id}/live`).then(r => setLive(r.data.data)).catch(() => {});
+    api.get(`/trips/${trip.id}/share-links`).then(r => setShareLinks(r.data.data ?? [])).catch(() => {});
     // WaypointPodPanels re-fetch their own evidence on this tick.
     setPodTick(t => t + 1);
   }, [trip]);
@@ -564,6 +590,30 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
     if (!trip) return;
     try { const r = await api.get(`/trips/${trip.id}/replay`); setReplay(r.data.data ?? []); } catch { setError('Replay data unavailable'); }
   };
+
+  // ── Share Tracking Link (public customer view) ────────
+  const generateShareLink = async () => {
+    if (!trip) return;
+    setShareBusy(true); setShareError('');
+    try {
+      const body = shareExpiryDays && Number(shareExpiryDays) > 0 ? { expiresInDays: Number(shareExpiryDays) } : {};
+      const res = await api.post(`/trips/${trip.id}/share-links`, body);
+      setShareLinks(ls => [res.data.data, ...ls]);
+      setShareExpiryDays('');
+    } catch (err: any) { setShareError(err.response?.data?.message ?? 'Failed to create tracking link'); }
+    setShareBusy(false);
+  };
+
+  const revokeShareLink = async (link: ShareLinkRow) => {
+    if (!trip || !window.confirm('Revoke this tracking link? The public view will stop working immediately.')) return;
+    try {
+      await api.post(`/trips/${trip.id}/share-links/${link.id}/revoke`, {});
+      setShareLinks(ls => ls.map(l => l.id === link.id ? { ...l, isRevoked: true } : l));
+    } catch (err: any) { setShareError(err.response?.data?.message ?? 'Failed to revoke tracking link'); }
+  };
+
+  const shareUrlFor = (link: ShareLinkRow) => `${window.location.origin}${link.shareUrl}`;
+  const shareCreator = (link: ShareLinkRow) => userNames[link.createdBy] ?? link.createdBy.slice(0, 8);
 
   const d = detail ?? trip;
   const fencesForMap = (d?.tripGeofences ?? links).map(l => ({
@@ -736,6 +786,58 @@ function TripModal({ trip, isView, onClose, onSaved, canEdit }: {
                         <WaypointPodPanel tripId={trip.id} waypointId={w.id} waypointName={w.name}
                           waypointType={w.waypointType} tripStatus={d.status} arrived={!!w.actualArrival}
                           canView={podView} canCreate={podCreate} refreshTick={podTick} />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Share Tracking Link — public customer view */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium flex items-center gap-1.5"><Link2 className="w-4 h-4 text-gray-500" /> Share Tracking Link</h4>
+                <span className="text-[10px] text-gray-400">public read-only view · token-gated</span>
+              </div>
+              <p className="text-[11px] text-gray-500 mb-2">
+                Share a link so a customer can follow this shipment without logging in — live position, ETA and proof of delivery.
+                Access is by possession of an unguessable token alone; revoking it takes effect immediately.
+              </p>
+              <div className="flex items-center gap-2">
+                <input className={`${INPUT} w-32`} type="number" min={1} max={365} placeholder="Expiry (days)"
+                  value={shareExpiryDays} onChange={e => setShareExpiryDays(e.target.value)} />
+                <button onClick={generateShareLink} disabled={shareBusy}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {shareBusy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                  Generate link
+                </button>
+              </div>
+              {shareError && <p className="text-[11px] text-red-600 mt-1.5">{shareError}</p>}
+              {shareLinks.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {shareLinks.map(l => (
+                    <li key={l.id} className="bg-white rounded-lg border px-3 py-2 flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {l.isRevoked ? <span className="text-gray-400 line-through">{shareUrlFor(l)}</span> : shareUrlFor(l)}
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          created {fmtDate(l.createdAt)} · {shareCreator(l)}
+                          {l.expiresAt ? ` · expires ${fmtDate(l.expiresAt)}` : ''}
+                          {l.isRevoked && <span className="ml-1 text-red-500 font-medium">revoked</span>}
+                        </p>
+                      </div>
+                      {!l.isRevoked && (
+                        <>
+                          <button onClick={() => { navigator.clipboard.writeText(shareUrlFor(l)).catch(() => {}); }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50" title="Copy link">
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => revokeShareLink(l)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Revoke link">
+                            <ShieldOff className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
                     </li>
                   ))}

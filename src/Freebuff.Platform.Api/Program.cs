@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Freebuff.Platform.Application.Interfaces;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
@@ -100,6 +101,7 @@ builder.Services.AddScoped<DriverBehaviorAlertProducer>();
 builder.Services.AddScoped<ProofOfDeliveryService>(sp => new ProofOfDeliveryService(
     sp.GetRequiredService<ApplicationDbContext>(),
     builder.Configuration["Storage:UploadsPath"] ?? "uploads"));
+builder.Services.AddScoped<TripShareLinkService>();
 builder.Services.AddScoped<FleetPolicyService>();
 builder.Services.AddScoped<SensorPolicyAlertProducer>();
 builder.Services.AddHostedService<SensorRetentionService>();
@@ -117,6 +119,23 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<Freebuff.Platform.Infrastructure.Services.INotificationRealtimeChannel,
     Freebuff.Platform.Api.Hubs.SignalRNotificationChannel>();
+
+// ── Rate limiting (public, unauthenticated surfaces) ─────
+// The Customer Tracking Link endpoints are reachable without login by design,
+// so they get their own limiter keyed per TOKEN (a scraped link can't be
+// hammered) AND per IP (rapid token-guessing bursts are throttled — each guess
+// is a fresh token, so a token-keyed limiter alone would never engage). One
+// shared policy chains both limiters; a rejection from either yields 429.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = new PublicTrackingRateLimitPolicy(new FixedWindowRateLimiterOptions
+    {
+        PermitLimit = 60,
+        Window = TimeSpan.FromMinutes(1),
+        QueueLimit = 0
+    }).Limiter;
+});
 
 // ── Controllers + Swagger ────────────────────────────────
 builder.Services.AddControllers();
@@ -189,6 +208,11 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 app.UseCors();
+// Explicit routing BEFORE the rate limiter: RateLimiterMiddleware resolves the
+// [EnableRateLimiting] attribute + route values (token) from the matched
+// endpoint — with implicit routing it sees no endpoint and silently skips.
+app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 // Resolves X-Company-Scope into an effective per-request company scope (stateless).

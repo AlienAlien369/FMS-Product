@@ -8,10 +8,11 @@ import { podPhotoSrc } from '../lib/api';
  * tracking link — it renders whatever records it is given.
  */
 export interface PodRecord {
-  id: string;
-  tripId: string;
-  waypointId: string;
-  waypointName: string;
+  /** Internal records carry these; the public tracking DTO deliberately omits them. */
+  id?: string;
+  tripId?: string;
+  waypointId?: string;
+  waypointName?: string;
   type: number;            // 0=signature 1=photo 2=otp_code
   typeName: string;
   signatureSvg?: string | null;
@@ -19,7 +20,7 @@ export interface PodRecord {
   otpVerified: boolean;
   otpVerifiedAt?: string | null;
   verified: boolean;
-  capturedBy: string;
+  capturedBy?: string;
   capturedAt: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -68,8 +69,17 @@ export function sanitizeSignatureSvg(svg: string): string {
   });
 }
 
-/** Reusable evidence panel: renders POD records for one waypoint (or a trip). */
-export default function PodEvidence({ records, compact = false }: { records: PodRecord[]; compact?: boolean }) {
+/**
+ * Reusable evidence panel: renders POD records for one waypoint (or a trip).
+ *
+ * `imageSrcResolver` lets each surface decide how a stored photo reference is
+ * turned into an <img> src: the internal admin surfaces use podPhotoSrc (API
+ * base + JWT access_token for the authenticated serve endpoint), while the
+ * public tracking link passes a resolver that maps the token-scoped public URL
+ * with NO token. Defaults to podPhotoSrc so existing callers are unchanged.
+ */
+export default function PodEvidence({ records, compact = false, imageSrcResolver = podPhotoSrc }:
+  { records: PodRecord[]; compact?: boolean; imageSrcResolver?: (imageUrl: string) => string }) {
   if (records.length === 0) {
     return <div className="text-xs text-gray-400 py-2">No proof of delivery captured yet.</div>;
   }
@@ -77,7 +87,7 @@ export default function PodEvidence({ records, compact = false }: { records: Pod
   return (
     <div className="space-y-2">
       {records.map(p => (
-        <div key={p.id} className={`bg-white rounded-lg border p-3 ${p.locationMismatch ? 'border-amber-300' : 'border-gray-200'}`}>
+        <div key={p.id ?? `${p.type}-${p.capturedAt}-${p.waypointName ?? ''}`} className={`bg-white rounded-lg border p-3 ${p.locationMismatch ? 'border-amber-300' : 'border-gray-200'}`}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               {p.type === 0 ? <PenLine className="w-4 h-4 text-blue-600" />
@@ -109,7 +119,7 @@ export default function PodEvidence({ records, compact = false }: { records: Pod
             <div className="mt-2 flex items-center justify-center">
               {/* Legacy records may hold a base64 data URL; new captures hold an
                   API-relative stored-file reference. podPhotoSrc renders both. */}
-              <img src={podPhotoSrc(p.imageUrl)} alt="Delivery photo proof" className="max-h-40 rounded-lg border border-gray-200" />
+              <img src={imageSrcResolver(p.imageUrl)} alt="Delivery photo proof" className="max-h-40 rounded-lg border border-gray-200" />
             </div>
           )}
           {p.type === 2 && (
@@ -120,9 +130,9 @@ export default function PodEvidence({ records, compact = false }: { records: Pod
             </div>
           )}
 
-          {!compact && (
+          {!compact && (p.capturedBy || p.latitude != null || p.notes) && (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-gray-500">
-              <span>by {p.capturedBy}</span>
+              {p.capturedBy && <span>by {p.capturedBy}</span>}
               {p.latitude != null && p.longitude != null && (
                 <span className="font-mono">{p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}</span>
               )}

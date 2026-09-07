@@ -23,6 +23,7 @@ import Packages from './pages/Packages';
 import RoutesPage from './pages/Routes';
 import GeofencesPage from './pages/Geofences';
 import TripsPage from './pages/Trips';
+import PublicTracking from './pages/PublicTracking';
 import NotificationsPage from './pages/Notifications';
 import NotificationSettings from './pages/NotificationSettings';
 import type { ReactNode } from 'react';
@@ -40,6 +41,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Public customer tracking — outside the auth guard: possession of the
+          unguessable share token alone grants this read-only view. */}
+      <Route path="/tracking/:token" element={<PublicTracking />} />
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/" element={<PermissionRoute permission={pagePermission('dashboard')}><Dashboard /></PermissionRoute>} />
         <Route path="/companies" element={<PermissionRoute permission={pagePermission('company')}><Companies /></PermissionRoute>} />

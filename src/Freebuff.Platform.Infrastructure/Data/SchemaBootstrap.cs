@@ -504,6 +504,33 @@ public static class SchemaBootstrap
         CREATE UNIQUE INDEX IF NOT EXISTS "UX_ProofOfDeliveries_Waypoint_Type_Active"
             ON "ProofOfDeliveries" ("WaypointId", "Type") WHERE "IsDeleted" = false;
 
+        -- ── Customer Tracking Link share tokens ────────────────────────────
+        -- Public access primitive: possession of the random token alone grants
+        -- read-only access to ONE trip. Never routes through RBAC. Unique token
+        -- index keeps guessing infeasible AND unambiguous.
+        CREATE TABLE IF NOT EXISTS "TripShareLinks" (
+            "Id" uuid PRIMARY KEY,
+            "TenantId" uuid NULL,
+            "TripId" uuid NOT NULL REFERENCES "Trips"("Id"),
+            "CompanyId" uuid NOT NULL REFERENCES "Companies"("Id"),
+            "Token" text NOT NULL,
+            "ExpiresAt" timestamp with time zone NULL,
+            "IsRevoked" boolean NOT NULL DEFAULT false,
+            "CreatedByUserId" text NOT NULL DEFAULT '',
+            "IsDeleted" boolean NOT NULL DEFAULT false,
+            "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "UpdatedBy" text NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL DEFAULT 0
+        );
+        ALTER TABLE "TripShareLinks" ADD COLUMN IF NOT EXISTS "CreatedByUserId" text NOT NULL DEFAULT '';
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_TripShareLinks_Token" ON "TripShareLinks" ("Token");
+        CREATE INDEX IF NOT EXISTS "IX_TripShareLinks_TripId" ON "TripShareLinks" ("TripId");
+
         -- ── Sensor telemetry: speed governor + TPMS ────────────────────────
         ALTER TABLE "TelemetryEvents" ADD COLUMN IF NOT EXISTS "SpeedGovernorLimitKmh" double precision NULL;
         ALTER TABLE "TelemetryStates" ADD COLUMN IF NOT EXISTS "SpeedGovernorLimitKmh" double precision NULL;

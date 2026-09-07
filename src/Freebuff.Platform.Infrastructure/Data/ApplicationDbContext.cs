@@ -62,6 +62,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<ProofOfDelivery> ProofOfDeliveries => Set<ProofOfDelivery>();
+    public DbSet<TripShareLink> TripShareLinks => Set<TripShareLink>();
 
     // Localization
     public DbSet<Language> Languages => Set<Language>();

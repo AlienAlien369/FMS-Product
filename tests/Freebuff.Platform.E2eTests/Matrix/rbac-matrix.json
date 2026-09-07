@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T02:21:16.9952363Z",
+  "generatedAt": "2026-09-07T02:56:49.2625111Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -1474,7 +1474,7 @@
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "f4b3e510-ad4c-4842-ae60-d0bd3bf34aaa",
+      "companyId": "5cad54ef-047e-48f4-b99f-d28a5aff8497",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -2881,7 +2881,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "f4b3e510-ad4c-4842-ae60-d0bd3bf34aaa",
+      "companyId": "5cad54ef-047e-48f4-b99f-d28a5aff8497",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4228,7 +4228,7 @@
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "f4b3e510-ad4c-4842-ae60-d0bd3bf34aaa",
+      "companyId": "5cad54ef-047e-48f4-b99f-d28a5aff8497",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -5550,7 +5550,7 @@
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "f4b3e510-ad4c-4842-ae60-d0bd3bf34aaa",
+      "companyId": "5cad54ef-047e-48f4-b99f-d28a5aff8497",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -6892,7 +6892,7 @@
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "8ce14bd3-882c-4c9c-8aec-d0b7e19e7e7b",
+      "companyId": "9ca47f43-b3df-4027-9ba6-8a64b96df66c",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -8250,7 +8250,7 @@
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "8ce14bd3-882c-4c9c-8aec-d0b7e19e7e7b",
+      "companyId": "9ca47f43-b3df-4027-9ba6-8a64b96df66c",
       "package": "Basic",
       "modules": [
         "dashboard",

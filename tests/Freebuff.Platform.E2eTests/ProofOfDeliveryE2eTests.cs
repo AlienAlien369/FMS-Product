@@ -123,15 +123,31 @@ public sealed class ProofOfDeliveryE2eTests : IClassFixture<E2eFixture>, IAsyncL
         Assert.Equal("signed at gate", sigData.Value.GetProperty("notes").GetString());
         _output.WriteLine("PASS  signature captured + geolocation mismatch flagged (~50 km away)");
 
-        // 2. Photo — captured at the waypoint → no mismatch.
-        var (phS, phData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
-            $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/photo",
-            new { imageUrl = "https://cdn.example/pod/photo-" + suffix + ".jpg", latitude = 23.05, longitude = 72.62 }, token);
-        Assert.True(phS == 200, $"photo status={phS} body={phData?.GetRawText()}");
+        // 2. Photo — uploaded as a real file, stored as a served reference, no mismatch.
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        JsonElement? phData;
+        using (var form = new MultipartFormDataContent())
+        {
+            var file = new ByteArrayContent(png);
+            file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            form.Add(file, "file", "delivery-" + suffix + ".png");
+            form.Add(new StringContent("23.05"), "latitude");
+            form.Add(new StringContent("72.62"), "longitude");
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/photo");
+            req.Headers.Authorization = new("Bearer", token);
+            req.Content = form;
+            using var resp = await _db.Client.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+            Assert.True(resp.StatusCode == System.Net.HttpStatusCode.OK, $"photo upload status={(int)resp.StatusCode} body={body}");
+            using var doc = JsonDocument.Parse(body);
+            phData = doc.RootElement.GetProperty("data").Clone();
+        }
         Assert.Equal(1, phData!.Value.GetProperty("type").GetInt32());
         Assert.False(phData.Value.GetProperty("locationMismatch").GetBoolean());
-        Assert.Contains("https://cdn.example/pod/", phData.Value.GetProperty("imageUrl").GetString());
-        _output.WriteLine("PASS  photo captured, stored image reference, no mismatch at waypoint");
+        var photoUrl = phData.Value.GetProperty("imageUrl").GetString();
+        Assert.StartsWith($"/api/v1/trips/{tripId}/pod/photos/", photoUrl);
+        Assert.EndsWith(".png", photoUrl);
+        _output.WriteLine("PASS  photo uploaded (multipart), stored as served reference, no mismatch at waypoint");
 
         // 3. OTP — issue, then verify with the returned code.
         var (otpS, otpData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Post,
@@ -155,6 +171,17 @@ public sealed class ProofOfDeliveryE2eTests : IClassFixture<E2eFixture>, IAsyncL
             $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/otp/verify", new { code = wrong }, token);
         Assert.Equal(400, badS);
         Assert.Contains("Incorrect", badRoot.GetProperty("message").GetString());
+
+        // The stored photo reference serves the exact uploaded bytes back (token
+        // via access_token query param — the same convention SignalR uses, since
+        // an <img> tag cannot send an Authorization header).
+        using (var imgResp = await _db.Client.GetAsync(photoUrl + "?access_token=" + token))
+        {
+            Assert.True(imgResp.StatusCode == System.Net.HttpStatusCode.OK, $"photo serve status={(int)imgResp.StatusCode}");
+            Assert.Equal("image/png", imgResp.Content.Headers.ContentType!.MediaType);
+            Assert.Equal(png, await imgResp.Content.ReadAsByteArrayAsync());
+        }
+        _output.WriteLine("PASS  photo served back through its stored URL with identical bytes");
 
         // Trip-level evidence panel lists all three.
         var (listS, listData) = await ApiJson.SendAsync(_db.Client, HttpMethod.Get, $"/api/v1/trips/{tripId}/pod", null, token);
@@ -369,5 +396,74 @@ public sealed class ProofOfDeliveryE2eTests : IClassFixture<E2eFixture>, IAsyncL
         Assert.Contains("<path", stored, StringComparison.OrdinalIgnoreCase);   // drawing survives
         Assert.Contains("stroke=\"#000\"", stored, StringComparison.OrdinalIgnoreCase);
         _output.WriteLine("PASS  malicious SVG neutralized at capture — script/on* stripped, drawing kept");
+    }
+
+    // ── Photo upload: real file → stored reference → served back ──────────
+
+    [Fact]
+    public async Task PhotoUpload_RoundTrips_ThroughServedUrl()
+    {
+        var token = await TokenAsync(DemoEmail);
+        var suffix = Unique();
+        var (tripId, wpId) = await NewInProgressDeliveryTripAsync(token, suffix);
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+        // Upload as multipart (file + capture geolocation + notes).
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(png);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        form.Add(file, "file", "delivery-" + suffix + ".png");
+        form.Add(new StringContent("23.05"), "latitude");
+        form.Add(new StringContent("72.62"), "longitude");
+        form.Add(new StringContent("box at door"), "notes");
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/photo");
+        req.Headers.Authorization = new("Bearer", token);
+        req.Content = form;
+        using var resp = await _db.Client.SendAsync(req);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.True(resp.StatusCode == System.Net.HttpStatusCode.OK, $"photo upload status={(int)resp.StatusCode} body={body}");
+
+        using var doc = JsonDocument.Parse(body);
+        var data = doc.RootElement.GetProperty("data");
+        Assert.Equal(1, data.GetProperty("type").GetInt32());
+        Assert.False(data.GetProperty("locationMismatch").GetBoolean());
+        Assert.Equal("box at door", data.GetProperty("notes").GetString());
+        var imageUrl = data.GetProperty("imageUrl").GetString();
+        Assert.StartsWith($"/api/v1/trips/{tripId}/pod/photos/", imageUrl);
+        Assert.EndsWith(".png", imageUrl);
+        _output.WriteLine("PASS  photo upload persisted as stored reference " + imageUrl);
+
+        // Non-image content type rejected.
+        using (var badForm = new MultipartFormDataContent())
+        {
+            var txt = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+            txt.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            badForm.Add(txt, "file", "fake.pdf");
+            using var badReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/trips/{tripId}/waypoints/{wpId}/pod/photo");
+            badReq.Headers.Authorization = new("Bearer", token);
+            badReq.Content = badForm;
+            using var badResp = await _db.Client.SendAsync(badReq);
+            Assert.True(badResp.StatusCode == System.Net.HttpStatusCode.BadRequest, $"pdf upload status={(int)badResp.StatusCode}");
+        }
+        _output.WriteLine("PASS  non-image upload rejected (400)");
+
+        // Serve the stored photo back through its URL (access_token query param,
+        // the <img>-compatible convention) — bytes must be identical.
+        using (var imgResp = await _db.Client.GetAsync(imageUrl + "?access_token=" + token))
+        {
+            Assert.True(imgResp.StatusCode == System.Net.HttpStatusCode.OK, $"photo serve status={(int)imgResp.StatusCode}");
+            Assert.Equal("image/png", imgResp.Content.Headers.ContentType!.MediaType);
+            Assert.Equal(png, await imgResp.Content.ReadAsByteArrayAsync());
+        }
+        _output.WriteLine("PASS  photo served back with identical bytes + correct content type");
+
+        // Tenant isolation on the served file: another company's admin → 404.
+        var basic = await TokenAsync(RbacFixtures.BasicAdminEmail);
+        using (var isoResp = await _db.Client.GetAsync(imageUrl + "?access_token=" + basic))
+        {
+            Assert.True(isoResp.StatusCode == System.Net.HttpStatusCode.NotFound,
+                $"cross-tenant photo serve status={(int)isoResp.StatusCode}");
+        }
+        _output.WriteLine("PASS  photo file tenant-isolated — other company admin gets 404");
     }
 }

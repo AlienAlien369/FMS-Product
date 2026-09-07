@@ -1,4 +1,5 @@
 import { AlertTriangle, Camera, CheckCircle2, Clock, PenLine, ShieldCheck } from 'lucide-react';
+import { podPhotoSrc } from '../lib/api';
 
 /**
  * One proof-of-delivery record as the API projects it.
@@ -106,7 +107,9 @@ export default function PodEvidence({ records, compact = false }: { records: Pod
           )}
           {p.type === 1 && p.imageUrl && (
             <div className="mt-2 flex items-center justify-center">
-              <img src={p.imageUrl} alt="Delivery photo proof" className="max-h-40 rounded-lg border border-gray-200" />
+              {/* Legacy records may hold a base64 data URL; new captures hold an
+                  API-relative stored-file reference. podPhotoSrc renders both. */}
+              <img src={podPhotoSrc(p.imageUrl)} alt="Delivery photo proof" className="max-h-40 rounded-lg border border-gray-200" />
             </div>
           )}
           {p.type === 2 && (

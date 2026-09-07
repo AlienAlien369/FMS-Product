@@ -68,14 +68,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         // SignalR browsers cannot set Authorization headers on WebSocket
         // connections, so the SignalR JS client appends the JWT as the
-        // access_token query parameter (standard SignalR convention).
+        // access_token query parameter (standard SignalR convention). The same
+        // applies to <img> requests for stored POD photos — the photo-serve path
+        // accepts the token in the query string for that reason only.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken)
-                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    && (path.StartsWithSegments("/hubs")
+                        || (path.StartsWithSegments("/api/v1/trips") && path.Value!.Contains("/pod/photos/"))))
                 {
                     context.Token = accessToken;
                 }
@@ -93,7 +97,9 @@ builder.Services.AddScoped<DriverService>();
 builder.Services.AddScoped<TripLifecycleService>();
 builder.Services.AddScoped<TripGeofenceEventProducer>();
 builder.Services.AddScoped<DriverBehaviorAlertProducer>();
-builder.Services.AddScoped<ProofOfDeliveryService>();
+builder.Services.AddScoped<ProofOfDeliveryService>(sp => new ProofOfDeliveryService(
+    sp.GetRequiredService<ApplicationDbContext>(),
+    builder.Configuration["Storage:UploadsPath"] ?? "uploads"));
 builder.Services.AddScoped<FleetPolicyService>();
 builder.Services.AddScoped<SensorPolicyAlertProducer>();
 builder.Services.AddHostedService<SensorRetentionService>();

@@ -15,7 +15,9 @@ namespace Freebuff.Platform.Domain.Entities;
 ///
 /// Captured data is stored per type:
 ///   Signature → SignatureSvg (SVG markup of the pen strokes)
-///   Photo     → ImageUrl (stored image reference; data URL in dev, object-storage URL in production)
+///   Photo     → ImageUrl (served file reference — the uploaded image lives on the
+///               config-driven uploads directory and is served back by the API;
+///               legacy records may hold a base64 data URL, which still renders)
 ///   OTP       → OtpCodeHash (SHA-256 of the code) + OtpVerifiedAt when the customer's code matched
 /// </summary>
 public class ProofOfDelivery : BaseEntity

@@ -48,16 +48,6 @@ public class CreatePodSignatureDto
     public string? Notes { get; set; }
 }
 
-public class CreatePodPhotoDto
-{
-    [Required]
-    public string ImageUrl { get; set; } = string.Empty;
-
-    public double? Latitude { get; set; }
-    public double? Longitude { get; set; }
-    public string? Notes { get; set; }
-}
-
 public class VerifyOtpDto
 {
     [Required, StringLength(6, MinimumLength = 6)]

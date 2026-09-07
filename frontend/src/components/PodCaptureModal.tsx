@@ -7,8 +7,9 @@ import type { PodRecord } from './PodEvidence';
  * Proof-of-delivery capture modal (signature / photo / OTP).
  *
  * Signature → pointer strokes serialized to an SVG path (stored as SVG,
- * rendered inline by PodEvidence). Photo → file picked locally, uploaded as an
- * image reference (data URL in dev; blob-storage URL in production). OTP →
+ * rendered inline by PodEvidence). Photo → file picked locally and uploaded as
+ * multipart; the backend stores it under the uploads directory and the record
+ * keeps the served URL reference (legacy base64 records still render). OTP →
  * issue a code against the waypoint's customer contact, then verify it.
  *
  * Geolocation is attached when the browser grants it — the backend cross-checks
@@ -69,14 +70,15 @@ export default function PodCaptureModal({ tripId, waypointId, waypointName, onCl
   };
 
   // ── Photo capture ──────────────────────────────────────
-  const [photoDataUrl, setPhotoDataUrl] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
   const [photoName, setPhotoName] = useState('');
   const onFile = (f: File | undefined) => {
     if (!f) return;
     setError('');
-    const reader = new FileReader();
-    reader.onload = () => { setPhotoDataUrl(String(reader.result)); setPhotoName(f.name); };
-    reader.readAsDataURL(f);
+    setPhotoFile(f);
+    setPhotoName(f.name);
+    setPhotoPreview(URL.createObjectURL(f)); // local preview only — never sent
   };
 
   // ── OTP flow ───────────────────────────────────────────
@@ -103,8 +105,12 @@ export default function PodCaptureModal({ tripId, waypointId, waypointName, onCl
         const r = await api.post(`/trips/${tripId}/waypoints/${waypointId}/pod/signature`, { signatureSvg: svg, ...geo });
         onCaptured(r.data.data);
       } else if (type === 1) {
-        if (!photoDataUrl) { setError('Take or choose a photo first.'); setBusy(false); return; }
-        const r = await api.post(`/trips/${tripId}/waypoints/${waypointId}/pod/photo`, { imageUrl: photoDataUrl, ...geo });
+        if (!photoFile) { setError('Take or choose a photo first.'); setBusy(false); return; }
+        const form = new FormData();
+        form.append('file', photoFile);
+        if (lat != null) form.append('latitude', String(lat));
+        if (lng != null) form.append('longitude', String(lng));
+        const r = await api.post(`/trips/${tripId}/waypoints/${waypointId}/pod/photo`, form);
         onCaptured(r.data.data);
       } else {
         if (!issuedOtp) { setError('Issue an OTP to the customer first.'); setBusy(false); return; }
@@ -172,15 +178,15 @@ export default function PodCaptureModal({ tripId, waypointId, waypointName, onCl
           {mode === 1 && (
             <div>
               <label className="flex flex-col items-center justify-center w-full h-56 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors overflow-hidden">
-                {photoDataUrl
-                  ? <img src={photoDataUrl} alt="Delivery photo" className="w-full h-full object-cover" />
+                {photoPreview
+                  ? <img src={photoPreview} alt="Delivery photo" className="w-full h-full object-cover" />
                   : <span className="text-xs text-gray-400 flex flex-col items-center gap-1.5">
                       <Camera className="w-8 h-8 text-gray-300" />
                       Tap to take / choose a delivery photo
                     </span>}
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
               </label>
-              {photoName && <p className="text-[10px] text-gray-400 mt-1">{photoName}</p>}
+              {photoName && <p className="text-[10px] text-gray-400 mt-1">{photoName} — uploaded as a file, stored as a served reference (max 5 MB)</p>}
             </div>
           )}
 

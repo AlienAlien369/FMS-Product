@@ -90,32 +90,19 @@ public class ProofOfDeliveryController : ControllerBase
     [HttpPost("waypoints/{waypointId:guid}/pod/signature")]
     [RequirePermission("pod.create")]
     public async Task<IActionResult> CapturePodSignature(Guid id, Guid waypointId, [FromBody] CreatePodSignatureDto dto)
-        => await CapturePodAsync(id, waypointId, dto.SignatureSvg, dto.Latitude, dto.Longitude, dto.Notes, ProofOfDeliveryType.Signature);
-
-    /// <summary>Capture a photo at a delivery waypoint (stored image reference).</summary>
-    [HttpPost("waypoints/{waypointId:guid}/pod/photo")]
-    [RequirePermission("pod.create")]
-    public async Task<IActionResult> CapturePodPhoto(Guid id, Guid waypointId, [FromBody] CreatePodPhotoDto dto)
-        => await CapturePodAsync(id, waypointId, dto.ImageUrl, dto.Latitude, dto.Longitude, dto.Notes, ProofOfDeliveryType.Photo);
-
-    private async Task<IActionResult> CapturePodAsync(Guid id, Guid waypointId, string data,
-        double? latitude, double? longitude, string? notes, ProofOfDeliveryType type)
     {
         var guard = await GuardTripAsync(id);
         if (guard != null) return guard;
 
         try
         {
-            ProofOfDelivery record = type == ProofOfDeliveryType.Signature
-                ? await _podService.CaptureSignatureAsync(id, waypointId, User.GetUserIdString(), data, latitude, longitude, notes)
-                : await _podService.CapturePhotoAsync(id, waypointId, User.GetUserIdString(), data, latitude, longitude, notes);
-            var name = await _db.TripWaypoints.AsNoTracking()
-                .Where(w => w.Id == waypointId).Select(w => w.Name).FirstOrDefaultAsync() ?? waypointId.ToString();
+            var record = await _podService.CaptureSignatureAsync(id, waypointId, User.GetUserIdString(),
+                dto.SignatureSvg, dto.Latitude, dto.Longitude, dto.Notes);
             return Ok(new ApiResponse<ProofOfDeliveryDto>
             {
                 Success = true,
                 Message = "Proof of delivery captured.",
-                Data = ToPodDto(record, name)
+                Data = ToPodDto(record, await WaypointNameAsync(id, waypointId))
             });
         }
         catch (KeyNotFoundException ex)
@@ -123,6 +110,67 @@ public class ProofOfDeliveryController : ControllerBase
             return NotFound(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Capture a photo at a delivery waypoint. The file itself is uploaded here as
+    /// multipart (image content-type, ≤ 5 MB), written to the config-driven uploads
+    /// directory under a server-generated name, and the POD record stores the served
+    /// URL reference — never multi-MB base64 in the row. Legacy records whose
+    /// ImageUrl holds a base64 data URL keep rendering (the viewer renders both).
+    /// </summary>
+    [HttpPost("waypoints/{waypointId:guid}/pod/photo")]
+    [RequirePermission("pod.create")]
+    public async Task<IActionResult> CapturePodPhoto(Guid id, Guid waypointId, [FromForm] UploadPodPhotoDto dto)
+    {
+        var guard = await GuardTripAsync(id);
+        if (guard != null) return guard;
+
+        var file = dto.File;
+        var (valid, error) = ProofOfDeliveryService.ValidatePhotoUpload(file?.ContentType, file?.Length ?? 0);
+        if (!valid || file == null)
+            return BadRequest(new ApiResponse<object> { Success = false, Message = error ?? "A photo upload is required." });
+
+        try
+        {
+            var url = await _podService.StorePhotoAsync(id, file.ContentType, file.OpenReadStream());
+            var record = await _podService.CapturePhotoAsync(id, waypointId, User.GetUserIdString(),
+                url, dto.Latitude, dto.Longitude, dto.Notes);
+            return Ok(new ApiResponse<ProofOfDeliveryDto>
+            {
+                Success = true,
+                Message = "Proof of delivery captured.",
+                Data = ToPodDto(record, await WaypointNameAsync(id, waypointId))
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Serves a stored POD photo back (the reference stored in ImageUrl). Guarded by
+    /// the same trip-ownership check as every POD surface, so a photo URL can't leak
+    /// across tenants. Browsers can't set Authorization on an &lt;img&gt; request, so the
+    /// JWT rides as access_token — the same convention the SignalR hub uses.
+    /// </summary>
+    [HttpGet("pod/photos/{fileName}")]
+    [RequirePermission("pod.view")]
+    public async Task<IActionResult> GetPodPhoto(Guid id, string fileName)
+    {
+        var guard = await GuardTripAsync(id);
+        if (guard != null) return guard;
+
+        var (fullPath, contentType) = _podService.ResolvePhoto(id, fileName);
+        if (fullPath == null)
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Photo not found." });
+        return PhysicalFile(fullPath, contentType ?? "application/octet-stream", enableRangeProcessing: true);
+    }
+
+    private async Task<string> WaypointNameAsync(Guid tripId, Guid waypointId)
+        => await _db.TripWaypoints.AsNoTracking()
+            .Where(w => w.Id == waypointId && w.TripId == tripId).Select(w => w.Name).FirstOrDefaultAsync()
+            ?? waypointId.ToString();
 
     /// <summary>
     /// Issue an OTP for the waypoint's customer (sent via SMS/email by the
@@ -205,4 +253,13 @@ public class ProofOfDeliveryController : ControllerBase
         LocationMismatchDetail = p.LocationMismatchDetail,
         Notes = p.Notes
     };
+}
+
+/// <summary>Multipart photo capture: the image file plus optional capture geolocation and notes.</summary>
+public class UploadPodPhotoDto
+{
+    public IFormFile? File { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? Notes { get; set; }
 }

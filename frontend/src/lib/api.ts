@@ -48,6 +48,33 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Resolves a stored API-relative path (e.g. /api/v1/trips/…) against the API
+ * base this client talks to — the dev proxy in local, the absolute Render URL
+ * in production. Absolute / data: values pass through untouched.
+ */
+export function resolveApiUrl(path: string): string {
+  if (!path.startsWith('/')) return path;
+  const base = api.defaults.baseURL ?? '/api/v1';
+  const origin = base.replace(/\/api\/v1\/?$/, '');
+  return origin + path;
+}
+
+/**
+ * <img> src for a POD photo. Legacy base64 data URLs and absolute URLs render
+ * as-is; API-relative references (the stored-file path new captures use) are
+ * resolved against the API base and carry the JWT as access_token — the same
+ * query-param convention the SignalR hub uses, since an <img> tag cannot send
+ * an Authorization header. Cross-origin URLs never get the token.
+ */
+export function podPhotoSrc(imageUrl: string): string {
+  const relative = imageUrl.startsWith('/');
+  const url = relative ? resolveApiUrl(imageUrl) : imageUrl;
+  if (!relative) return url;
+  const token = localStorage.getItem('token');
+  return token ? `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}` : url;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;

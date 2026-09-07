@@ -498,4 +498,90 @@ public class ProofOfDeliveryTests
 
         Assert.Empty(errors);
     }
+
+    // ── Photo upload: validation gates (real file, not base64) ────────────
+
+    [Fact]
+    public void ValidatePhotoUpload_NonImageContentType_Rejected()
+    {
+        var (ok, error) = ProofOfDeliveryService.ValidatePhotoUpload("application/pdf", 1024);
+
+        Assert.False(ok);
+        Assert.Contains("image", error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidatePhotoUpload_Oversized_Rejected()
+    {
+        var (ok, error) = ProofOfDeliveryService.ValidatePhotoUpload("image/jpeg", ProofOfDeliveryService.MaxPhotoBytes + 1);
+
+        Assert.False(ok);
+        Assert.Contains("MB", error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidatePhotoUpload_EmptyFile_Rejected()
+    {
+        var (ok, _) = ProofOfDeliveryService.ValidatePhotoUpload("image/png", 0);
+
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public void ValidatePhotoUpload_ValidImage_Accepted()
+    {
+        var (ok, error) = ProofOfDeliveryService.ValidatePhotoUpload("image/png", 4096);
+
+        Assert.True(ok, error);
+    }
+
+    [Fact]
+    public async Task StorePhotoAsync_WritesFile_AndReturnsServedUrl()
+    {
+        var uploads = Path.Combine(Path.GetTempPath(), "freebuff-pod-test-" + Guid.NewGuid().ToString("N"));
+        var svc = new ProofOfDeliveryService(NewDb("pod_store_" + Guid.NewGuid()), uploads);
+        var tripId = Guid.NewGuid();
+        var bytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }; // PNG magic
+
+        var url = await svc.StorePhotoAsync(tripId, "image/png", new MemoryStream(bytes));
+
+        Assert.StartsWith($"/api/v1/trips/{tripId}/pod/photos/", url);
+        Assert.EndsWith(".png", url);
+        var fileName = url[(url.LastIndexOf('/') + 1)..];
+        var storedPath = Path.Combine(uploads, tripId.ToString(), fileName);
+        Assert.True(File.Exists(storedPath), $"file not written to {storedPath}");
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(storedPath));
+
+        Directory.Delete(uploads, true);
+    }
+
+    [Fact]
+    public void ResolvePhoto_PathTraversal_Rejected()
+    {
+        var uploads = Path.Combine(Path.GetTempPath(), "freebuff-pod-test-" + Guid.NewGuid().ToString("N"));
+        var svc = new ProofOfDeliveryService(NewDb("pod_res_" + Guid.NewGuid()), uploads);
+
+        Assert.Null(svc.ResolvePhoto(Guid.NewGuid(), "..\\..\\secret.txt").FullPath);
+        Assert.Null(svc.ResolvePhoto(Guid.NewGuid(), "../secret.txt").FullPath);
+        Assert.Null(svc.ResolvePhoto(Guid.NewGuid(), ".hidden").FullPath);
+    }
+
+    [Fact]
+    public async Task ResolvePhoto_StoredFile_ReturnsPathAndContentType()
+    {
+        var uploads = Path.Combine(Path.GetTempPath(), "freebuff-pod-test-" + Guid.NewGuid().ToString("N"));
+        var svc = new ProofOfDeliveryService(NewDb("pod_res2_" + Guid.NewGuid()), uploads);
+        var tripId = Guid.NewGuid();
+        var url = await svc.StorePhotoAsync(tripId, "image/jpeg", new MemoryStream(new byte[] { 1, 2, 3 }));
+
+        var fileName = url[(url.LastIndexOf('/') + 1)..];
+        var (fullPath, contentType) = svc.ResolvePhoto(tripId, fileName);
+
+        Assert.NotNull(fullPath);
+        Assert.True(File.Exists(fullPath));
+        Assert.Equal("image/jpeg", contentType);
+        Assert.Null(svc.ResolvePhoto(tripId, "missing.jpg").FullPath);
+
+        Directory.Delete(uploads, true);
+    }
 }

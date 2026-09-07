@@ -35,9 +35,91 @@ public class ProofOfDeliveryService
     /// must not be brute-forceable through the verify endpoint.</summary>
     public const int MaxOtpAttempts = 5;
 
-    private readonly ApplicationDbContext _db;
+    /// <summary>Upload cap for POD photos — a delivery snapshot, not a video.</summary>
+    public const long MaxPhotoBytes = 5 * 1024 * 1024; // 5 MB
 
-    public ProofOfDeliveryService(ApplicationDbContext db) => _db = db;
+    private readonly ApplicationDbContext _db;
+    private readonly string _uploadsPath;
+
+    public ProofOfDeliveryService(ApplicationDbContext db, string uploadsPath = "uploads")
+    {
+        _db = db;
+        _uploadsPath = uploadsPath;
+    }
+
+    // ── Photo upload: validation + storage (stored file reference, not base64) ──
+
+    /// <summary>Content types accepted for POD photos (and the extensions they map to).</summary>
+    private static readonly Dictionary<string, string> PhotoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/jpeg"] = ".jpg",
+        ["image/png"] = ".png",
+        ["image/webp"] = ".webp",
+        ["image/gif"] = ".gif",
+        ["image/heic"] = ".heic",
+        ["image/heif"] = ".heif",
+        ["image/bmp"] = ".bmp"
+    };
+
+    /// <summary>
+    /// Validates a photo upload: content-type must be a known image type and the
+    /// size within the 5 MB cap. Kept static so the gates are testable without a
+    /// request/stream; the controller applies them before anything touches disk.
+    /// </summary>
+    public static (bool Ok, string? Error) ValidatePhotoUpload(string? contentType, long length)
+    {
+        if (string.IsNullOrWhiteSpace(contentType) || !PhotoExtensions.ContainsKey(contentType))
+            return (false, "Only image uploads are allowed (JPEG, PNG, WebP, GIF, HEIC, BMP).");
+        if (length <= 0)
+            return (false, "The uploaded photo is empty.");
+        if (length > MaxPhotoBytes)
+            return (false, $"Photo exceeds the {MaxPhotoBytes / (1024 * 1024)} MB upload limit.");
+        return (true, null);
+    }
+
+    /// <summary>
+    /// Writes an uploaded photo to uploads/{tripId}/ (config-driven root, default
+    /// "uploads") under a server-generated GUID name — the client's filename is
+    /// never trusted — and returns the served URL reference stored on the record.
+    /// </summary>
+    public async Task<string> StorePhotoAsync(Guid tripId, string contentType, Stream content)
+    {
+        var tripDir = Path.Combine(_uploadsPath, tripId.ToString());
+        Directory.CreateDirectory(tripDir);
+        var fileName = Guid.NewGuid().ToString("N") + PhotoExtensions[contentType];
+        var fullPath = Path.Combine(tripDir, fileName);
+        await using (var file = File.Create(fullPath))
+        {
+            await content.CopyToAsync(file);
+        }
+        return $"/api/v1/trips/{tripId}/pod/photos/{fileName}";
+    }
+
+    /// <summary>
+    /// Resolves a stored photo fileName to its full path for serving. Returns null
+    /// for anything that could escape uploads/{tripId}/ (separators, dots, invalid
+    /// chars) or that doesn't exist — the URL in ImageUrl is server-generated, but
+    /// the serve endpoint must not trust it blindly.
+    /// </summary>
+    public (string? FullPath, string? ContentType) ResolvePhoto(Guid tripId, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)
+            || fileName.StartsWith('.')
+            || fileName != Path.GetFileName(fileName) // any directory separator
+            || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            return (null, null);
+
+        var tripDir = Path.GetFullPath(Path.Combine(_uploadsPath, tripId.ToString()));
+        var fullPath = Path.GetFullPath(Path.Combine(tripDir, fileName));
+        if (!fullPath.StartsWith(tripDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            return (null, null); // belt-and-braces containment check
+        if (!File.Exists(fullPath)) return (null, null);
+
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var contentType = PhotoExtensions.FirstOrDefault(kv => kv.Value == ext).Key
+            ?? "application/octet-stream";
+        return (fullPath, contentType);
+    }
 
     public Task<List<ProofOfDelivery>> ListForWaypointAsync(Guid tripId, Guid waypointId)
         => _db.ProofOfDeliveries.AsNoTracking()

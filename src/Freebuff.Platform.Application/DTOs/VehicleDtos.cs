@@ -129,6 +129,29 @@ public class VehicleSensorsDto
     public DateTime? LastUpdate { get; set; }
 }
 
+/// <summary>Sensor history response: hourly rollups for one vehicle.</summary>
+public class VehicleSensorHistoryDto
+{
+    public Guid VehicleId { get; set; }
+    public List<SensorRollupDto> Items { get; set; } = new();
+}
+
+/// <summary>One hourly min/max/avg bucket of a sensor stream (speed or a single tyre).</summary>
+public class SensorRollupDto
+{
+    /// <summary>"speed" | "tyre"</summary>
+    public string SensorType { get; set; } = "speed";
+
+    /// <summary>Set when SensorType = "tyre" (canonical TyrePosition int); null for speed.</summary>
+    public int? TyrePosition { get; set; }
+
+    public DateTime HourBucketUtc { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
+    public double AvgValue { get; set; }
+    public int ReadingCount { get; set; }
+}
+
 public class TyreSensorDto
 {
     public int Position { get; set; }

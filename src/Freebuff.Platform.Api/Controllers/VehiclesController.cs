@@ -200,6 +200,46 @@ public class VehiclesController : ControllerBase
         return Ok(ApiResponse<VehicleSensorsDto>.Ok(dto));
     }
 
+    /// <summary>
+    /// Sensor history: hourly min/max/avg rollups (speed + per-tyre pressure)
+    /// for the vehicle over the last N days, newest first. Backed by the
+    /// retention rollup table — raw readings fold into these buckets after ~30
+    /// days, so this is the stable long-window source for the sensor history UI.
+    /// </summary>
+    [HttpGet("{id:guid}/sensor-history")]
+    [RequirePermission("vehicle.view")]
+    public async Task<ActionResult<ApiResponse<VehicleSensorHistoryDto>>> GetSensorHistory(Guid id, [FromQuery] int? days = 7)
+    {
+        var query = _db.Vehicles.AsNoTracking().Where(v => v.Id == id && !v.IsDeleted);
+        if (!_tenant.IsSuperAdmin && _tenant.TenantId.HasValue)
+            query = query.Where(v => v.CompanyId == _tenant.TenantId.Value);
+        var vehicle = await query.FirstOrDefaultAsync();
+        if (vehicle == null) return NotFound(ApiResponse<VehicleSensorHistoryDto>.Fail("NOT_FOUND", "Vehicle not found"));
+
+        var window = Math.Clamp(days ?? 7, 1, 365);
+        var since = DateTime.UtcNow.Date.AddDays(-window);
+        var rollups = await _db.TelemetryRollupsHourly.AsNoTracking()
+            .Where(r => r.VehicleId == id && r.HourBucketUtc >= since)
+            .OrderByDescending(r => r.HourBucketUtc)
+            .Select(r => new SensorRollupDto
+            {
+                SensorType = r.SensorType,
+                TyrePosition = r.TyrePosition != null ? (int)r.TyrePosition : null,
+                HourBucketUtc = r.HourBucketUtc,
+                MinValue = r.MinValue,
+                MaxValue = r.MaxValue,
+                AvgValue = r.AvgValue,
+                ReadingCount = r.ReadingCount
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<VehicleSensorHistoryDto>.Ok(new VehicleSensorHistoryDto
+        {
+            VehicleId = id,
+            Items = rollups
+        }));
+    }
+
     [HttpGet("{id:guid}/audit")]
     [RequirePermission("vehicle.view")]
     public async Task<ActionResult<ApiResponse<List<AuditEntryDto>>>> GetAuditHistory(Guid id)

@@ -9,11 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const API = 'http://localhost:8080';
-const APP = 'http://localhost:5173';
+const API = process.env.API || 'http://localhost:8080';
+const APP = process.env.APP || 'http://localhost:5173';
 const EMAIL = process.env.EMAIL || 'admin@freebuff.com';
 const PASS = process.env.PASSWORD || 'Admin@123';
-const DPORT = 9333;
+const DPORT = Number(process.env.DPORT || 9333);
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 let failures = 0; const failed = [];
@@ -71,7 +71,7 @@ try {
     'seeded'`);
   await nav(`${APP}/trips`, 5000);
 
-  const WIDTHS = [375, 390, 768, 1024];
+  const WIDTHS = (process.env.WIDTHS || '375,390,768,1024').split(',').map(Number);
   mkdirSync('.verify/shots', { recursive: true });
 
   for (const w of WIDTHS) {
@@ -144,25 +144,53 @@ try {
       check(`[${w}] scope closes on Escape`, scope.closed === true);
     } else check(`[${w}] scope selector`, false, String(scope));
 
-    // ── Overflow menu (card view only, <768): RBAC actions + not clipped ──
+    // ── Overflow menu (card view only, <768): RBAC + status rule + not clipped ──
+    // Edit is product-gated to status 0 (Draft) / 1 (Scheduled); an In Progress
+    // (2) card must NOT expose Edit. Assert both sides so the mobile layout
+    // preserves RBAC narrowing exactly.
     if (w < 768) {
-      const menu = await ev(`(() => { const b = document.querySelector('button[aria-label="Row actions"]'); if (!b) return 'no row actions'; b.click();
+      const openMenu = `(card) => { if (!card) return null; card.scrollIntoView({ block: 'center' });
+        // OverflowMenu closes itself on scroll (menu would be misplaced); settle
+        // after scrollIntoView BEFORE clicking, or the open menu vanishes.
         return new Promise(r => setTimeout(() => {
-          const m = document.querySelector('div.fixed.z-30.w-44'); if (!m) return r('no menu');
-          const rc = m.getBoundingClientRect();
-          const items = [...m.querySelectorAll('button')].map(x => x.textContent.trim());
-          const inside = rc.top >= 0 && rc.bottom <= window.innerHeight && rc.right <= window.innerWidth && rc.left >= 0;
-          document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-          setTimeout(() => r({ items, inside, rect: [Math.round(rc.top), Math.round(rc.bottom), Math.round(rc.left), Math.round(rc.right)] }), 80);
-        }, 300)); })()`);
-      if (typeof menu === 'object') {
+          const b = card.querySelector('button[aria-label="Row actions"]'); if (!b) return r(null);
+          b.click();
+          setTimeout(() => {
+            const m = document.querySelector('div.fixed.z-30.w-44'); if (!m) return r(null);
+            const rc = m.getBoundingClientRect();
+            const items = [...m.querySelectorAll('button')].map(x => x.textContent.trim());
+            const inside = rc.top >= 0 && rc.bottom <= window.innerHeight && rc.right <= window.innerWidth && rc.left >= 0;
+            const rect = [Math.round(rc.top), Math.round(rc.bottom), Math.round(rc.left), Math.round(rc.right)];
+            document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            setTimeout(() => r({ items, inside, rect }), 80);
+          }, 300);
+        }, 350)); }`;
+      const menu = await ev(`(() => { const cards = [...document.querySelectorAll('[class~="md:hidden"] .rounded-xl')];
+        const card = cards.find(c => /Draft|Scheduled/.test(c.innerText.slice(0, 200)));
+        return (${openMenu})(card); })()`);
+      if (menu) {
         check(`[${w}] overflow menu entirely inside viewport (not clipped)`, menu.inside, JSON.stringify(menu.rect));
         const want = ['View / Track', 'Edit', 'Delete'];
-        check(`[${w}] overflow menu has exactly the RBAC-permitted actions`, JSON.stringify(menu.items) === JSON.stringify(want), menu.items.join(' | '));
-      } else check(`[${w}] overflow menu`, false, String(menu));
+        check(`[${w}] Draft/Scheduled card menu has exactly the RBAC-permitted actions`, JSON.stringify(menu.items) === JSON.stringify(want), menu.items.join(' | '));
+      } else check(`[${w}] overflow menu (editable card)`, false, 'no Draft/Scheduled card or menu');
+      const neg = await ev(`(() => { const cards = [...document.querySelectorAll('[class~="md:hidden"] .rounded-xl')];
+        const card = cards.find(c => /In Progress/.test(c.innerText.slice(0, 200)));
+        return (${openMenu})(card); })()`);
+      if (neg) {
+        check(`[${w}] In Progress card menu hides Edit (status rule holds)`, !neg.items.includes('Edit') && neg.items.includes('Delete'), neg.items.join(' | '));
+      } else check(`[${w}] overflow menu (in-progress card)`, false, 'no In Progress card');
     } else {
-      const icons = await ev(`(() => { const row = document.querySelector('tbody tr'); return row ? row.querySelectorAll('button').length : 0; })()`);
-      check(`[${w}] table row has inline actions`, icons >= 3, `buttons=${icons}`);
+      const icons = await ev(`(() => {
+        const rows = [...document.querySelectorAll('tbody tr')];
+        const btns = r => r ? r.querySelectorAll('button').length : -1;
+        const hasEdit = r => r ? !!r.querySelector('button[title="Edit"]') : null;
+        const editRow = rows.find(r => /Draft|Scheduled/.test(r.innerText.slice(0, 200)));
+        const ipRow = rows.find(r => /In Progress/.test(r.innerText.slice(0, 200)));
+        return JSON.stringify({ editRow: btns(editRow), editHasEdit: hasEdit(editRow), ipRow: btns(ipRow), ipHasEdit: hasEdit(ipRow) });
+      })()`);
+      const i = JSON.parse(icons || '{}');
+      check(`[${w}] Draft/Scheduled row has Edit + Delete (RBAC intact)`, i.editRow >= 3 && i.editHasEdit === true, `editRow=${i.editRow}`);
+      check(`[${w}] In Progress row hides Edit (status rule holds)`, i.ipRow >= 2 && i.ipHasEdit === false, `ipRow=${i.ipRow}`);
     }
 
     // ── Trip modal: full-screen sheet (<768) vs centered dialog (>=768) ──

@@ -236,6 +236,94 @@ public class DashboardController : ControllerBase
         return Ok(ApiResponse<object>.Ok(result));
     }
 
+    /// <summary>
+    /// Driver Safety Scores widget wired to REAL materialized scorecard data:
+    /// fleet average, distribution buckets, drivers below the critical threshold,
+    /// and how many drivers are in the insufficient-data state (never shown as a
+    /// misleading number).
+    /// </summary>
+    [HttpGet("drivers/scorecard-overview")]
+    [RequirePermission("dashboard.view")]
+    public async Task<ActionResult<ApiResponse<DriverScoreOverviewDto>>> GetScorecardOverview()
+    {
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var periods = await _db.DriverScorePeriods.AsNoTracking()
+            .Where(p => p.Window == "30d" && (scope == null || scope.Contains(p.CompanyId)))
+            .GroupBy(p => p.DriverId)
+            .Select(g => g.OrderByDescending(p => p.AnchorDate).ThenByDescending(p => p.ComputedAt).First())
+            .ToListAsync();
+
+        var composites = periods.Where(p => p.CompositeScore.HasValue).Select(p => p.CompositeScore!.Value).ToList();
+        decimal BucketIndex(decimal c) => c <= 20 ? 0 : c <= 40 ? 1 : c <= 60 ? 2 : c <= 80 ? 3 : 4;
+        var bucketNames = new[] { "0-20", "21-40", "41-60", "61-80", "81-100" };
+        var distribution = bucketNames
+            .Select((name, i) => new ScoreBucketDto { Bucket = name, Count = composites.Count(c => BucketIndex(c) == i) })
+            .ToList();
+
+        return Ok(ApiResponse<DriverScoreOverviewDto>.Ok(new DriverScoreOverviewDto
+        {
+            Average = composites.Count == 0 ? 0 : Math.Round(composites.Average(), 1),
+            BelowThresholdCount = composites.Count(c => c <= 40),
+            Threshold = 40,
+            InsufficientDataCount = periods.Count(p => !p.CompositeScore.HasValue),
+            Distribution = distribution
+        }));
+    }
+
+    /// <summary>
+    /// Fuel consumption/cost widget (next to "Vehicles by Fuel Type"): fleet
+    /// totals for the last 30 days — spend, liters, efficiency, cost/km — plus
+    /// the top consumers, so the dashboard surfaces fuel operations without a
+    /// trip to the Fuel page.
+    /// </summary>
+    [HttpGet("fuel-overview")]
+    [RequirePermission("dashboard.view")]
+    public async Task<ActionResult<ApiResponse<object>>> GetFuelOverview()
+    {
+        var scope = CompanyScopePolicy.EffectiveIds(_tenant.Scope);
+        var since = DateTime.UtcNow.AddDays(-30);
+
+        var rows = await _db.FuelRecords.AsNoTracking()
+            .Where(f => !f.IsDeleted && f.RecordDate >= since && (scope == null || scope.Contains(f.CompanyId)))
+            .Select(f => new { f.Quantity, f.TotalCost, f.DistanceTraveledKm, f.VehicleId, f.IsAnomaly })
+            .ToListAsync();
+
+        var totalLiters = rows.Sum(r => r.Quantity);
+        var totalSpend = rows.Sum(r => r.TotalCost ?? 0m);
+        var totalDistance = rows.Sum(r => r.DistanceTraveledKm ?? 0m);
+
+        var vehicleIds = rows.Select(r => r.VehicleId).Distinct().ToList();
+        var vehicles = vehicleIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await _db.Vehicles.AsNoTracking()
+                .Where(v => vehicleIds.Contains(v.Id))
+                .ToDictionaryAsync(v => v.Id, v => v.RegistrationNumber);
+
+        var topConsumers = rows
+            .GroupBy(r => r.VehicleId)
+            .Select(g => new
+            {
+                vehicleId = g.Key,
+                registration = vehicles.TryGetValue(g.Key, out var reg) ? reg : "Unknown",
+                liters = Math.Round(g.Sum(r => r.Quantity), 1),
+                spend = g.Sum(r => r.TotalCost ?? 0m)
+            })
+            .OrderByDescending(x => x.liters)
+            .Take(5)
+            .ToList();
+
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            totalLiters = Math.Round(totalLiters, 1),
+            totalSpend = Math.Round(totalSpend, 2),
+            transactionCount = rows.Count,
+            anomalyCount = rows.Count(r => r.IsAnomaly),
+            avgEfficiencyKmPerLiter = totalDistance > 0 && totalLiters > 0 ? Math.Round(totalDistance / totalLiters, 2) : (decimal?)null,
+            costPerKm = totalDistance > 0 ? Math.Round(totalSpend / totalDistance, 4) : (decimal?)null,
+            topConsumers
+        }));
+    }
+
     [HttpGet("vehicles/recent")]
     [RequirePermission("dashboard.view")]
     public async Task<ActionResult<ApiResponse<object>>> GetRecentVehicles()

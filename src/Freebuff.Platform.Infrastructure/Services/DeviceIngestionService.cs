@@ -30,10 +30,13 @@ public class DeviceIngestionService
     private readonly TripGeofenceEventProducer _zoneEvents;
     private readonly DriverBehaviorAlertProducer _behaviorEvents;
     private readonly SensorPolicyAlertProducer _sensorPolicies;
+    private readonly FuelConsumptionAnalyzer _fuelAnalyzer;
+    private readonly MaintenanceService _maintenance;
 
     public DeviceIngestionService(ApplicationDbContext db, IVendorAdapterRegistry registry,
         ILogger<DeviceIngestionService> logger, TripGeofenceEventProducer zoneEvents,
-        DriverBehaviorAlertProducer behaviorEvents, SensorPolicyAlertProducer sensorPolicies)
+        DriverBehaviorAlertProducer behaviorEvents, SensorPolicyAlertProducer sensorPolicies,
+        FuelConsumptionAnalyzer fuelAnalyzer, MaintenanceService maintenance)
     {
         _db = db;
         _registry = registry;
@@ -41,6 +44,8 @@ public class DeviceIngestionService
         _zoneEvents = zoneEvents;
         _behaviorEvents = behaviorEvents;
         _sensorPolicies = sensorPolicies;
+        _fuelAnalyzer = fuelAnalyzer;
+        _maintenance = maintenance;
     }
 
     public async Task<IngestResult> IngestAsync(string vendorCode, string channel, byte[] payload, string? contentType, string? ingestKey)
@@ -226,6 +231,21 @@ public class DeviceIngestionService
         await _sensorPolicies.ProcessSnapshotAsync(device.CompanyId, assignment?.VehicleId,
             telemetry.SpeedKmh, telemetry.TyrePressures,
             telemetry.Latitude, telemetry.Longitude, eventTime);
+
+        // Fuel Management: sensor-derived consumption snapshots + theft / low
+        // level / efficiency alerts for fuel-sensor-equipped vehicles.
+        await _fuelAnalyzer.ProcessSnapshotAsync(device.CompanyId, assignment?.VehicleId, device.Id,
+            telemetry.FuelLevelPercent, telemetry.FuelLevelLiters, telemetry.OdometerKm,
+            telemetry.Ignition, telemetry.EngineOn,
+            telemetry.Latitude, telemetry.Longitude, eventTime);
+
+        // Maintenance Management: odometer/engine-hours advance re-evaluates the
+        // vehicle's schedules and fires due_soon/overdue alerts.
+        if (assignment != null)
+        {
+            await _maintenance.EvaluateVehicleAsync(device.CompanyId, assignment.VehicleId,
+                telemetry.OdometerKm, telemetry.EngineHours, eventTime);
+        }
 
         await _db.SaveChangesAsync();
         return IngestResult.Ok(device.Id.ToString(), assignment?.VehicleId.ToString());

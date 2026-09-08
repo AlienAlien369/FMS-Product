@@ -18,12 +18,14 @@ public class DeviceService
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
     private readonly TargetCompanyResolver _targetCompany;
+    private readonly AuditLogService _audit;
 
-    public DeviceService(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany)
+    public DeviceService(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany, AuditLogService audit)
     {
         _db = db;
         _tenant = tenant;
         _targetCompany = targetCompany;
+        _audit = audit;
     }
 
     public async Task<DeviceDto> RegisterDeviceAsync(CreateDeviceDto dto, string? userId)
@@ -303,6 +305,19 @@ public class DeviceService
         };
         _db.DeviceVendors.Add(vendor);
         await _db.SaveChangesAsync();
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
+            ActorRole = _tenant.UserRole,
+            ActorEmail = _tenant.UserEmail,
+            Action = AuditAction.Create,
+            ActionCode = "devicevendor.changed",
+            EntityType = EntityType.DeviceVendor,
+            EntityId = vendor.Id,
+            EntityName = vendor.Name,
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new { vendor.Code, vendor.Name, vendor.Status, vendor.AdapterVersion }),
+            IpAddress = _tenant.IpAddress
+        });
         return ToVendorDto(vendor, 0);
     }
 
@@ -312,6 +327,7 @@ public class DeviceService
     {
         var vendor = await _db.DeviceVendors.FirstOrDefaultAsync(v => v.Id == id && !v.IsDeleted)
             ?? throw new KeyNotFoundException("Vendor not found");
+        var oldStatus = vendor.Status;
 
         if (dto.Name != null)
         {
@@ -328,6 +344,22 @@ public class DeviceService
         vendor.UpdatedAt = DateTime.UtcNow;
         vendor.UpdatedBy = userId;
         await _db.SaveChangesAsync();
+
+        var statusChanged = dto.Status.HasValue && oldStatus != (DeviceStatus)dto.Status.Value;
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
+            ActorRole = _tenant.UserRole,
+            ActorEmail = _tenant.UserEmail,
+            Action = statusChanged ? AuditAction.Update : AuditAction.ConfigurationChange,
+            ActionCode = statusChanged ? "devicevendor.status_changed" : "devicevendor.changed",
+            EntityType = EntityType.DeviceVendor,
+            EntityId = id,
+            EntityName = vendor.Name,
+            BeforeState = statusChanged ? System.Text.Json.JsonSerializer.Serialize(new { status = (int)oldStatus }) : null,
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new { status = (int)vendor.Status, name = vendor.Name, adapterVersion = vendor.AdapterVersion }),
+            IpAddress = _tenant.IpAddress
+        });
 
         var count = await _db.Devices.CountAsync(d => d.VendorId == id && !d.IsDeleted);
         return ToVendorDto(vendor, count);
@@ -358,6 +390,18 @@ public class DeviceService
         vendor.DeletedBy = userId;
         vendor.UpdatedAt = now;
         await _db.SaveChangesAsync();
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
+            ActorRole = _tenant.UserRole,
+            ActorEmail = _tenant.UserEmail,
+            Action = AuditAction.Delete,
+            ActionCode = "devicevendor.changed",
+            EntityType = EntityType.DeviceVendor,
+            EntityId = id,
+            EntityName = vendor.Name,
+            IpAddress = _tenant.IpAddress
+        });
     }
 
     /// <summary>

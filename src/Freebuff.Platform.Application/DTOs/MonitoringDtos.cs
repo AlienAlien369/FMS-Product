@@ -27,6 +27,7 @@ public class CreateFuelRecordDto
     public decimal? OdometerReading { get; set; }
     public decimal? FuelLevel { get; set; }
     public bool IsRefueling { get; set; } = true;
+    public string? Station { get; set; }
     public string? Notes { get; set; }
     public DateTime RecordDate { get; set; } = DateTime.UtcNow;
 }

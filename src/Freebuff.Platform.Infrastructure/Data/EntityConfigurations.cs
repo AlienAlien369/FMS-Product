@@ -282,6 +282,67 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
     }
 }
 
+public class DriverScorePeriodConfiguration : IEntityTypeConfiguration<DriverScorePeriod>
+{
+    public void Configure(EntityTypeBuilder<DriverScorePeriod> b)
+    {
+        b.HasIndex(p => new { p.DriverId, p.Window, p.AnchorDate }).IsUnique();
+        b.HasOne(p => p.Driver).WithMany().HasForeignKey(p => p.DriverId);
+        b.HasOne(p => p.Company).WithMany().HasForeignKey(p => p.CompanyId);
+    }
+}
+
+public class ScoreWeightConfigConfiguration : IEntityTypeConfiguration<ScoreWeightConfig>
+{
+    public void Configure(EntityTypeBuilder<ScoreWeightConfig> b)
+    {
+        // One override row per company; CompanyId = null is the single platform default.
+        b.HasIndex(c => c.CompanyId).IsUnique();
+        b.HasOne(c => c.Company).WithMany().HasForeignKey(c => c.CompanyId).IsRequired(false);
+    }
+}
+
+public class FuelRecordConfiguration : IEntityTypeConfiguration<FuelRecord>
+{
+    public void Configure(EntityTypeBuilder<FuelRecord> b)
+    {
+        b.HasIndex(f => new { f.CompanyId, f.VehicleId, f.RecordDate });
+        b.HasOne(f => f.Vehicle).WithMany(v => v.FuelRecords).HasForeignKey(f => f.VehicleId);
+        b.HasQueryFilter(f => !f.IsDeleted);
+    }
+}
+
+public class FuelConsumptionSnapshotConfiguration : IEntityTypeConfiguration<FuelConsumptionSnapshot>
+{
+    public void Configure(EntityTypeBuilder<FuelConsumptionSnapshot> b)
+    {
+        b.HasKey(s => s.Id);
+        b.HasIndex(s => new { s.VehicleId, s.EventTimeUtc });
+        b.HasIndex(s => new { s.TenantId, s.EventTimeUtc });
+    }
+}
+
+public class MaintenanceScheduleConfiguration : IEntityTypeConfiguration<MaintenanceSchedule>
+{
+    public void Configure(EntityTypeBuilder<MaintenanceSchedule> b)
+    {
+        b.HasIndex(s => new { s.CompanyId, s.VehicleId });
+        b.HasOne(s => s.Vehicle).WithMany().HasForeignKey(s => s.VehicleId);
+        b.HasQueryFilter(s => !s.IsDeleted);
+    }
+}
+
+public class MaintenanceRecordConfiguration : IEntityTypeConfiguration<MaintenanceRecord>
+{
+    public void Configure(EntityTypeBuilder<MaintenanceRecord> b)
+    {
+        b.HasIndex(r => new { r.CompanyId, r.VehicleId, r.CompletedDate });
+        b.HasOne(r => r.Vehicle).WithMany(v => v.MaintenanceRecords).HasForeignKey(r => r.VehicleId);
+        b.HasOne(r => r.MaintenanceSchedule).WithMany().HasForeignKey(r => r.MaintenanceScheduleId);
+        b.HasQueryFilter(r => !r.IsDeleted);
+    }
+}
+
 public class AlertTypeConfiguration : IEntityTypeConfiguration<AlertType>
 {
     public void Configure(EntityTypeBuilder<AlertType> b)
@@ -343,5 +404,18 @@ public class NotificationPreferenceConfiguration : IEntityTypeConfiguration<Noti
         b.HasIndex(p => new { p.UserId, p.EventType }).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId);
         b.HasQueryFilter(p => !p.IsDeleted);
+    }
+}
+
+public class ScheduledReportConfiguration : IEntityTypeConfiguration<ScheduledReport>
+{
+    public void Configure(EntityTypeBuilder<ScheduledReport> b)
+    {
+        b.HasIndex(s => new { s.CompanyId, s.CreatedByUserId });
+        // The runner ticks over NextRunAt — keep the hot scan narrow.
+        b.HasIndex(s => new { s.NextRunAt, s.IsActive, s.IsPausedAfterError });
+        b.HasOne(s => s.Company).WithMany().HasForeignKey(s => s.CompanyId);
+        b.HasOne(s => s.CreatedByUser).WithMany().HasForeignKey(s => s.CreatedByUserId);
+        b.HasQueryFilter(s => !s.IsDeleted);
     }
 }

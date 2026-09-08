@@ -336,6 +336,16 @@ public static class SeedData
             // ── Speed Governor + TPMS (threshold-based sensor alerts) ────────
             ("vehicle.speed_limit_exceeded",      "Speed Limit Exceeded",              "Vehicle speed above the fleet/vehicle speed policy limit",  "Vehicle", 3, 59, false),
             ("vehicle.tyre_pressure_anomaly",     "Tyre Pressure Anomaly",             "Tyre pressure outside the policy range, or rapid pressure loss", "Vehicle", 2, 60, false),
+            // ── Driver Scorecards (composite scoring) ───────────────────────────
+            ("driver.score_drop",                 "Driver Score Dropped",              "Driver composite score dropped sharply period-over-period or fell below the critical threshold", "Driver", 3, 61, false),
+            // ── Fuel Management (sensor-derived consumption + anomalies) ────────
+            ("fuel.theft_suspected",              "Fuel Theft Suspected",              "Sudden fuel level drop with no matching distance traveled or engine-off refueling event", "Fuel", 3, 62, false),
+            ("fuel.low_level",                    "Fuel Low Level",                    "Sensor-derived fuel level below the configured low-level threshold", "Fuel", 1, 63, false),
+            ("fuel.efficiency_degraded",         "Fuel Efficiency Degraded",          "Vehicle fuel consumption trending worse than its own historical baseline", "Fuel", 2, 64, false),
+            // ── Maintenance Management (predictive scheduling) ──────────────────
+            ("maintenance.due_soon",              "Maintenance Due Soon",              "Scheduled maintenance within the configured lead window", "Maintenance", 1, 65, false),
+            ("maintenance.overdue",               "Maintenance Overdue",               "Scheduled maintenance past its due point (mileage/time/engine hours)", "Maintenance", 3, 66, false),
+            ("maintenance.breakdown_logged",      "Maintenance Breakdown Logged",      "An unscheduled breakdown was logged for a vehicle", "Maintenance", 3, 67, false),
         };
         var newAlertTypes = new List<AlertType>();
         foreach (var (code, name, desc, cat, sev, ord, nonMutable) in defaultAlertTypes)
@@ -372,6 +382,7 @@ public static class SeedData
             ("device.offline",                   "Device Offline",                    "A tracking device stopped reporting",                         "Device",   2, 7),
             ("devicevendor.status_changed",      "Device Vendor Status Changed",       "A device vendor was activated or deactivated",                "Device",   1, 8),
             ("subscription.expiring_soon",       "Subscription Expiring Soon",         "A company subscription expires within 30 days",               "Company",  1, 9),
+            ("report.scheduled_delivered",       "Scheduled Report Delivered",         "A scheduled report was generated and delivered",              "Reports",  0, 10),
         };
         var newNotificationEvents = new List<NotificationEventType>();
         foreach (var (code, name, desc, cat, sev, ord) in defaultNotificationEvents)

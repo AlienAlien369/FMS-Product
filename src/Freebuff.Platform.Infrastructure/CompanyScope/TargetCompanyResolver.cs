@@ -1,6 +1,6 @@
-using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Freebuff.Platform.Infrastructure.CompanyScope;
@@ -20,13 +20,18 @@ namespace Freebuff.Platform.Infrastructure.CompanyScope;
 /// </summary>
 public class TargetCompanyResolver
 {
+    /// <summary>Source tag marking a SuperAdmin cross-company write — hidden from Company Admin audit views.</summary>
+    public const string CrossTenantSource = "SuperAdmin cross-tenant write";
+
     private readonly ITenantContext _tenant;
     private readonly ApplicationDbContext _db;
+    private readonly AuditLogService _audit;
 
-    public TargetCompanyResolver(ITenantContext tenant, ApplicationDbContext db)
+    public TargetCompanyResolver(ITenantContext tenant, ApplicationDbContext db, AuditLogService audit)
     {
         _tenant = tenant;
         _db = db;
+        _audit = audit;
     }
 
     /// <summary>
@@ -55,26 +60,37 @@ public class TargetCompanyResolver
 
     /// <summary>
     /// Records a SuperAdmin cross-company write (who, which company, what
-    /// record, when). In-tenant writes are skipped — those flows keep their own
-    /// existing audit behavior.
+    /// record, when) through the central audit pipeline. In-tenant writes are
+    /// skipped — those flows log their own lifecycle entries. Async by contract:
+    /// the write never blocks or fails the operation it describes.
     /// </summary>
     public void Audit(AuditAction action, EntityType entityType, Guid entityId, string? entityName, string? newValues, Guid targetCompanyId)
     {
         if (!IsCrossTenantWrite(targetCompanyId)) return;
-        _db.AuditLogs.Add(new AuditLog
+        _audit.TryRecord(new AuditLogRecord
         {
-            Id = Guid.NewGuid(),
-            TenantId = targetCompanyId,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = _tenant.UserId,
+            ActorUserId = Guid.TryParse(_tenant.UserId, out var uid) ? uid : Guid.Empty,
+            ActorRole = _tenant.UserRole,
+            ActorEmail = _tenant.UserEmail,
             Action = action,
+            ActionCode = $"{entityType.ToString().ToLowerInvariant()}.{PastTense(action)}",
             EntityType = entityType,
             EntityId = entityId,
             EntityName = entityName,
-            NewValues = newValues,
-            UserId = Guid.TryParse(_tenant.UserId, out var uid) ? uid : Guid.Empty,
-            UserName = _tenant.UserRole,
-            Source = "SuperAdmin cross-tenant write"
+            TargetCompanyId = targetCompanyId,
+            AfterState = newValues,
+            IpAddress = _tenant.IpAddress,
+            Source = CrossTenantSource
         });
     }
+
+    /// <summary>Past-tense action code consistent with the lifecycle codes ("user.created", "role.updated").</summary>
+    private static string PastTense(AuditAction action) => action switch
+    {
+        AuditAction.Create => "created",
+        AuditAction.Update => "updated",
+        AuditAction.Delete => "deleted",
+        AuditAction.Restore => "restored",
+        _ => action.ToString().ToLowerInvariant()
+    };
 }

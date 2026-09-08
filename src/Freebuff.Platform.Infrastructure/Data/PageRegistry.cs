@@ -86,11 +86,12 @@ public static class PageRegistry
         new PageDefinition("geofence",     "Geofences",            "/geofences",            "globe",            true,  false, false, false, 5,  "fleet", "Geofence creation and monitoring"),
         new PageDefinition("route",        "Routes",               "/routes",               "navigation",       true,  false, false, false, 6,  "fleet", "Route planning and optimization"),
         new PageDefinition("trip",         "Trips",                "/trips",                "navigation",       true,  false, false, false, 7,  "fleet", "Trip planning, tracking and replay"),
+        new PageDefinition("driverscore",  "Driver Scorecards",    "/drivers/scorecards",   "award",            true,  false, false, false, 8,  "fleet", "Composite driver scorecards (safety, compliance, punctuality, behavior) + leaderboard"),
         new PageDefinition("pod",          "Proof of Delivery",    null,                    "file-check",       false, false, false, false, 8,  "fleet", "Proof-of-delivery capture + evidence per trip waypoint (trip detail)"),
-        new PageDefinition("alert",        "Alerts",               null,                    "bell",             false, false, true,  false, 9,  "fleet", "Planned: alert entity exists, page not built yet"),
-        new PageDefinition("fuel",         "Fuel",                 null,                    "fuel",             false, false, true,  false, 9,  "fleet", "Planned: fuel entity exists, page not built yet"),
-        new PageDefinition("maintenance",  "Maintenance",          null,                    "wrench",           false, false, true,  false, 10, "fleet", "Planned: maintenance entity exists, page not built yet"),
-        new PageDefinition("report",       "Reports",              null,                    "file-text",        false, false, true,  false, 11, "fleet", "Planned: no page yet"),
+        new PageDefinition("alert",        "Alerts",               "/alerts",               "bell",             true,  false, false, false, 9,  "fleet", "Alert inbox: volume by type and severity with acknowledge/resolve"),
+        new PageDefinition("fuel",         "Fuel",                 "/fuel",                 "fuel",             true,  false, false, false, 9,  "fleet", "Fuel transactions, consumption analytics and anomaly detection"),
+        new PageDefinition("maintenance",  "Maintenance",          "/maintenance",          "wrench",           true,  false, false, false, 10, "fleet", "Maintenance schedules, service history and due/overdue tracking"),
+        new PageDefinition("report",       "Reports",              "/reports",              "file-text",        true,  false, false, false, 11, "fleet", "Parameterized reports over every fleet dataset, with export and scheduled delivery"),
 
         // ── Organization & Access module ──────────────────────────────────
         new PageDefinition("company",      "Companies",            "/companies",            "building",         true,  false, false, true,  11, "organization", "Company administration"),
@@ -102,6 +103,7 @@ public static class PageRegistry
         new PageDefinition("subscription", "Subscription",         null,                    "credit-card",      false, false, false, false, 17, "organization", "Subscription (Settings / Company Detail)"),
         new PageDefinition("client",       "Clients",              null,                    "building",         false, false, true,  false, 18, "organization", "Planned: clients entity exists, page not built yet"),
         new PageDefinition("notification", "Notifications",        "/notifications",        "bell",             true,  false, false, false, 19, "organization", "Personal in-app notification inbox (bell + page)"),
+        new PageDefinition("audit",        "Audit Log",            "/admin/audit-log",      "scroll-text",      true,  false, false, false, 20, "organization", "Centralized append-only log of privileged actions (SuperAdmin: all; Company Admin: own company only)"),
 
         // ── Platform Administration module ────────────────────────────────
         new PageDefinition("platform",     "Platform Admin",       "/admin/companies",      "crown",            true,  true,  false, true,  20, "platform", "Platform-level company management"),

@@ -3,6 +3,7 @@ using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
+using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,11 +19,15 @@ public class SubscriptionController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
     private readonly INotificationService _notificationService;
-    public SubscriptionController(ApplicationDbContext db, IPermissionService permissionService, INotificationService notificationService)
+    private readonly AuditLogService _audit;
+    private readonly ITenantContext _tenant;
+    public SubscriptionController(ApplicationDbContext db, IPermissionService permissionService, INotificationService notificationService, AuditLogService audit, ITenantContext tenant)
     {
         _db = db;
         _permissionService = permissionService;
         _notificationService = notificationService;
+        _audit = audit;
+        _tenant = tenant;
     }
 
     [HttpGet]
@@ -108,6 +113,22 @@ public class SubscriptionController : ControllerBase
         company.PackageId = dto.PackageId;
 
         await _db.SaveChangesAsync();
+
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.SubscriptionChange,
+            ActionCode = "company.package_changed",
+            EntityType = EntityType.Subscription,
+            EntityId = subscription.Id,
+            EntityName = package.Name,
+            TargetCompanyId = cid,
+            BeforeState = System.Text.Json.JsonSerializer.Serialize(new { packageId = existing.FirstOrDefault()?.PackageId, packageName = existing.FirstOrDefault()?.Package?.Name }),
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new { packageId = package.Id, packageName = package.Name }),
+            IpAddress = _tenant.IpAddress
+        });
 
         // Package change alters company-level module access → drop cached permissions
         _permissionService.InvalidateAllCache();

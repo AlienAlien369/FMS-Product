@@ -104,8 +104,19 @@ builder.Services.AddScoped<ProofOfDeliveryService>(sp => new ProofOfDeliveryServ
 builder.Services.AddScoped<TripShareLinkService>();
 builder.Services.AddScoped<FleetPolicyService>();
 builder.Services.AddScoped<SensorPolicyAlertProducer>();
-builder.Services.AddHostedService<SensorRetentionService>();
+builder.Services.AddScoped<FuelService>();
+builder.Services.AddScoped<FuelConsumptionAnalyzer>();
+builder.Services.AddScoped<MaintenanceService>();        builder.Services.AddHostedService<SensorRetentionService>();
+        builder.Services.AddScoped<DriverScorecardService>();
+        builder.Services.AddHostedService<DriverScorecardRefreshService>();
+builder.Services.AddScoped<IReportEngine, ReportEngine>();
+builder.Services.AddScoped<ScheduledReportService>();
+builder.Services.AddHostedService<ScheduledReportRunner>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+
+// ── Audit Log (centralized, append-only, async writes) ──
+builder.Services.AddSingleton<AuditLogService>();
+builder.Services.AddHostedService<AuditLogWriterHostedService>();
 
 // ── Device abstraction layer ─────────────────────────────
 builder.Services.AddSingleton<Freebuff.Platform.Ingestion.Registry.VendorAdapterRegistry>(

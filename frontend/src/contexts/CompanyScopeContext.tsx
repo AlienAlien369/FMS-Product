@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import api from '../lib/api';
 import { useAuth } from './AuthContext';
@@ -96,13 +96,27 @@ export function CompanyScopeProvider({ children }: { children: ReactNode }) {
     return () => { alive = false; };
   }, [isCrossTenant, userKey]);
 
+  // Debounced audit report of scope changes: the switch itself is a logged
+  // event (lightweight, cross-tenant VIEWING is worth a trail). Trailing
+  // debounce coalesces rapid multi-select toggling into one entry per change
+  // burst; fire-and-forget — the audit write must never affect the selector.
+  const reportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportScopeChange = useCallback((v: CompanyScopeValue) => {
+    if (reportTimer.current) clearTimeout(reportTimer.current);
+    reportTimer.current = setTimeout(() => {
+      const companyIds = v === 'ALL' || v === null ? [] : v;
+      api.post('/audit/scope-switch', { companyIds }).catch(() => { /* non-blocking */ });
+    }, 800);
+  }, []);
+
   const setScope = useCallback((v: CompanyScopeValue) => {
     if (!isCrossTenant) return; // never let a non-cross-tenant user widen scope
     setScopeState(v);
     setVersion(x => x + 1);
+    reportScopeChange(v);
     if (v === null) sessionStorage.removeItem(STORAGE_KEY);
     else sessionStorage.setItem(STORAGE_KEY, v === 'ALL' ? 'ALL' : JSON.stringify(v));
-  }, [isCrossTenant]);
+  }, [isCrossTenant, reportScopeChange]);
 
   const resetScope = useCallback(() => setScope(null), [setScope]);
 

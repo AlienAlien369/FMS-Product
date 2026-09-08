@@ -21,11 +21,13 @@ public class AdminController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IPermissionService _permissionService;
     private readonly ITenantContext _tenant;
-    public AdminController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant)
+    private readonly AuditLogService _audit;
+    public AdminController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, AuditLogService audit)
     {
         _db = db;
         _permissionService = permissionService;
         _tenant = tenant;
+        _audit = audit;
     }
 
     // ── Platform Overview ───────────────────────────────
@@ -319,6 +321,7 @@ public class AdminController : ControllerBase
         var localeErr = await ValidateCompanyLocaleAsync(dto.DefaultLanguage, dto.DefaultCurrency);
         if (localeErr != null) return BadRequest(ApiResponse.Fail("INVALID_LOCALE", localeErr));
 
+        var before = new { company.Name, company.ContactEmail, company.ContactPhone, company.Country, company.DefaultLanguage, company.DefaultTimezone, company.DefaultCurrency, Status = (int)company.Status };
         if (dto.Name != null) company.Name = dto.Name;
         if (dto.ContactEmail != null) company.ContactEmail = dto.ContactEmail;
         if (dto.ContactPhone != null) company.ContactPhone = dto.ContactPhone;
@@ -329,6 +332,27 @@ public class AdminController : ControllerBase
         if (dto.Status.HasValue) company.Status = (EntityStatus)dto.Status.Value;
 
         await _db.SaveChangesAsync();
+
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.ConfigurationChange,
+            ActionCode = "company.config_changed",
+            EntityType = EntityType.Company,
+            EntityId = id,
+            EntityName = company.Name,
+            TargetCompanyId = id,
+            BeforeState = System.Text.Json.JsonSerializer.Serialize(before),
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                company.Name, company.ContactEmail, company.ContactPhone, company.Country,
+                company.DefaultLanguage, company.DefaultTimezone, company.DefaultCurrency,
+                Status = (int)company.Status
+            }),
+            IpAddress = _tenant.IpAddress
+        });
         return Ok(ApiResponse.Ok(message: "Company updated"));
     }
 

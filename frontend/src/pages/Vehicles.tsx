@@ -8,7 +8,7 @@ import TargetCompanyField from '../components/TargetCompanyField';
 import type { PagedResult } from '../lib/api';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-  Eye, X, Truck, MapPin, Wrench, User, Settings, Activity, Shield, Sliders, Radio, CreditCard, Link2,
+  Eye, X, Truck, MapPin, Wrench, User, Settings, Activity, Shield, Sliders, Radio, CreditCard, Link2, Fuel as FuelIcon,
 } from 'lucide-react';
 import { VEHICLE_STATUS, FUEL_TYPE } from '../lib/constants';
 import { TYRE_POSITIONS, TYRE_STATUS_STYLE, SPEED_STATUS_STYLE } from '../lib/sensors';
@@ -356,11 +356,13 @@ export default function Vehicles() {
 
 // ── View Detail Modal (Tabbed) ──────────────────────────
 function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClose: () => void }) {
-  type Tab = 'overview' | 'tracking' | 'assignment' | 'device' | 'sensors' | 'audit';
+  type Tab = 'overview' | 'tracking' | 'assignment' | 'device' | 'sensors' | 'fuel' | 'maintenance' | 'audit';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [deviceAssignments, setDeviceAssignments] = useState<VehicleDeviceAssignment[]>([]);
   const [sensors, setSensors] = useState<any>(null);
+  const [fuelLogOpen, setFuelLogOpen] = useState(false);
+  const [maintLogOpen, setMaintLogOpen] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'audit') {
@@ -380,6 +382,8 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
     { key: 'assignment', label: 'Assignment', icon: User },
     { key: 'device', label: 'Device', icon: Wrench },
     { key: 'sensors', label: 'Sensors', icon: Activity },
+    { key: 'fuel', label: 'Fuel', icon: FuelIcon },
+    { key: 'maintenance', label: 'Maintenance', icon: Wrench },
     { key: 'audit', label: 'Audit Log', icon: Shield },
   ];
 
@@ -528,6 +532,14 @@ function VehicleViewModal({ vehicle, onClose }: { vehicle: VehicleDetail; onClos
 
           {activeTab === 'sensors' && (
             <SensorPanel sensors={sensors} />
+          )}
+
+          {activeTab === 'fuel' && (
+            <VehicleFuelTab vehicleId={vehicle.id} onLog={() => setFuelLogOpen(true)} logOpen={fuelLogOpen} onCloseLog={() => setFuelLogOpen(false)} />
+          )}
+
+          {activeTab === 'maintenance' && (
+            <VehicleMaintenanceTab vehicleId={vehicle.id} onLog={() => setMaintLogOpen(true)} logOpen={maintLogOpen} onCloseLog={() => setMaintLogOpen(false)} />
           )}
 
           {activeTab === 'audit' && (
@@ -849,5 +861,332 @@ function SensorPanel({ sensors }: { sensors: any }) {
         {sensors.lastUpdate && <p className="text-[10px] text-gray-400">Last sensor update {new Date(sensors.lastUpdate).toLocaleString()}</p>}
       </div>
     </div>
+  );
+}
+
+// ── Vehicle Fuel Tab (Fuel Management) ─────────────────────────────────────
+interface FuelRecordRow {
+  id: string; recordDate: string; quantity: number; unit?: string; totalCost?: number;
+  odometerReading?: number; source?: string; station?: string; distanceTraveledKm?: number;
+  efficiencyKmPerLiter?: number; isAnomaly: boolean;
+}
+interface FuelMetrics {
+  transactionCount: number; totalLiters: number; totalSpend: number;
+  avgEfficiencyKmPerLiter?: number; costPerKm?: number; hasFuelSensor: boolean;
+  transactions: FuelRecordRow[];
+  snapshots: any[];
+}
+function VehicleFuelTab({ vehicleId, onLog, logOpen, onCloseLog }: {
+  vehicleId: string; onLog: () => void; logOpen: boolean; onCloseLog: () => void;
+}) {
+  const [metrics, setMetrics] = useState<FuelMetrics | null>(null);
+  useEffect(() => {
+    api.get(`/fuel/vehicles/${vehicleId}/metrics`).then(r => setMetrics(r.data.data || null)).catch(() => {});
+  }, [vehicleId]);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-gray-900 font-semibold"><FuelIcon className="w-4 h-4" /> Fuel History</div>
+        <button onClick={onLog} className="text-xs font-medium text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg min-h-[36px]">Log Fill-up</button>
+      </div>
+      {!metrics ? (
+        <div className="text-sm text-gray-400 py-4">Loading…</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Fill-ups', value: metrics.transactionCount },
+              { label: 'Total Liters', value: `${(metrics.totalLiters || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} L` },
+              { label: 'Avg Efficiency', value: metrics.avgEfficiencyKmPerLiter != null ? `${metrics.avgEfficiencyKmPerLiter} km/L` : '—' },
+              { label: 'Cost / km', value: metrics.costPerKm != null ? `$${metrics.costPerKm}` : '—' },
+            ].map(c => (
+              <div key={c.label} className="bg-gray-50 rounded-lg p-3">
+                <div className="text-lg font-bold text-gray-900 truncate">{c.value}</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wide">{c.label}</div>
+              </div>
+            ))}
+          </div>
+          {metrics.hasFuelSensor && (
+            <p className="text-[10px] text-indigo-600">Fuel sensor attached — consumption also tracked from telemetry snapshots.</p>
+          )}
+          {metrics.transactions.length === 0 ? (
+            <div className="text-sm text-gray-400 py-4">No fuel transactions yet.</div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {metrics.transactions.slice(0, 20).map(t => (
+                <div key={t.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{new Date(t.recordDate).toLocaleDateString()} — {t.quantity} L</div>
+                    <div className="text-xs text-gray-500">
+                      {t.source === 'sensor_derived' ? 'Sensor' : 'Manual'}{t.station ? ` · ${t.station}` : ''}{t.odometerReading ? ` · ${t.odometerReading.toLocaleString()} km` : ''}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {t.efficiencyKmPerLiter != null && (
+                      <div className="text-xs font-medium text-green-700">{t.efficiencyKmPerLiter} km/L</div>
+                    )}
+                    {t.totalCost != null && <div className="text-xs text-gray-500">${t.totalCost}</div>}
+                    {t.isAnomaly && <div className="text-[10px] font-medium text-red-600">suspected anomaly</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {logOpen && <VehicleLogFillUp vehicleId={vehicleId} onClose={onCloseLog} onSaved={onCloseLog} />}
+    </div>
+  );
+}
+
+function VehicleLogFillUp({ vehicleId, onClose, onSaved }: { vehicleId: string; onClose: () => void; onSaved: () => void }) {
+  const [quantity, setQuantity] = useState('');
+  const [totalCost, setTotalCost] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [station, setStation] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    if (!quantity || parseFloat(quantity) <= 0) { setError('Liters are required'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.post('/fuel', {
+        vehicleId, quantity: parseFloat(quantity),
+        totalCost: totalCost ? parseFloat(totalCost) : null,
+        odometerReading: odometer ? parseFloat(odometer) : null,
+        station: station || null,
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to log fill-up');
+      setSaving(false);
+    }
+  };
+  return (
+    <ModalSheet onClose={onClose}>
+      <ModalHeader title="Log Fuel Fill-up" onClose={onClose} />
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={LABEL}>Liters *</label>
+            <input type="number" step="0.1" value={quantity} onChange={e => setQuantity(e.target.value)} className={INPUT} />
+          </div>
+          <div>
+            <label className={LABEL}>Total cost</label>
+            <input type="number" step="0.01" value={totalCost} onChange={e => setTotalCost(e.target.value)} className={INPUT} />
+          </div>
+          <div>
+            <label className={LABEL}>Odometer (km)</label>
+            <input type="number" value={odometer} onChange={e => setOdometer(e.target.value)} className={INPUT} />
+          </div>
+          <div>
+            <label className={LABEL}>Station</label>
+            <input value={station} onChange={e => setStation(e.target.value)} className={INPUT} />
+          </div>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+      <ModalFooter>
+        <button className={BtnSecondary} onClick={onClose}>Cancel</button>
+        <button className={BtnPrimary} onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Log Fill-up'}</button>
+      </ModalFooter>
+    </ModalSheet>
+  );
+}
+
+// ── Vehicle Maintenance Tab ────────────────────────────────────────────────
+interface MaintScheduleRow {
+  id: string; title: string; triggerType: number; intervalValue: number;
+  nextDueOdometer?: number; nextDueDate?: string; nextDueEngineHours?: number;
+  lastServiceDate?: string; dueStatus: number; dueStatusDetail?: string;
+}
+interface MaintRecordRow {
+  id: string; title: string; recordType: number; breakdownSeverity?: string; downtimeHours?: number;
+  rootCause?: string; workshop?: string; cost?: number; completedDate?: string;
+}
+interface MaintVehicleDetail {
+  vehicleId: string; vehicleRegistration?: string;
+  schedules: MaintScheduleRow[]; records: MaintRecordRow[];
+  overdueCount: number; dueSoonCount: number;
+}
+const MAINT_STATUS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'OK', cls: 'bg-green-100 text-green-700' },
+  1: { label: 'Due Soon', cls: 'bg-amber-100 text-amber-700' },
+  2: { label: 'Overdue', cls: 'bg-red-100 text-red-700' },
+  3: { label: 'No Data', cls: 'bg-gray-100 text-gray-600' },
+};
+const MAINT_TRIGGER = ['Mileage (km)', 'Time (days)', 'Engine hours'];
+function VehicleMaintenanceTab({ vehicleId, onLog, logOpen, onCloseLog }: {
+  vehicleId: string; onLog: () => void; logOpen: boolean; onCloseLog: () => void;
+}) {
+  const [detail, setDetail] = useState<MaintVehicleDetail | null>(null);
+  useEffect(() => {
+    api.get(`/maintenance/vehicles/${vehicleId}`).then(r => setDetail(r.data.data || null)).catch(() => {});
+  }, [vehicleId]);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-gray-900 font-semibold"><Wrench className="w-4 h-4" /> Maintenance</div>
+        <button onClick={onLog} className="text-xs font-medium text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg min-h-[36px]">Log Service</button>
+      </div>
+      {!detail ? (
+        <div className="text-sm text-gray-400 py-4">Loading…</div>
+      ) : (
+        <>
+          {(detail.overdueCount > 0 || detail.dueSoonCount > 0) && (
+            <div className={`rounded-lg px-3 py-2 text-sm ${detail.overdueCount > 0 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+              {detail.overdueCount > 0 ? `${detail.overdueCount} service(s) overdue` : ''}
+              {detail.overdueCount > 0 && detail.dueSoonCount > 0 ? ' · ' : ''}
+              {detail.dueSoonCount > 0 ? `${detail.dueSoonCount} due soon` : ''}
+            </div>
+          )}
+          <div>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Upcoming Schedule</div>
+            {detail.schedules.length === 0 ? (
+              <div className="text-sm text-gray-400 py-2">No active schedules.</div>
+            ) : (
+              <div className="space-y-2">
+                {detail.schedules.map(s => (
+                  <div key={s.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{s.title}</div>
+                      <div className="text-xs text-gray-500">
+                        {MAINT_TRIGGER[s.triggerType] || '—'} · every {s.intervalValue}
+                        {s.nextDueOdometer != null ? ` · next ${s.nextDueOdometer.toLocaleString()} km` : s.nextDueDate ? ` · next ${new Date(s.nextDueDate).toLocaleDateString()}` : ''}
+                      </div>
+                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${MAINT_STATUS[s.dueStatus]?.cls || 'bg-gray-100 text-gray-600'}`} title={s.dueStatusDetail}>
+                      {MAINT_STATUS[s.dueStatus]?.label || '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Service History</div>
+            {detail.records.length === 0 ? (
+              <div className="text-sm text-gray-400 py-2">No service records yet.</div>
+            ) : (
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {detail.records.slice(0, 20).map(r => (
+                  <div key={r.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                        {r.title}
+                        {r.recordType === 1 && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.breakdownSeverity === 'critical' ? 'bg-red-100 text-red-700' : r.breakdownSeverity === 'major' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {r.breakdownSeverity || 'breakdown'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {r.completedDate ? new Date(r.completedDate).toLocaleDateString() : '—'}
+                        {r.workshop ? ` · ${r.workshop}` : ''}
+                        {r.downtimeHours ? ` · ${r.downtimeHours} h downtime` : ''}
+                      </div>
+                    </div>
+                    {r.cost != null && <div className="text-sm font-medium text-gray-900 shrink-0">${r.cost}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      {logOpen && <VehicleLogService vehicleId={vehicleId} onClose={onCloseLog} onSaved={onCloseLog} />}
+    </div>
+  );
+}
+
+function VehicleLogService({ vehicleId, onClose, onSaved }: { vehicleId: string; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState('');
+  const [recordType, setRecordType] = useState<0 | 1>(0);
+  const [schedules, setSchedules] = useState<MaintScheduleRow[]>([]);
+  const [scheduleId, setScheduleId] = useState('');
+  const [severity, setSeverity] = useState('minor');
+  const [downtime, setDowntime] = useState('');
+  const [cost, setCost] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get(`/maintenance?vehicleId=${vehicleId}`).then(r => setSchedules(r.data.data || [])).catch(() => setSchedules([]));
+  }, [vehicleId]);
+  const submit = async () => {
+    if (!title) { setError('Title is required'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.post('/maintenance/records', {
+        vehicleId, title, recordType,
+        maintenanceScheduleId: recordType === 0 && scheduleId ? scheduleId : null,
+        breakdownSeverity: recordType === 1 ? severity : null,
+        downtimeHours: recordType === 1 && downtime ? parseFloat(downtime) : null,
+        cost: cost ? parseFloat(cost) : null,
+        odometerAtService: odometer ? parseFloat(odometer) : null,
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to log service');
+      setSaving(false);
+    }
+  };
+  return (
+    <ModalSheet onClose={onClose}>
+      <ModalHeader title="Log Service" onClose={onClose} />
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+        <div>
+          <label className={LABEL}>Title *</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} className={INPUT} placeholder="e.g. Engine oil change" />
+        </div>
+        <div>
+          <label className={LABEL}>Type</label>
+          <div className="flex gap-2">
+            <button onClick={() => setRecordType(0)} className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border ${recordType === 0 ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600'}`}>Preventive</button>
+            <button onClick={() => setRecordType(1)} className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border ${recordType === 1 ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-300 text-gray-600'}`}>Breakdown</button>
+          </div>
+        </div>
+        {recordType === 0 && (
+          <div>
+            <label className={LABEL}>Complete schedule (optional)</label>
+            <select value={scheduleId} onChange={e => setScheduleId(e.target.value)} className={INPUT}>
+              <option value="">— standalone service —</option>
+              {schedules.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+          </div>
+        )}
+        {recordType === 1 && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>Severity</label>
+              <select value={severity} onChange={e => setSeverity(e.target.value)} className={INPUT}>
+                <option value="minor">Minor</option>
+                <option value="major">Major</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Downtime (hours)</label>
+              <input type="number" step="0.5" value={downtime} onChange={e => setDowntime(e.target.value)} className={INPUT} />
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={LABEL}>Cost</label>
+            <input type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} className={INPUT} />
+          </div>
+          <div>
+            <label className={LABEL}>Odometer (km)</label>
+            <input type="number" value={odometer} onChange={e => setOdometer(e.target.value)} className={INPUT} />
+          </div>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+      <ModalFooter>
+        <button className={BtnSecondary} onClick={onClose}>Cancel</button>
+        <button className={BtnPrimary} onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Log Service'}</button>
+      </ModalFooter>
+    </ModalSheet>
   );
 }

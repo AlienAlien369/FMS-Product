@@ -59,7 +59,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<CompanyAlertSubscription> CompanyAlertSubscriptions => Set<CompanyAlertSubscription>();
     public DbSet<RoleAlertVisibility> RoleAlertVisibilities => Set<RoleAlertVisibility>();
     public DbSet<FuelRecord> FuelRecords => Set<FuelRecord>();
+    public DbSet<FuelConsumptionSnapshot> FuelConsumptionSnapshots => Set<FuelConsumptionSnapshot>();
+    public DbSet<MaintenanceSchedule> MaintenanceSchedules => Set<MaintenanceSchedule>();
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
+    public DbSet<ScheduledReport> ScheduledReports => Set<ScheduledReport>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<ProofOfDelivery> ProofOfDeliveries => Set<ProofOfDelivery>();
     public DbSet<TripShareLink> TripShareLinks => Set<TripShareLink>();
@@ -82,6 +85,10 @@ public class ApplicationDbContext : DbContext
 
     // Audit
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    // Driver Scorecards (materialized periods + weight config)
+    public DbSet<DriverScorePeriod> DriverScorePeriods => Set<DriverScorePeriod>();
+    public DbSet<ScoreWeightConfig> ScoreWeightConfigs => Set<ScoreWeightConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

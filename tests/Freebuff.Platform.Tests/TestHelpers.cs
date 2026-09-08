@@ -37,26 +37,26 @@ public sealed class StubPermissionService : IPermissionService
 /// </summary>
 public sealed class CapturingNotificationService : INotificationService
 {
-    public List<(string EventType, int Severity, string Title)> Dispatched { get; } = new();
+    public List<(string EventType, int Severity, string Title, string Message)> Dispatched { get; } = new();
 
     public Task NotifyUserAsync(Guid companyId, Guid userId, string eventType, string title, string message,
         int severity, string? relatedEntityType = null, Guid? relatedEntityId = null, string? actionUrl = null)
     {
-        Dispatched.Add((eventType, severity, title));
+        Dispatched.Add((eventType, severity, title, message));
         return Task.CompletedTask;
     }
 
     public Task<int> NotifyRoleUsersAsync(Guid companyId, Guid roleId, string eventType, string title, string message,
         int severity, string? relatedEntityType = null, Guid? relatedEntityId = null, string? actionUrl = null)
     {
-        Dispatched.Add((eventType, severity, title));
+        Dispatched.Add((eventType, severity, title, message));
         return Task.FromResult(0);
     }
 
     public Task<int> NotifyCompanyAdminsAsync(Guid companyId, string eventType, string title, string message,
         int severity, string? relatedEntityType = null, Guid? relatedEntityId = null, string? actionUrl = null)
     {
-        Dispatched.Add((eventType, severity, title));
+        Dispatched.Add((eventType, severity, title, message));
         return Task.FromResult(1);
     }
 
@@ -64,7 +64,7 @@ public sealed class CapturingNotificationService : INotificationService
         string title, string message, int severity, string? relatedEntityType = null,
         Guid? relatedEntityId = null, string? actionUrl = null)
     {
-        Dispatched.Add((eventType, severity, title));
+        Dispatched.Add((eventType, severity, title, message));
         return Task.FromResult(1);
     }
 
@@ -73,7 +73,7 @@ public sealed class CapturingNotificationService : INotificationService
         string title, string message, int severity, string? relatedEntityType = null,
         Guid? relatedEntityId = null, string? actionUrl = null)
     {
-        Dispatched.Add(("permission.role_updated", severity, title));
+        Dispatched.Add(("permission.role_updated", severity, title, message));
         return Task.FromResult(0);
     }
 }

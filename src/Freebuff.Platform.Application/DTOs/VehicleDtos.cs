@@ -184,6 +184,9 @@ public class DriverDto
     public int Status { get; set; }
     public decimal? SafetyScore { get; set; }
     public decimal? BehaviourScore { get; set; }
+
+    /// <summary>Latest materialized 30-day composite scorecard score (null = insufficient data / none yet).</summary>
+    public decimal? CompositeScore { get; set; }
     public Guid? AssignedVehicleId { get; set; }
     public string? AssignedVehicleReg { get; set; }
     public int TripCount { get; set; }

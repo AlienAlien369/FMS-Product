@@ -1,12 +1,12 @@
 # RBAC + Module/Package Matrix — Test Oracle Report
 
-_Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
+_Generated 2026-09-08 01:06:53Z from the live seed + PageRegistry._
 
 **Effective permission formula:** `role grants ∩ company package modules` (SuperAdmin bypasses all checks).
 
 ## Coverage
-- Total (role × page × action) cells: **1134**
-- Covered by the effective-permission matrix test: **1134**
+- Total (role × page × action) cells: **1218**
+- Covered by the effective-permission matrix test: **1218**
 - Cells with an HTTP endpoint test: **217**
 - Uncovered cells: **0** (every (role × page × action) cell is asserted by `RbacMatrixTests.Matrix_EffectivePermissions_Exhaustive`)
 
@@ -30,6 +30,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Driver Scorecards (`driverscore`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Fuel (`fuel`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
@@ -44,6 +45,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Clients (`client`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Notifications (`notification`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Audit Log (`audit`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Platform Admin (`platform`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Packages (`package`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
 | Modules (`module`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view |
@@ -65,6 +67,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Driver Scorecards (`driverscore`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -79,6 +82,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Audit Log (`audit`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
@@ -100,6 +104,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Driver Scorecards (`driverscore`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -114,6 +119,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Audit Log (`audit`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
@@ -135,6 +141,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Driver Scorecards (`driverscore`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -149,6 +156,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Audit Log (`audit`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
@@ -170,6 +178,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Driver Scorecards (`driverscore`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -184,6 +193,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Audit Log (`audit`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
@@ -205,6 +215,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Routes (`route`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Driver Scorecards (`driverscore`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Proof of Delivery (`pod`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -219,6 +230,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Audit Log (`audit`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
@@ -240,6 +252,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Geofences (`geofence`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Routes (`route`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | view, create, update, delete |
 | Trips (`trip`) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Driver Scorecards (`driverscore`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Proof of Delivery (`pod`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Alerts (`alert`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Fuel (`fuel`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
@@ -254,6 +267,7 @@ _Generated 2026-09-07 05:04:20Z from the live seed + PageRegistry._
 | Subscription (`subscription`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Clients (`client`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Notifications (`notification`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
+| Audit Log (`audit`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — |
 | Platform Admin (`platform`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Packages (`package`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |
 | Modules (`module`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | view |

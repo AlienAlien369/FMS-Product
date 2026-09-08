@@ -321,6 +321,42 @@ public static class SchemaBootstrap
         CREATE INDEX IF NOT EXISTS "IX_DriverBehaviorEvents_Driver_Time" ON "DriverBehaviorEvents" ("DriverId", "EventTimeUtc");
         CREATE INDEX IF NOT EXISTS "IX_DriverBehaviorEvents_Vehicle_Time" ON "DriverBehaviorEvents" ("VehicleId", "EventTimeUtc");
 
+        -- Driver Scorecards: materialized periods + weight config (added after initial release).
+        CREATE TABLE IF NOT EXISTS "DriverScorePeriods" (
+            "Id" uuid NOT NULL,
+            "CompanyId" uuid NOT NULL,
+            "DriverId" uuid NOT NULL,
+            "Window" text NOT NULL,
+            "AnchorDate" timestamp with time zone NOT NULL,
+            "PeriodStart" timestamp with time zone NOT NULL,
+            "PeriodEnd" timestamp with time zone NOT NULL,
+            "SafetyScore" numeric NULL,
+            "ComplianceScore" numeric NULL,
+            "PunctualityScore" numeric NULL,
+            "BehaviorScore" numeric NULL,
+            "CompositeScore" numeric NULL,
+            "TripCount" integer NOT NULL,
+            "EventCount" integer NOT NULL,
+            "DistanceKm" numeric NULL,
+            "ComputedAt" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_DriverScorePeriods" PRIMARY KEY ("Id")
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_DriverScorePeriods_Driver_Window_Anchor" ON "DriverScorePeriods" ("DriverId", "Window", "AnchorDate");
+        CREATE INDEX IF NOT EXISTS "IX_DriverScorePeriods_DriverId" ON "DriverScorePeriods" ("DriverId");
+
+        CREATE TABLE IF NOT EXISTS "ScoreWeightConfigs" (
+            "Id" uuid NOT NULL,
+            "CompanyId" uuid NULL,
+            "SafetyWeight" double precision NOT NULL,
+            "ComplianceWeight" double precision NOT NULL,
+            "PunctualityWeight" double precision NOT NULL,
+            "BehaviorWeight" double precision NOT NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            CONSTRAINT "PK_ScoreWeightConfigs" PRIMARY KEY ("Id")
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_ScoreWeightConfigs_CompanyId" ON "ScoreWeightConfigs" ("CompanyId");
+
         CREATE TABLE IF NOT EXISTS "TelemetryStates" (
             "Id" uuid NOT NULL,
             "TenantId" uuid NOT NULL,
@@ -725,6 +761,153 @@ public static class SchemaBootstrap
         ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "DeletedBy" text NULL;
         ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "DeletionReason" text NULL;
         ALTER TABLE "NotificationPreferences" ADD COLUMN IF NOT EXISTS "Version" integer NOT NULL DEFAULT 0;
+        """,
+
+        // Audit Log: fine-grained action code + actor role (append-only table;
+        // the new columns must exist on DBs predating the centralized log).
+        """
+        ALTER TABLE "AuditLogs" ADD COLUMN IF NOT EXISTS "ActionCode" text NULL;
+        ALTER TABLE "AuditLogs" ADD COLUMN IF NOT EXISTS "ActorRole" text NULL;
+        CREATE INDEX IF NOT EXISTS "IX_AuditLogs_ActionCode" ON "AuditLogs" ("ActionCode");
+        """,
+
+        // ── Fuel Management module ─────────────────────────────────────────
+        // FuelRecords/MaintenanceRecords tables predate the bootstrap; the new
+        // module columns are added idempotently. FuelConsumptionSnapshots is a
+        // new high-volume sensor stream (lean row, like TelemetryEvents — no
+        // soft-delete/audit columns) and MaintenanceSchedules is a new standard
+        // BaseEntity table.
+        """
+        ALTER TABLE "FuelRecords" ADD COLUMN IF NOT EXISTS "Source" text NULL;
+        ALTER TABLE "FuelRecords" ADD COLUMN IF NOT EXISTS "Station" text NULL;
+        ALTER TABLE "FuelRecords" ADD COLUMN IF NOT EXISTS "DistanceTraveledKm" numeric NULL;
+        ALTER TABLE "FuelRecords" ADD COLUMN IF NOT EXISTS "AnomalyReason" text NULL;
+
+        CREATE TABLE IF NOT EXISTS "FuelConsumptionSnapshots" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NOT NULL,
+            "VehicleId" uuid NOT NULL,
+            "DeviceId" uuid NULL,
+            "EventTimeUtc" timestamp with time zone NOT NULL,
+            "FuelLevelPercent" double precision NULL,
+            "FuelLevelLiters" double precision NULL,
+            "OdometerKm" double precision NULL,
+            "Ignition" boolean NULL,
+            "EngineOn" boolean NULL,
+            "LitersConsumed" double precision NULL,
+            "DistanceKm" double precision NULL,
+            "ConsumptionLitersPer100km" double precision NULL,
+            "IsAnomaly" boolean NOT NULL DEFAULT false,
+            "AnomalyReason" text NULL,
+            CONSTRAINT "PK_FuelConsumptionSnapshots" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_FuelConsumptionSnapshots_Vehicle_Time" ON "FuelConsumptionSnapshots" ("VehicleId", "EventTimeUtc");
+        CREATE INDEX IF NOT EXISTS "IX_FuelConsumptionSnapshots_Tenant_Time" ON "FuelConsumptionSnapshots" ("TenantId", "EventTimeUtc");
+        """,
+
+        // ── Maintenance Management module ──────────────────────────────────
+        """
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "RecordType" integer NOT NULL DEFAULT 0;
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "MaintenanceScheduleId" uuid NULL;
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "BreakdownSeverity" text NULL;
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "DowntimeHours" numeric NULL;
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "RootCause" text NULL;
+        ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "EngineHoursAtService" numeric NULL;
+
+        CREATE TABLE IF NOT EXISTS "MaintenanceSchedules" (
+            "Id" uuid NOT NULL,
+            "TenantId" uuid NULL,
+            "VehicleId" uuid NOT NULL,
+            "CompanyId" uuid NOT NULL,
+            "Title" text NOT NULL,
+            "ServiceType" text NOT NULL,
+            "TriggerType" integer NOT NULL,
+            "IntervalValue" numeric NOT NULL,
+            "DueLeadValue" numeric NULL,
+            "LastServiceOdometer" numeric NULL,
+            "LastServiceEngineHours" numeric NULL,
+            "LastServiceDate" timestamp with time zone NULL,
+            "LastMaintenanceRecordId" uuid NULL,
+            "NextDueOdometer" numeric NULL,
+            "NextDueEngineHours" numeric NULL,
+            "NextDueDate" timestamp with time zone NULL,
+            "IsActive" boolean NOT NULL DEFAULT true,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_MaintenanceSchedules" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_MaintenanceSchedules_VehicleId" ON "MaintenanceSchedules" ("VehicleId");
+        CREATE INDEX IF NOT EXISTS "IX_MaintenanceSchedules_CompanyId" ON "MaintenanceSchedules" ("CompanyId");
+        """,
+
+        // ── Fuel + Maintenance module launch: flip the registry rows live ──
+        // (Route/Nav/Planned mirror PageRegistry; the seed only fills unset
+        // fields, so the flip must happen here for previously-planned rows.)
+        """
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/fuel',
+            "Description" = 'Fuel transactions, consumption analytics and anomaly detection'
+            WHERE "Key" = 'fuel' AND "IsDeleted" = false AND "Planned" = true;
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/maintenance',
+            "Description" = 'Maintenance schedules, service history and due/overdue tracking'
+            WHERE "Key" = 'maintenance' AND "IsDeleted" = false AND "Planned" = true;
+        """,
+
+        // ── Reports + Alerts launch: flip the last two Planned fleet pages ──
+        // (Reports brings the shared Report Engine over every fleet dataset;
+        // Alerts gets its own page with the alert-volume data the Alerts report
+        // aggregates.) Same pattern as the fuel/maintenance flip above.
+        """
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/reports',
+            "Description" = 'Parameterized reports over every fleet dataset, with export and scheduled delivery'
+            WHERE "Key" = 'report' AND "IsDeleted" = false AND "Planned" = true;
+        UPDATE "Pages" SET "Planned" = false, "Nav" = true, "Route" = '/alerts',
+            "Description" = 'Alert inbox: volume by type and severity with acknowledge/resolve'
+            WHERE "Key" = 'alert' AND "IsDeleted" = false AND "Planned" = true;
+        """,
+
+        // ── Reports module: scheduled report delivery table ────────────────
+        """
+        CREATE TABLE IF NOT EXISTS "ScheduledReports" (
+            "Id" uuid NOT NULL,
+            "CompanyId" uuid NOT NULL,
+            "TenantId" uuid NOT NULL,
+            "CreatedByUserId" uuid NOT NULL,
+            "ReportType" text NOT NULL,
+            "Title" text NOT NULL,
+            "ParametersJson" text NOT NULL,
+            "Cadence" integer NOT NULL,
+            "DayOfWeek" integer NULL,
+            "DayOfMonth" integer NULL,
+            "IsActive" boolean NOT NULL DEFAULT true,
+            "NextRunAt" timestamp with time zone NULL,
+            "LastRunAt" timestamp with time zone NULL,
+            "LastRunStatus" text NULL,
+            "LastRunSummary" text NULL,
+            "LastRunDelivered" boolean NULL,
+            "IsPausedAfterError" boolean NOT NULL DEFAULT false,
+            "ConsecutiveFailures" integer NOT NULL DEFAULT 0,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" text NULL,
+            "UpdatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" text NULL,
+            "IsDeleted" boolean NOT NULL,
+            "DeletedAt" timestamp with time zone NULL,
+            "DeletedBy" text NULL,
+            "DeletionReason" text NULL,
+            "Version" integer NOT NULL,
+            CONSTRAINT "PK_ScheduledReports" PRIMARY KEY ("Id")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_ScheduledReports_CompanyId_CreatedByUserId"
+            ON "ScheduledReports" ("CompanyId", "CreatedByUserId");
+        CREATE INDEX IF NOT EXISTS "IX_ScheduledReports_NextRunAt_IsActive_IsPausedAfterError"
+            ON "ScheduledReports" ("NextRunAt", "IsActive", "IsPausedAfterError");
         """
     };
 

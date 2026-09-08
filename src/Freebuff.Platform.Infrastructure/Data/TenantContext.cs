@@ -72,6 +72,20 @@ public class TenantContext : ITenantContext
         }
     }
 
+    public string? UserEmail
+    {
+        get
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            return user?.FindFirst(ClaimTypes.Email)?.Value
+                ?? user?.FindFirst("preferred_username")?.Value
+                ?? user?.Identity?.Name;
+        }
+    }
+
+    public string? IpAddress
+        => _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+
     public bool IsSuperAdmin
     {
         get

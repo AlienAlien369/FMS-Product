@@ -1,5 +1,6 @@
 using Freebuff.Platform.Api.Authorization;
 using Freebuff.Platform.Application.DTOs;
+using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.Data;
 using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
@@ -24,10 +25,14 @@ public class TripShareLinksController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly TripShareLinkService _links;
+    private readonly AuditLogService _audit;
+    private readonly ITenantContext _tenant;
 
-    public TripShareLinksController(ApplicationDbContext db, TripShareLinkService links)
+    public TripShareLinksController(ApplicationDbContext db, TripShareLinkService links, AuditLogService audit, ITenantContext tenant)
     {
         _db = db;
+        _audit = audit;
+        _tenant = tenant;
         _links = links;
     }
 
@@ -47,6 +52,25 @@ public class TripShareLinksController : ControllerBase
         if (guard != null) return guard;
 
         var link = await _links.GenerateAsync(id, User.GetUserIdString(), dto.ExpiresInDays);
+
+        var tripCompanyId = await _db.Trips.AsNoTracking()
+            .Where(t => t.Id == id && !t.IsDeleted)
+            .Select(t => (Guid?)t.CompanyId)
+            .FirstOrDefaultAsync();
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.Create,
+            ActionCode = "share_link.generated",
+            EntityType = EntityType.ShareLink,
+            EntityId = link.Id,
+            EntityName = tripCompanyId.HasValue ? "tracking link" : null,
+            TargetCompanyId = tripCompanyId,
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new { expiresAt = link.ExpiresAt }),
+            IpAddress = _tenant.IpAddress
+        });
         return Ok(new ApiResponse<TripShareLinkDto>
         {
             Success = true,
@@ -79,8 +103,26 @@ public class TripShareLinksController : ControllerBase
         var guard = await GuardTripAsync(id);
         if (guard != null) return guard;
 
+        var tripCompanyId = await _db.Trips.AsNoTracking()
+            .Where(t => t.Id == id && !t.IsDeleted)
+            .Select(t => (Guid?)t.CompanyId)
+            .FirstOrDefaultAsync();
         var revoked = await _links.RevokeAsync(id, linkId, User.GetUserIdString());
         if (!revoked) return NotFound(new ApiResponse<object> { Success = false, Message = "Share link not found." });
+
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.Delete,
+            ActionCode = "share_link.revoked",
+            EntityType = EntityType.ShareLink,
+            EntityId = linkId,
+            EntityName = tripCompanyId.HasValue ? "tracking link" : null,
+            TargetCompanyId = tripCompanyId,
+            IpAddress = _tenant.IpAddress
+        });
         return Ok(new ApiResponse<object> { Success = true, Message = "Tracking link revoked — the public view is now unavailable." });
     }
 

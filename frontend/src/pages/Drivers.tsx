@@ -21,6 +21,7 @@ interface DriverDetail {
   licenseCategory?: string; address?: string; city?: string; country?: string;
   profileImageUrl?: string; companyId: string; companyName?: string;
   status: number; safetyScore?: number; behaviourScore?: number;
+  compositeScore?: number | null;
   assignedVehicleId?: string; assignedVehicleReg?: string;
   tripCount: number; createdAt: string;
 }
@@ -43,7 +44,7 @@ const STATUS_MAP: Record<number, { label: string; color: string }> = {
 const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500';
 const LABEL = 'block text-sm font-medium text-gray-700 mb-1';
 
-type SortField = 'fullName' | 'employeeId' | 'safetyScore' | 'status';
+type SortField = 'fullName' | 'employeeId' | 'composite' | 'status';
 interface SortState { field: SortField; desc: boolean; }
 
 const STATUS_FILTERS: { key: string; label: string; value?: number; color: string; statKey: string }[] = [
@@ -180,8 +181,8 @@ export default function Drivers() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">License</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Vehicle</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Trips</th>
-                <th onClick={() => handleSort('safetyScore')} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none">
-                  <span className="flex items-center gap-1">Safety <SortIcon field="safetyScore" /></span>
+                <th onClick={() => handleSort('composite')} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                  <span className="flex items-center gap-1">Score <SortIcon field="composite" /></span>
                 </th>
                 <th onClick={() => handleSort('status')} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none">
                   <span className="flex items-center gap-1">Status <SortIcon field="status" /></span>
@@ -235,14 +236,14 @@ export default function Drivers() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{d.tripCount}</td>
                     <td className="px-4 py-3">
-                      {d.safetyScore != null ? (
+                      {d.compositeScore != null ? (
                         <div className="flex items-center gap-1.5">
                           <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${d.safetyScore >= 80 ? 'bg-green-500' : d.safetyScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${d.safetyScore}%` }} />
+                            <div className={`h-full rounded-full ${d.compositeScore >= 80 ? 'bg-green-500' : d.compositeScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${d.compositeScore}%` }} />
                           </div>
-                          <span className="text-xs font-medium text-gray-600">{d.safetyScore}%</span>
+                          <span className="text-xs font-medium text-gray-600">{d.compositeScore}</span>
                         </div>
-                      ) : <span className="text-xs text-gray-300">\u2014</span>}
+                      ) : <span className="text-xs text-gray-400" title="Insufficient data — fewer than 3 completed trips in the window">Insufficient</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_MAP[d.status]?.color || 'bg-gray-100 text-gray-700'}`}>
@@ -301,7 +302,7 @@ export default function Drivers() {
         primary={d => [
           { label: 'Vehicle', value: d.assignedVehicleReg || 'Unassigned' },
           { label: 'Contact', value: d.phoneNumber || d.email || '—' },
-          { label: 'Safety', value: d.safetyScore != null ? `${d.safetyScore}%` : '—' },
+          { label: 'Score', value: d.compositeScore != null ? `${d.compositeScore}` : 'Insufficient data' },
           { label: 'Trips', value: d.tripCount },
         ]}
         details={d => (
@@ -346,11 +347,13 @@ export default function Drivers() {
 
 // ── View Detail Modal (Tabbed) ──────────────────────────
 function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: () => void }) {
-  type Tab = 'overview' | 'license' | 'scores' | 'safety' | 'assignment' | 'audit';
+  type Tab = 'overview' | 'license' | 'scores' | 'scorecard' | 'safety' | 'assignment' | 'audit';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [safetyEvents, setSafetyEvents] = useState<SafetyEvent[]>([]);
   const [safetyLoading, setSafetyLoading] = useState(false);
+  const [scorecard, setScorecard] = useState<any>(null);
+  const [scorecardLoading, setScorecardLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'audit') {
@@ -367,10 +370,20 @@ function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: (
       .finally(() => setSafetyLoading(false));
   }, [activeTab, driver.id]);
 
+  useEffect(() => {
+    if (activeTab !== 'scorecard') return;
+    setScorecardLoading(true);
+    api.get(`/drivers/${driver.id}/scorecard?window=30d`)
+      .then(r => setScorecard(r.data.data))
+      .catch(() => setScorecard(null))
+      .finally(() => setScorecardLoading(false));
+  }, [activeTab, driver.id]);
+
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: 'overview', label: 'Overview', icon: Users },
     { key: 'license', label: 'License', icon: CreditCard },
     { key: 'scores', label: 'Scores', icon: Award },
+    { key: 'scorecard', label: 'Scorecard', icon: Shield },
     { key: 'safety', label: 'Safety Events', icon: AlertTriangle },
     { key: 'assignment', label: 'Assignment', icon: Truck },
     { key: 'audit', label: 'Audit Log', icon: Shield },
@@ -491,6 +504,90 @@ function DriverViewModal({ driver, onClose }: { driver: DriverDetail; onClose: (
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'scorecard' && (
+            <div className="space-y-5">
+              {scorecardLoading ? (
+                <div className="text-sm text-gray-400 py-8 text-center">Loading scorecard…</div>
+              ) : !scorecard ? (
+                <div className="text-sm text-gray-400 py-8 text-center">Scorecard unavailable (driverscore.view required)</div>
+              ) : (
+                <>
+                  {scorecard.insufficientData ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800">
+                      <b>Insufficient data.</b> This driver has fewer than 3 completed trips in the 30-day window — a score would be misleading, so none is shown.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+                        <div className="text-4xl font-bold text-gray-900">{scorecard.scores?.composite ?? '—'}</div>
+                        <div className="text-sm text-gray-500 mt-1">Composite Score</div>
+                        <div className="text-[10px] text-gray-400 mt-1">{scorecard.tripCount} trips · {scorecard.eventCount} events</div>
+                      </div>
+                      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                        {[
+                          { key: 'safety', label: 'Safety', color: 'bg-emerald-500' },
+                          { key: 'compliance', label: 'Compliance', color: 'bg-blue-500' },
+                          { key: 'punctuality', label: 'Punctuality', color: 'bg-purple-500' },
+                          { key: 'behavior', label: 'Behavior', color: 'bg-amber-500' },
+                        ].map(c => (
+                          <div key={c.key}>
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                              <span>{c.label}</span>
+                              <span className="font-medium text-gray-800">{scorecard.scores?.[c.key] ?? '—'}</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${c.color}`} style={{ width: `${scorecard.scores?.[c.key] ?? 0}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <Shield className="w-3.5 h-3.5" />
+                    Weighting: {scorecard.weights?.safety}×Safety + {scorecard.weights?.compliance}×Compliance + {scorecard.weights?.punctuality}×Punctuality + {scorecard.weights?.behavior}×Behavior
+                    <span className={`px-1.5 py-0.5 rounded-full ${scorecard.weights?.source === 'company' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {scorecard.weights?.source === 'company' ? 'company override' : 'platform default'}
+                    </span>
+                  </div>
+
+                  {(scorecard.topEvents?.length > 0) && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Events that most affected this period</div>
+                      {scorecard.topEvents.map((e: any) => (
+                        <div key={e.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                            <span className="font-medium text-gray-800">{e.eventTypeName}</span>
+                            <span className="text-xs text-gray-400">{new Date(e.eventTimeUtc).toLocaleString()}</span>
+                            {e.mediaUrl && <a href={e.mediaUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">media</a>}
+                          </div>
+                          <span className="text-xs font-medium text-red-500">−{e.deduction}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {scorecard.trend?.length > 1 && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Trend (30-day window)</div>
+                      <div className="flex items-end gap-1 h-12">
+                        {scorecard.trend.map((t: any) => (
+                          <div key={t.anchorDate} className="flex-1 flex flex-col items-center gap-0.5">
+                            <span className="text-[9px] text-gray-400">{t.composite}</span>
+                            <div className={`w-full rounded-t ${(t.composite ?? 0) >= 60 ? 'bg-blue-400' : 'bg-red-400'}`}
+                              style={{ height: `${Math.max(6, (t.composite ?? 0))}%` }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

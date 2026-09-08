@@ -23,13 +23,15 @@ public class RolesController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly TargetCompanyResolver _targetCompany;
     private readonly INotificationService _notificationService;
-    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, TargetCompanyResolver targetCompany, INotificationService notificationService)
+    private readonly AuditLogService _audit;
+    public RolesController(ApplicationDbContext db, IPermissionService permissionService, ITenantContext tenant, TargetCompanyResolver targetCompany, INotificationService notificationService, AuditLogService audit)
     {
         _db = db;
         _permissionService = permissionService;
         _tenant = tenant;
         _targetCompany = targetCompany;
         _notificationService = notificationService;
+        _audit = audit;
     }
 
     [HttpGet]
@@ -177,19 +179,20 @@ public class RolesController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        _db.AuditLogs.Add(new AuditLog
+        _audit.TryRecord(new AuditLogRecord
         {
-            Id = Guid.NewGuid(),
-            TenantId = companyId,
-            UserId = User.GetUserId(),
-            UserName = User.GetEmail(),
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
             Action = AuditAction.Create,
+            ActionCode = "role.created",
             EntityType = EntityType.Role,
             EntityId = role.Id,
             EntityName = role.Name,
-            NewValues = System.Text.Json.JsonSerializer.Serialize(new { role.Name, role.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 })
+            TargetCompanyId = companyId,
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new { role.Name, role.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 }),
+            IpAddress = _tenant.IpAddress
         });
-        await _db.SaveChangesAsync();
 
         // Invalidate all permission caches for this tenant
         _permissionService.InvalidateAllCache();
@@ -275,20 +278,39 @@ public class RolesController : ControllerBase
             "UPDATE \"Roles\" SET \"Name\" = @name, \"Description\" = @description, \"UpdatedAt\" = now() WHERE \"Id\" = @roleId",
             nameParam, descParam, roleIdParam2);
 
-        // Step 6: Audit log
-        _db.AuditLogs.Add(new AuditLog
+        // Step 6: Audit log — target company is the ROLE's company (not the
+        // actor's), so cross-tenant role edits are attributable correctly.
+        var oldRolePermCodes = await _db.Permissions.AsNoTracking()
+            .Where(p => oldRolePermIds.Contains(p.Id) && !p.IsDeleted)
+            .Select(p => p.Code)
+            .ToListAsync();
+        var newRolePermCodes = await _db.Permissions.AsNoTracking()
+            .Where(p => finalPermIds.Contains(p.Id) && !p.IsDeleted)
+            .Select(p => p.Code)
+            .ToListAsync();
+        var permsChanged = dto.PermissionIds != null
+            && !oldRolePermCodes.OrderBy(c => c).SequenceEqual(newRolePermCodes.OrderBy(c => c));
+
+        var roleName = dto.Name ?? roleExists.Name;
+        _audit.TryRecord(new AuditLogRecord
         {
-            Id = Guid.NewGuid(),
-            TenantId = tenantId,
-            UserId = User.GetUserId(),
-            UserName = User.GetEmail(),
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
             Action = AuditAction.Update,
+            ActionCode = permsChanged ? "role.permission_updated" : "role.updated",
             EntityType = EntityType.Role,
             EntityId = id,
-            EntityName = dto.Name ?? roleExists.Name,
-            NewValues = System.Text.Json.JsonSerializer.Serialize(new { Name = dto.Name, Description = dto.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 })
+            EntityName = roleName,
+            TargetCompanyId = roleExists.CompanyId,
+            BeforeState = permsChanged
+                ? System.Text.Json.JsonSerializer.Serialize(new { permissionIds = oldRolePermCodes })
+                : null,
+            AfterState = permsChanged
+                ? System.Text.Json.JsonSerializer.Serialize(new { Name = roleName, permissionIds = newRolePermCodes })
+                : System.Text.Json.JsonSerializer.Serialize(new { Name = roleName, Description = dto.Description, PermissionCount = dto.PermissionIds?.Count ?? 0 }),
+            IpAddress = _tenant.IpAddress
         });
-        await _db.SaveChangesAsync();
 
         // Invalidate all permission caches for this tenant
         _permissionService.InvalidateAllCache();
@@ -333,18 +355,19 @@ public class RolesController : ControllerBase
         role.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        _db.AuditLogs.Add(new AuditLog
+        _audit.TryRecord(new AuditLogRecord
         {
-            Id = Guid.NewGuid(),
-            TenantId = tenantId,
-            UserId = User.GetUserId(),
-            UserName = User.GetEmail(),
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
             Action = AuditAction.Delete,
+            ActionCode = "role.deleted",
             EntityType = EntityType.Role,
             EntityId = id,
-            EntityName = roleName
+            EntityName = roleName,
+            TargetCompanyId = role.CompanyId,
+            IpAddress = _tenant.IpAddress
         });
-        await _db.SaveChangesAsync();
 
         // Invalidate all permission caches for this tenant
         _permissionService.InvalidateAllCache();

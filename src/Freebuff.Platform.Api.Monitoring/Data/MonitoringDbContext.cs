@@ -31,6 +31,10 @@ public class MonitoringDbContext : DbContext
         modelBuilder.Entity<AlertConfiguration>().Ignore(ac => ac.Company);
         modelBuilder.Entity<FuelRecord>().Ignore(f => f.Vehicle);
         modelBuilder.Entity<MaintenanceRecord>().Ignore(m => m.Vehicle);
+        // The MaintenanceSchedule navigation pulls Company (and its Subscription
+        // pair) into this bounded context's model, where the one-to-one mapping
+        // is ambiguous — cross-service navigations stay ignored here.
+        modelBuilder.Entity<MaintenanceRecord>().Ignore(m => m.MaintenanceSchedule);
         modelBuilder.Entity<Notification>().Ignore(n => n.User);
 
         modelBuilder.Entity<Alert>(b =>

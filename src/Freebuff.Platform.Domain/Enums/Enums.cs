@@ -33,6 +33,8 @@ public enum EntityType
     Report = 19,
     Device = 20,
     Route = 21,
+    ShareLink = 22,
+    DeviceVendor = 23,
     Other = 99
 }
 
@@ -274,6 +276,30 @@ public enum FuelType
     Hybrid = 5,
     Hydrogen = 6,
     Other = 7
+}
+
+/// <summary>What drove a maintenance action: a scheduled preventive interval, or an unscheduled breakdown.</summary>
+public enum MaintenanceRecordType
+{
+    Preventive = 0,
+    Breakdown = 1
+}
+
+/// <summary>How a maintenance schedule computes its next due point.</summary>
+public enum MaintenanceTriggerType
+{
+    MileageInterval = 0,
+    TimeInterval = 1,
+    EngineHoursInterval = 2
+}
+
+/// <summary>Urgency of a maintenance schedule against the vehicle's current readings.</summary>
+public enum MaintenanceDueStatus
+{
+    Ok = 0,
+    DueSoon = 1,
+    Overdue = 2,
+    NoData = 3
 }
 
 public enum MapProvider

@@ -15,7 +15,18 @@ public class AuditLog
     public string? CreatedBy { get; set; }
 
     public AuditAction Action { get; set; }
+
+    /// <summary>
+    /// Fine-grained, human-meaningful action code (e.g. "role.permission_updated",
+    /// "scope.switched", "share_link.revoked"). Coarser than the Action enum;
+    /// this is what the Audit Log UI filters on.
+    /// </summary>
+    public string? ActionCode { get; set; }
+
     public EntityType EntityType { get; set; }
+
+    /// <summary>Display role of the actor at the time of the action (e.g. "SuperAdmin").</summary>
+    public string? ActorRole { get; set; }
     public Guid EntityId { get; set; }
     public string? EntityName { get; set; }
     public string? OldValues { get; set; } // JSON

@@ -152,11 +152,19 @@ public sealed class TargetCompanyWriteTests : IClassFixture<E2eFixture>
                 _output.WriteLine($"PASS  {r.Key,-9} Basic Admin forged companyId → lands in OWN company (forced)");
 
                 // ── Audit: the cross-tenant write (3) left a trail ─────────────
-                var audit = await _db.ScalarAsync(
-                    $"SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"TenantId\" = '{basicId}' AND \"EntityType\" = {r.EntityType} " +
-                    $"AND \"Source\" = 'SuperAdmin cross-tenant write'");
-                Assert.True(int.TryParse(audit, out var n) && n >= 1,
-                    $"{r.Key}: expected ≥1 cross-tenant audit row for target company basic, found {audit}");
+                // Writes are async (background writer) — poll until the row lands.
+                var found = false;
+                var deadline = DateTime.UtcNow.AddSeconds(8);
+                while (DateTime.UtcNow < deadline)
+                {
+                    var audit = await _db.ScalarAsync(
+                        $"SELECT COUNT(*) FROM \"AuditLogs\" WHERE \"TenantId\" = '{basicId}' AND \"EntityType\" = {r.EntityType} " +
+                        $"AND \"Source\" = 'SuperAdmin cross-tenant write'");
+                    if (int.TryParse(audit, out var n) && n >= 1) { found = true; break; }
+                    await Task.Delay(200);
+                }
+                Assert.True(found,
+                    $"{r.Key}: expected ≥1 cross-tenant audit row for target company basic");
                 _output.WriteLine($"PASS  {r.Key,-9} audit trail written for the cross-tenant create");
             }
         }

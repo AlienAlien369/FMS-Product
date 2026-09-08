@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Truck, Users, Globe, Navigation,
   Settings, Shield, Package, Crown, UserCog, FileText, CreditCard,
-  Bell, Fuel, Wrench, Radio, Cpu,
+  Bell, Fuel, Wrench, Radio, Cpu, ScrollText, Award,
 } from 'lucide-react';
 
 /**
@@ -72,11 +72,12 @@ export const PAGES: PageDef[] = [
   { key: 'geofence',     label: 'Geofences',           route: '/geofences',       icon: Globe,           nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 5 },
   { key: 'route',        label: 'Routes',              route: '/routes',          icon: Navigation,      nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 6 },
   { key: 'trip',         label: 'Trips',               route: '/trips',           icon: Navigation,          nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 7 },
+  { key: 'driverscore',  label: 'Driver Scorecards',   route: '/drivers/scorecards', icon: Award,          nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 8 },
   { key: 'pod',          label: 'Proof of Delivery',   icon: FileText,            nav: false, adminOnly: false, planned: false, module: 'fleet',        order: 8 },
-  { key: 'alert',        label: 'Alerts',              icon: Bell,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 9 },
-  { key: 'fuel',         label: 'Fuel',                icon: Fuel,                nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 9 },
-  { key: 'maintenance',  label: 'Maintenance',         icon: Wrench,              nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 10 },
-  { key: 'report',       label: 'Reports',             icon: FileText,            nav: false, adminOnly: false, planned: true,  module: 'fleet',        order: 11 },
+  { key: 'alert',        label: 'Alerts',              route: '/alerts',          icon: Bell,                nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 9 },
+  { key: 'fuel',         label: 'Fuel',                route: '/fuel',            icon: Fuel,                nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 9 },
+  { key: 'maintenance',  label: 'Maintenance',         route: '/maintenance',     icon: Wrench,              nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 10 },
+  { key: 'report',       label: 'Reports',             route: '/reports',         icon: FileText,            nav: true,  adminOnly: false, planned: false, module: 'fleet',        order: 11 },
 
   // ── Organization & Access module ─────────────────────────────────────────
   { key: 'company',      label: 'Companies',           route: '/companies',       icon: Building2,       nav: true,  adminOnly: false, planned: false, module: 'organization', order: 11 },
@@ -88,6 +89,7 @@ export const PAGES: PageDef[] = [
   { key: 'subscription', label: 'Subscription',  icon: CreditCard,              nav: false, adminOnly: false, planned: false, module: 'organization', order: 17 },
   { key: 'client',       label: 'Clients',       icon: Building2,  nav: false, adminOnly: false, planned: true,  module: 'organization', order: 18 },
   { key: 'notification', label: 'Notifications', route: '/notifications', icon: Bell, nav: true, adminOnly: false, planned: false, module: 'organization', order: 19 },
+  { key: 'audit',        label: 'Audit Log',     route: '/admin/audit-log', icon: ScrollText, nav: true, adminOnly: false, planned: false, module: 'organization', order: 20 },
 
   // ── Platform Administration module ───────────────────────────────────────
   { key: 'platform',     label: 'Platform Admin',      route: '/admin/companies', icon: Crown,           nav: true,  adminOnly: true,  planned: false, module: 'platform',     order: 20 },

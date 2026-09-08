@@ -4,6 +4,7 @@ using Freebuff.Platform.Domain.Entities;
 using Freebuff.Platform.Domain.Enums;
 using Freebuff.Platform.Infrastructure.CompanyScope;
 using Freebuff.Platform.Infrastructure.Data;
+using Freebuff.Platform.Infrastructure.Services;
 using Freebuff.Platform.Shared.Extensions;
 using Freebuff.Platform.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,9 @@ public class UsersController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly ITenantContext _tenant;
     private readonly TargetCompanyResolver _targetCompany;
-    public UsersController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany) { _db = db; _tenant = tenant; _targetCompany = targetCompany; }
+    private readonly AuditLogService _audit;
+    public UsersController(ApplicationDbContext db, ITenantContext tenant, TargetCompanyResolver targetCompany, AuditLogService audit)
+    { _db = db; _tenant = tenant; _targetCompany = targetCompany; _audit = audit; }
 
     [HttpGet]
     [RequirePermission("user.view")]
@@ -127,8 +130,28 @@ public class UsersController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        _targetCompany.Audit(AuditAction.Create, EntityType.User, user.Id, user.Email, null, companyId);
-        await _db.SaveChangesAsync();
+
+        // User lifecycle is logged for EVERY create (not just cross-tenant) —
+        // the target company recorded is the account's company.
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.Create,
+            ActionCode = "user.created",
+            EntityType = EntityType.User,
+            EntityId = user.Id,
+            EntityName = user.Email,
+            TargetCompanyId = companyId,
+            AfterState = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                roleIds = dto.RoleIds ?? new List<Guid>()
+            }),
+            IpAddress = _tenant.IpAddress
+        });
 
         return CreatedAtAction(nameof(GetById), new { id = user.Id }, ApiResponse<object>.Ok(new
         {
@@ -148,6 +171,10 @@ public class UsersController : ControllerBase
 
         if (user == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "User not found"));
 
+        // Snapshot the pre-update status BEFORE any field mutation so the
+        // deactivation audit can diff correctly.
+        var oldStatus = user.Status;
+
         if (dto.FirstName != null) user.FirstName = dto.FirstName;
         if (dto.LastName != null) user.LastName = dto.LastName;
         if (dto.PhoneNumber != null) user.PhoneNumber = dto.PhoneNumber;
@@ -156,6 +183,7 @@ public class UsersController : ControllerBase
         if (dto.Currency != null) user.Currency = dto.Currency;
         if (dto.Status.HasValue) user.Status = (EntityStatus)dto.Status.Value;
 
+        var oldRoleIds = user.UserRoles.Where(ur => !ur.IsDeleted).Select(ur => ur.RoleId).ToList();
         if (dto.RoleIds != null)
         {
             var existingRoles = user.UserRoles.Where(ur => !ur.IsDeleted).ToList();
@@ -174,6 +202,50 @@ public class UsersController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        var roleChanged = dto.RoleIds != null
+            && !oldRoleIds.OrderBy(r => r).SequenceEqual(dto.RoleIds.OrderBy(r => r));
+        var deactivated = dto.Status.HasValue
+            && oldStatus != (EntityStatus)dto.Status.Value
+            && (EntityStatus)dto.Status.Value is EntityStatus.Inactive or EntityStatus.Suspended;
+
+        if (roleChanged)
+        {
+            _audit.TryRecord(new AuditLogRecord
+            {
+                ActorUserId = User.GetUserId(),
+                ActorRole = _tenant.UserRole,
+                ActorEmail = User.GetEmail(),
+                Action = AuditAction.RoleChange,
+                ActionCode = "user.role_changed",
+                EntityType = EntityType.User,
+                EntityId = id,
+                EntityName = user.Email,
+                TargetCompanyId = user.CompanyId,
+                BeforeState = System.Text.Json.JsonSerializer.Serialize(new { roleIds = oldRoleIds }),
+                AfterState = System.Text.Json.JsonSerializer.Serialize(new { roleIds = dto.RoleIds }),
+                IpAddress = _tenant.IpAddress
+            });
+        }
+        if (deactivated)
+        {
+            _audit.TryRecord(new AuditLogRecord
+            {
+                ActorUserId = User.GetUserId(),
+                ActorRole = _tenant.UserRole,
+                ActorEmail = User.GetEmail(),
+                Action = AuditAction.Update,
+                ActionCode = "user.deactivated",
+                EntityType = EntityType.User,
+                EntityId = id,
+                EntityName = user.Email,
+                TargetCompanyId = user.CompanyId,
+                BeforeState = System.Text.Json.JsonSerializer.Serialize(new { status = (int)oldStatus }),
+                AfterState = System.Text.Json.JsonSerializer.Serialize(new { status = dto.Status }),
+                IpAddress = _tenant.IpAddress
+            });
+        }
+
         return Ok(ApiResponse.Ok(message: "User updated"));
     }
 
@@ -188,9 +260,25 @@ public class UsersController : ControllerBase
 
         if (user == null) return NotFound(ApiResponse.Fail("NOT_FOUND", "User not found"));
 
+        var email = user.Email;
+        var companyId = user.CompanyId;
         user.IsDeleted = true;
         user.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        _audit.TryRecord(new AuditLogRecord
+        {
+            ActorUserId = User.GetUserId(),
+            ActorRole = _tenant.UserRole,
+            ActorEmail = User.GetEmail(),
+            Action = AuditAction.Delete,
+            ActionCode = "user.deleted",
+            EntityType = EntityType.User,
+            EntityId = id,
+            EntityName = email,
+            TargetCompanyId = companyId,
+            IpAddress = _tenant.IpAddress
+        });
         return Ok(ApiResponse.Ok(message: "User deleted"));
     }
 }

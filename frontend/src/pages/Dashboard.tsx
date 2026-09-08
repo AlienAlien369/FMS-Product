@@ -22,42 +22,34 @@ export default function Dashboard() {
   const [vehicleStatus, setVehicleStatus] = useState<{ Status: string; Count: number }[]>([]);
   const [fuelTypes, setFuelTypes] = useState<{ FuelType: string; Count: number }[]>([]);
   const [driverStatus, setDriverStatus] = useState<{ Status: string; Count: number }[]>([]);
-  const [topDrivers, setTopDrivers] = useState<{ Name: string; SafetyScore: number; BehaviourScore?: number | null }[]>([]);
-  const [safetyScoreSource, setSafetyScoreSource] = useState<'events' | 'profile'>('profile');
+  const [scoreOverview, setScoreOverview] = useState<{ average: number; belowThresholdCount: number; threshold: number; insufficientDataCount: number; distribution: { bucket: string; count: number }[] } | null>(null);
   const [recentVehicles, setRecentVehicles] = useState<any[]>([]);
   const [fleetHealth, setFleetHealth] = useState<{ overSpeedCount: number; tyreAnomalyCount: number; withSpeedPolicy: number; withTyrePolicy: number } | null>(null);
+  const [fuelOverview, setFuelOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [s, vs, ft, ds, td, ss, rv, fh] = await Promise.all([
+        const [s, vs, ft, ds, so, rv, fh, fo] = await Promise.all([
           api.get('/dashboard/stats'),
           api.get('/dashboard/vehicles/by-status'),
           api.get('/dashboard/vehicles/by-fuel-type'),
           api.get('/dashboard/drivers/by-status'),
-          api.get('/dashboard/drivers/top-safety'),
-          api.get('/dashboard/drivers/safety-scores'),
+          api.get('/dashboard/drivers/scorecard-overview'),
           api.get('/dashboard/vehicles/recent'),
           api.get('/dashboard/fleet-health'),
+          api.get('/dashboard/fuel-overview'),
         ]);
         setStats(s.data.data);
         // API returns camelCase rows; normalize to the shape the render code consumes.
         setVehicleStatus((vs.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
         setFuelTypes((ft.data.data || []).map((x: any) => ({ FuelType: x.fuelType, Count: x.count })));
         setDriverStatus((ds.data.data || []).map((x: any) => ({ Status: x.status, Count: x.count })));
-        // Driver Safety Scores widget: prefer REAL event-derived scores from the
-        // driver-behavior pipeline; fall back to the static profile scores.
-        const safetyRows = (ss.data.data || []) as { name: string; score: number }[];
-        if (safetyRows.length > 0) {
-          setTopDrivers(safetyRows.map((x: any) => ({ Name: x.name, SafetyScore: x.score, BehaviourScore: null })));
-          setSafetyScoreSource('events');
-        } else {
-          setTopDrivers((td.data.data || []).map((x: any) => ({ Name: x.name, SafetyScore: x.safetyScore, BehaviourScore: x.behaviourScore })));
-          setSafetyScoreSource('profile');
-        }
+        setScoreOverview(so.data.data || null);
         setRecentVehicles(rv.data.data || []);
         setFleetHealth(fh.data.data || null);
+        setFuelOverview(fo.data.data || null);
       } catch (err) { console.error(err); }
       setLoading(false);
     };
@@ -178,6 +170,58 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Fuel Consumption & Cost (30d) — real fuel transaction data */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900">Fuel Consumption & Cost</h3>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">last 30 days</span>
+          </div>
+          {!fuelOverview || fuelOverview.transactionCount === 0 ? (
+            <div className="h-48 flex items-center justify-center text-gray-400 text-sm">No fuel transactions yet — log fill-ups on the Fuel page</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-900">${fuelOverview.totalSpend?.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Total spend</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-900">{fuelOverview.totalLiters?.toLocaleString()} L</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Fuel consumed</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-xl font-bold ${fuelOverview.avgEfficiencyKmPerLiter != null ? 'text-gray-900' : 'text-gray-300'}`}>{fuelOverview.avgEfficiencyKmPerLiter ?? '—'}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">km / liter</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-xl font-bold ${fuelOverview.costPerKm != null ? 'text-gray-900' : 'text-gray-300'}`}>{fuelOverview.costPerKm != null ? `$${fuelOverview.costPerKm}` : '—'}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">cost / km</div>
+                </div>
+              </div>
+              {fuelOverview.anomalyCount > 0 && (
+                <p className="text-[11px] text-red-600 font-medium">{fuelOverview.anomalyCount} transaction(s) flagged as anomalies</p>
+              )}
+              {(fuelOverview.topConsumers || []).length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">Top consumers</div>
+                  {(fuelOverview.topConsumers as any[]).map((c: any) => {
+                    const max = Math.max(1, ...(fuelOverview.topConsumers as any[]).map((x: any) => x.liters));
+                    return (
+                      <div key={c.vehicleId} className="flex items-center gap-2">
+                        <span className="w-24 truncate text-[11px] text-gray-600">{c.registration}</span>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-blue-400" style={{ width: `${(c.liters / max) * 100}%` }} />
+                        </div>
+                        <span className="w-14 text-right text-[11px] text-gray-600">{c.liters} L</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Driver Status */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Driver Availability</h3>
@@ -209,32 +253,50 @@ export default function Dashboard() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Safety Drivers - Radar */}
+        {/* Driver Safety Scores — wired to materialized scorecard data */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-900">Driver Safety Scores</h3>
-            {safetyScoreSource === 'events' && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700" title="Derived from live driver-behavior events (DMS)">
-                live events
+            {scoreOverview && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700" title="Aggregated from materialized driver scorecards (30-day window)">
+                30-day scorecards
               </span>
             )}
           </div>
-          {topDrivers.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No driver scores available</div>
+          {!scoreOverview || (scoreOverview.distribution ?? []).every((d: any) => d.count === 0) ? (
+            <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No driver scores available — scores materialize from events + completed trips</div>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={topDrivers} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} />
-                <YAxis dataKey="Name" type="category" tick={{ fontSize: 10 }} width={80} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="SafetyScore" fill="#3b82f6" name="Safety" radius={[0, 4, 4, 0]} />
-                {safetyScoreSource === 'profile' && (
-                  <Bar dataKey="BehaviourScore" fill="#10b981" name="Behaviour" radius={[0, 4, 4, 0]} />
-                )}
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">{scoreOverview.average}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Fleet average</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${scoreOverview.belowThresholdCount > 0 ? 'text-red-500' : 'text-gray-900'}`}>{scoreOverview.belowThresholdCount}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Below {scoreOverview.threshold}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-400">{scoreOverview.insufficientDataCount}</div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Insufficient data</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {scoreOverview.distribution.map((b: any) => {
+                  const max = Math.max(1, ...scoreOverview.distribution.map((x: any) => x.count));
+                  return (
+                    <div key={b.bucket} className="flex items-center gap-2">
+                      <span className="w-12 text-[10px] text-gray-500">{b.bucket}</span>
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${b.bucket.split('-')[0] === '0' || b.bucket.startsWith('21') ? 'bg-red-400' : b.bucket.startsWith('41') ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                          style={{ width: `${(b.count / max) * 100}%` }} />
+                      </div>
+                      <span className="w-6 text-xs text-gray-600">{b.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
 

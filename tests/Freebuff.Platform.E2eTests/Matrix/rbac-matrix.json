@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T05:04:20.4104973Z",
+  "generatedAt": "2026-09-08T01:06:53.1366428Z",
   "description": "RBAC \u002B module/package matrix oracle, derived from the live seed \u002B PageRegistry. expected = role grants \u2229 company package modules (SuperAdmin bypasses).",
   "roles": [
     {
@@ -21,6 +21,12 @@
         "alerttype.import",
         "alerttype.update",
         "alerttype.view",
+        "audit.create",
+        "audit.delete",
+        "audit.export",
+        "audit.import",
+        "audit.update",
+        "audit.view",
         "client.create",
         "client.delete",
         "client.export",
@@ -63,6 +69,12 @@
         "driver.import",
         "driver.update",
         "driver.view",
+        "driverscore.create",
+        "driverscore.delete",
+        "driverscore.export",
+        "driverscore.import",
+        "driverscore.update",
+        "driverscore.view",
         "fuel.create",
         "fuel.delete",
         "fuel.export",
@@ -510,6 +522,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": true,
@@ -1175,6 +1235,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -1474,7 +1582,7 @@
     {
       "role": "Company Admin",
       "email": "admin@demofleet.com",
-      "companyId": "0df6177b-b42e-4e94-898a-a3ba9bcdddee",
+      "companyId": "5ce6ccc4-2404-4e59-bf7c-aac7d36cb470",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -1482,6 +1590,12 @@
         "organization"
       ],
       "effective": [
+        "audit.create",
+        "audit.delete",
+        "audit.export",
+        "audit.import",
+        "audit.update",
+        "audit.view",
         "company.create",
         "company.delete",
         "company.export",
@@ -1512,6 +1626,12 @@
         "driver.import",
         "driver.update",
         "driver.view",
+        "driverscore.create",
+        "driverscore.delete",
+        "driverscore.export",
+        "driverscore.import",
+        "driverscore.update",
+        "driverscore.view",
         "geofence.create",
         "geofence.delete",
         "geofence.export",
@@ -1917,6 +2037,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": true,
@@ -2582,6 +2750,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": true,
           "coveredByPermMatrix": true,
@@ -2881,7 +3097,7 @@
     {
       "role": "Fleet Manager",
       "email": "e2e.fleetmanager@demo.test",
-      "companyId": "0df6177b-b42e-4e94-898a-a3ba9bcdddee",
+      "companyId": "5ce6ccc4-2404-4e59-bf7c-aac7d36cb470",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -3264,6 +3480,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": false,
@@ -3929,6 +4193,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -4228,7 +4540,7 @@
     {
       "role": "Read Only",
       "email": "e2e.readonly@demo.test",
-      "companyId": "0df6177b-b42e-4e94-898a-a3ba9bcdddee",
+      "companyId": "5ce6ccc4-2404-4e59-bf7c-aac7d36cb470",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -4586,6 +4898,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": false,
@@ -5251,6 +5611,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -5550,7 +5958,7 @@
     {
       "role": "Ops Manager",
       "email": "e2e.ops@demo.test",
-      "companyId": "0df6177b-b42e-4e94-898a-a3ba9bcdddee",
+      "companyId": "5ce6ccc4-2404-4e59-bf7c-aac7d36cb470",
       "package": "Professional",
       "modules": [
         "dashboard",
@@ -5928,6 +6336,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": false,
@@ -6593,6 +7049,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -6892,7 +7396,7 @@
     {
       "role": "Basic Admin",
       "email": "e2e.admin@basic.test",
-      "companyId": "7b672f99-bb8c-4124-85ce-585a2c7c5ab0",
+      "companyId": "a41c9eed-f2bd-444e-911c-af8a138a9d28",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -6917,6 +7421,12 @@
         "driver.import",
         "driver.update",
         "driver.view",
+        "driverscore.create",
+        "driverscore.delete",
+        "driverscore.export",
+        "driverscore.import",
+        "driverscore.update",
+        "driverscore.view",
         "geofence.create",
         "geofence.delete",
         "geofence.export",
@@ -7286,6 +7796,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": true,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": true,
@@ -7951,6 +8509,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -8250,7 +8856,7 @@
     {
       "role": "Basic Viewer",
       "email": "e2e.viewer@basic.test",
-      "companyId": "7b672f99-bb8c-4124-85ce-585a2c7c5ab0",
+      "companyId": "a41c9eed-f2bd-444e-911c-af8a138a9d28",
       "package": "Basic",
       "modules": [
         "dashboard",
@@ -8602,6 +9208,54 @@
           "httpTested": false
         },
         {
+          "page": "driverscore",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "driverscore",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
           "page": "pod",
           "action": "view",
           "expected": false,
@@ -9267,6 +9921,54 @@
         },
         {
           "page": "notification",
+          "action": "import",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "view",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "create",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "update",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "delete",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
+          "action": "export",
+          "expected": false,
+          "coveredByPermMatrix": true,
+          "hasHttpEndpoint": false,
+          "httpTested": false
+        },
+        {
+          "page": "audit",
           "action": "import",
           "expected": false,
           "coveredByPermMatrix": true,
@@ -9591,8 +10293,8 @@
     }
   ],
   "coverage": {
-    "totalCells": 1134,
-    "cellsCoveredByPermMatrix": 1134,
+    "totalCells": 1218,
+    "cellsCoveredByPermMatrix": 1218,
     "cellsWithHttpEndpointTest": 217
   }
 }

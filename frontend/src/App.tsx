@@ -12,6 +12,7 @@ import Devices from './pages/Devices';
 import DeviceVendors from './pages/DeviceVendors';
 import AlertTypes from './pages/AlertTypes';
 import Drivers from './pages/Drivers';
+import DriversScorecards from './pages/DriversScorecards';
 import Localization from './pages/Localization';
 import Settings from './pages/Settings';
 import Modules from './pages/Modules';
@@ -21,8 +22,13 @@ import AdminCompanies from './pages/AdminCompanies';
 import CompanyDetail from './pages/CompanyDetail';
 import Packages from './pages/Packages';
 import RoutesPage from './pages/Routes';
+import AuditLogPage from './pages/AuditLog';
 import GeofencesPage from './pages/Geofences';
 import TripsPage from './pages/Trips';
+import FuelPage from './pages/Fuel';
+import MaintenancePage from './pages/Maintenance';
+import ReportsPage from './pages/Reports';
+import AlertsPage from './pages/Alerts';
 import PublicTracking from './pages/PublicTracking';
 import NotificationsPage from './pages/Notifications';
 import NotificationSettings from './pages/NotificationSettings';
@@ -50,6 +56,7 @@ function AppRoutes() {
         <Route path="/vehicles" element={<PermissionRoute permission={pagePermission('vehicle')}><Vehicles /></PermissionRoute>} />
         <Route path="/devices" element={<PermissionRoute permission={pagePermission('device')}><Devices /></PermissionRoute>} />
         <Route path="/drivers" element={<PermissionRoute permission={pagePermission('driver')}><Drivers /></PermissionRoute>} />
+        <Route path="/drivers/scorecards" element={<PermissionRoute permission={pagePermission('driverscore')}><DriversScorecards /></PermissionRoute>} />
         <Route path="/geofences" element={<PermissionRoute permission={pagePermission('geofence')}><GeofencesPage /></PermissionRoute>} />
         <Route path="/admin/companies" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><AdminCompanies /></PermissionRoute>} />
         <Route path="/admin/companies/:id" element={<PermissionRoute permission={pagePermission('platform')} adminOnly><CompanyDetail /></PermissionRoute>} />
@@ -63,8 +70,13 @@ function AppRoutes() {
         <Route path="/modules" element={<PermissionRoute permission={pagePermission('module')} adminOnly><Modules /></PermissionRoute>} />
         <Route path="/routes" element={<PermissionRoute permission={pagePermission('route')}><RoutesPage /></PermissionRoute>} />
         <Route path="/trips" element={<PermissionRoute permission={pagePermission('trip')}><TripsPage /></PermissionRoute>} />
+        <Route path="/fuel" element={<PermissionRoute permission={pagePermission('fuel')}><FuelPage /></PermissionRoute>} />
+        <Route path="/maintenance" element={<PermissionRoute permission={pagePermission('maintenance')}><MaintenancePage /></PermissionRoute>} />
+        <Route path="/reports" element={<PermissionRoute permission={pagePermission('report')}><ReportsPage /></PermissionRoute>} />
+        <Route path="/alerts" element={<PermissionRoute permission={pagePermission('alert')}><AlertsPage /></PermissionRoute>} />
         <Route path="/localization" element={<PermissionRoute permission={pagePermission('localization')}><Localization /></PermissionRoute>} />
         <Route path="/settings" element={<PermissionRoute permission={pagePermission('settings')}><Settings /></PermissionRoute>} />
+        <Route path="/admin/audit-log" element={<PermissionRoute permission={pagePermission('audit')}><AuditLogPage /></PermissionRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

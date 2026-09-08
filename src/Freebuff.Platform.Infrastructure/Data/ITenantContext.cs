@@ -10,7 +10,11 @@ public interface ITenantContext
     Guid? TenantId { get; }
     string? UserId { get; }
     string? UserRole { get; }
+    string? UserEmail { get; }
     bool IsSuperAdmin { get; }
+
+    /// <summary>Client IP of the current request, when available (audit entries).</summary>
+    string? IpAddress { get; }
 
     /// <summary>
     /// Effective company scope resolved for the current request (from the

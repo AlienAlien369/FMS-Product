@@ -47,16 +47,43 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
             query = query.Where(d => d.FirstName.Contains(filter.Search) || d.LastName.Contains(filter.Search) || d.EmployeeId.Contains(filter.Search));
 
         var totalCount = await query.CountAsync();
-        query = filter.SortBy?.ToLower() switch
-        {
-            "firstname" => filter.SortDescending ? query.OrderByDescending(d => d.FirstName) : query.OrderBy(d => d.FirstName),
-            "lastname" => filter.SortDescending ? query.OrderByDescending(d => d.LastName) : query.OrderBy(d => d.LastName),
-            _ => query.OrderBy(d => d.LastName)
-        };
+        var sortByComposite = string.Equals(filter.SortBy, "composite", StringComparison.OrdinalIgnoreCase);
 
-        var items = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
+        // Latest 30-day materialized composite per driver (Score column + composite sort).
+        Dictionary<Guid, decimal?> compositeByDriver;
+        List<Driver> items;
+        if (sortByComposite)
+        {
+            // Score sort needs the composite BEFORE paging — attach, sort (nulls
+            // last — insufficient data never ranks as a real score), then page.
+            var ids = await query.Select(d => d.Id).ToListAsync();
+            compositeByDriver = await LatestCompositesAsync(ids);
+            items = query.ToList();
+            items = (filter.SortDescending
+                    ? items.OrderByDescending(d => compositeByDriver.GetValueOrDefault(d.Id)).ThenBy(d => d.LastName)
+                    : items.OrderBy(d => compositeByDriver.GetValueOrDefault(d.Id)).ThenBy(d => d.LastName))
+                .ToList();
+            items = items.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToList();
+        }
+        else
+        {
+            query = filter.SortBy?.ToLower() switch
+            {
+                "firstname" => filter.SortDescending ? query.OrderByDescending(d => d.FirstName) : query.OrderBy(d => d.FirstName),
+                "lastname" => filter.SortDescending ? query.OrderByDescending(d => d.LastName) : query.OrderBy(d => d.LastName),
+                _ => query.OrderBy(d => d.LastName)
+            };
+            items = await query.Skip((filter.Page - 1) * filter.PageSize).Take(filter.PageSize).ToListAsync();
+            compositeByDriver = await LatestCompositesAsync(items.Select(i => i.Id).ToList());
+        }
+
         var dtos = new List<DriverDto>();
-        foreach (var item in items) dtos.Add(await MapToDtoAsync(item));
+        foreach (var item in items)
+        {
+            var dto = await MapToDtoAsync(item);
+            dto.CompositeScore = compositeByDriver.GetValueOrDefault(item.Id);
+            dtos.Add(dto);
+        }
 
         return new PagedResult<DriverDto>
         {
@@ -65,7 +92,22 @@ public class DriverService : ICrudService<DriverDto, CreateDriverDto, UpdateDriv
             Page = filter.Page,
             PageSize = filter.PageSize
         };
-    }    public async Task<DriverDto> CreateAsync(CreateDriverDto dto, string userId)
+    }
+
+    /// <summary>Latest 30-day DriverScorePeriod composite per driver (null when none materialized).</summary>
+    private async Task<Dictionary<Guid, decimal?>> LatestCompositesAsync(IReadOnlyCollection<Guid> driverIds)
+    {
+        if (driverIds.Count == 0) return new Dictionary<Guid, decimal?>();
+        var rows = await _db.DriverScorePeriods.AsNoTracking()
+            .Where(p => p.Window == "30d" && driverIds.Contains(p.DriverId))
+            .GroupBy(p => p.DriverId)
+            .Select(g => g.OrderByDescending(p => p.AnchorDate).ThenByDescending(p => p.ComputedAt).First())
+            .Select(p => new { p.DriverId, p.CompositeScore })
+            .ToListAsync();
+        return rows.ToDictionary(r => r.DriverId, r => r.CompositeScore);
+    }
+
+    public async Task<DriverDto> CreateAsync(CreateDriverDto dto, string userId)
     {
         // SuperAdmin must name the target company; company users are always
         // forced to their own tenant server-side.
